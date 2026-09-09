@@ -114,7 +114,6 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
   const [portfolioScope, setPortfolioScope] = useState<"current" | "history">("current");
   const [filter, setFilter] = useState<"all" | "call" | "put">("all");
   const [selected, setSelected] = useState<string | null>(null);
-  const [limit, setLimit] = useState(100);
   const [clock, setClock] = useState(0);
   const [busy, setBusy] = useState(false);
   const [noticeScope, setNoticeScope] = useState<"global" | "trade" | "create">("global");
@@ -390,7 +389,7 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
       const e = expiration(effectiveExpiry, Number(block.timestamp) * 1000);
       await executePrepared(await prepareCreateOffer(client, activeMarket, address!, { optionType: kind as 0 | 1, ...draft, expiry: e }));
       setTab("mine"); setPortfolioScope("current"); setQuantity(""); setStrike(""); setPremium(""); setExpiry(""); setPresetExpiry("");
-    }, "Offer created. Collateral has been deposited in the contract.");
+    }, "Option written. Collateral is deposited in its own option contract.");
   }
   async function transact(position: Position, action: string) {
     setNoticeScope("trade");
@@ -463,12 +462,19 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
       <button className="text-button" disabled={busy} onClick={() => openDetail(null)}>← Back to options</button>
       {detail ? <>
         <div className="section-head"><div><div className="eyebrow">{detail.optionType === 0 ? "CALL · RIGHT TO BUY" : "PUT · RIGHT TO SELL"}</div><h2 id="option-review-heading" tabIndex={-1}>{net.underlying.symbol} option</h2></div><span className="pill">{status(detail, now)}</span></div>
+        <div className="detail-role"><strong>{detail.writer.toLowerCase() === address?.toLowerCase() ? "You wrote this option" : detail.buyer.toLowerCase() === address?.toLowerCase() ? "You bought this option" : `Written by ${short(detail.writer)}`}</strong><span>{detail.state === 0 && detail.expiry > now ? "Awaiting buyer" : status(detail, now)}</span></div>
+        <section className="collateral-location" aria-label="Option collateral">
+          <span className="term-label">{detail.state <= 1 ? "Collateral deposited in this option" : "Collateral outcome"}</span>
+          <strong>{displayAmount(detail.optionType === 0 ? detail.underlyingAmount : detail.strikeTotal, detail.optionType === 0 ? net.underlying : net.quote)}</strong>
+          <p>{detail.state === 2 ? "Delivered to the buyer when the option was exercised." : detail.state >= 3 ? "Returned to the writer. This option no longer holds its agreed collateral." : detail.expiry <= now ? "The deadline has passed. The writer can reclaim this collateral; it does not return to the wallet automatically." : detail.state === 0 ? "Held in this option’s contract while it waits for a buyer. The writer can cancel to recover it. No premium has been paid yet." : "Held in this option’s contract to back the buyer’s exercise right. The writer cannot cancel a purchased option."}</p>
+          <div className="escrow-address">Option contract {explorer(`address/${detail.address}`, short(detail.address))}<button type="button" className="text-button" onClick={async () => { setNoticeScope("trade"); try { await navigator.clipboard.writeText(detail.address); setNotice("Option contract address copied."); } catch { setError("Could not copy. Find the full address in Contract details."); } }}>Copy address</button></div>
+        </section>
         <div className="purchase-cost">
-          <span>{detail.state === 0 ? (detail.writer.toLowerCase() === address?.toLowerCase() ? "Buyer pays" : "You pay now") : "Agreed premium"}</span>
+          <span>{detail.state === 0 ? (detail.writer.toLowerCase() === address?.toLowerCase() ? "You receive if someone buys" : "Cost to buy this option") : "Agreed premium"}</span>
           <strong>{displayAmount(detail.premium, net.quote)}</strong>
-          <small>{detail.state === 0 ? "Total premium for the entire option. Gas is paid separately." : "Premium is paid at purchase and is not refunded."}</small>
+          <small>{detail.state === 0 ? "One-time premium for the entire option. Exercise payment and gas are separate." : "Premium is paid at purchase and is not refunded."}</small>
         </div>
-        <div className="right-summary"><span className="term-label">{detail.writer.toLowerCase() === address?.toLowerCase() ? "The buyer’s right" : "Your right"}</span><p>{detail.optionType === 0 ? "Buy" : "Sell"} <strong>{displayAmount(detail.underlyingAmount, net.underlying)}</strong> for a total of <strong>{displayAmount(detail.strikeTotal, net.quote)}</strong> {detail.writer.toLowerCase() === address?.toLowerCase() ? "if the buyer exercises before expiration." : "if you exercise before expiration."}</p></div>
+        <div className="right-summary"><span className="term-label">{detail.writer.toLowerCase() === address?.toLowerCase() ? "The right you wrote for the buyer" : detail.state === 0 ? "The right you would buy" : "The buyer’s right"}</span><p>{detail.optionType === 0 ? "Buy" : "Sell"} <strong>{displayAmount(detail.underlyingAmount, net.underlying)}</strong> for a total of <strong>{displayAmount(detail.strikeTotal, net.quote)}</strong> {detail.writer.toLowerCase() === address?.toLowerCase() ? "if the buyer exercises before expiration." : "if you exercise before expiration."}</p></div>
         <div className="deadline-summary"><span className="term-label">Exercise before</span><strong>{new Date(Number(detail.expiry) * 1000).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit", timeZoneName: "short" })}</strong><small>{utcDeadline(detail.expiry)}</small><small>{remaining(detail.expiry, now)} · estimated</small></div>
         <div className={`deadline-notice ${detail.expiry <= now && detail.state < 2 ? "urgent" : ""}`} role="note">
           <strong>{detail.expiry <= now && detail.state < 2 ? "This exercise right has expired" : "Manual exercise · No resale"}</strong>
@@ -491,10 +497,10 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
         <details className="contract-details"><summary>Contract details</summary>
           <p>Exercise exchanges the full token lot for the agreed total in one transaction. Have the required tokens, approvals, and gas ready. A pending transaction does not reserve your exercise right.</p>
           <p>The blockchain timestamp determines the deadline. Collateral recovery requires a transaction from the writer after expiry.</p>
-          <p>Contract {explorer(`address/${detail.address}`, short(detail.address))} · Writer {short(detail.writer)}</p>
+          <p>Option contract <code>{detail.address}</code></p><p>Writer <code>{detail.writer}</code></p>
           <button className="button" onClick={async () => { setNoticeScope("trade"); try { await navigator.clipboard.writeText(window.location.href); setNotice("Option link copied."); } catch { setError("Copy the link from your address bar."); } }}>Copy link</button>
         </details>
-      </> : <div className="empty"><h2 id="option-review-heading" tabIndex={-1}>{market.isFetching ? "Looking up the option…" : "Option not found in loaded offers"}</h2><p>Only options verified in this market can be traded.</p>{market.data && market.data.total > BigInt(limit) && <button className="button" onClick={() => setLimit(n => n + 100)}>Load 100 older options</button>}</div>}
+      </> : <div className="empty"><h2 id="option-review-heading" tabIndex={-1}>{market.isFetching ? "Looking up the option…" : "Option not found in this market"}</h2><p>Only options verified in this market can be traded.</p></div>}
     </div>
   );
 
@@ -527,7 +533,7 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
       </section>
         <nav className="tabs" aria-label="Sections">
           <div role="tablist" aria-label="Market views">{[["market", "Markets"], ["mine", "Portfolio"], ["activity", "Activity"]].map(([key, label]) => <button key={key} role="tab" aria-selected={tab === key} className={tab === key ? "active" : ""} disabled={busy} onClick={() => { setTab(key as typeof tab); openDetail(null); }}>{label}</button>)}</div>
-          <button className={`button create-nav ${tab === "create" ? "current" : ""}`} disabled={busy} onClick={() => { setTab("create"); openDetail(null); if (ready) void market.refetch(); }}>Create offer</button>
+          <button className={`button create-nav ${tab === "create" ? "current" : ""}`} disabled={busy} onClick={() => { setTab("create"); openDetail(null); if (ready) void market.refetch(); }}>Write option</button>
         </nav>
       {wrongChain && (
         <div className="banner warning">
@@ -589,7 +595,7 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
       )}
       <section className="market" id="market">
 
-        {tab === "activity" ? <section className="activity-panel"><h2>Transaction activity</h2><p>Transactions sent from this browser. Onchain option positions appear in Portfolio.</p>{transactions.filter(t => t.chainId === chain.id && t.account.toLowerCase() === address?.toLowerCase()).length ? <div className="activity-list">{transactions.filter(t => t.chainId === chain.id && t.account.toLowerCase() === address?.toLowerCase()).map(tx => <div className="activity-item" key={tx.hash}><div><strong>{tx.action}</strong><span>{tx.step === "approval" ? "Token approval · does not deposit collateral" : "Contract operation"} · {tx.marketId}</span></div><span className="pill">{tx.status}</span><div>{explorer(`tx/${tx.hash}`, short(tx.hash))}<small>{new Date(tx.createdAt).toLocaleString("en-US")}</small></div></div>)}</div> : <div className="empty">No transactions recorded for this wallet in this browser.</div>}</section> : !ready && tab === "mine" ? (
+        {tab === "activity" ? <section className="activity-panel"><h2>Transactions from this browser</h2><div className="history-source"><strong>Source: this browser + onchain receipts</strong><p>This list is saved on this device. Transaction status is checked onchain, but transactions sent from another browser or app will not appear here. For closed options reconstructed from the contracts, open Portfolio → Closed options.</p></div>{transactions.filter(t => t.chainId === chain.id && t.account.toLowerCase() === address?.toLowerCase()).length ? <div className="activity-list">{transactions.filter(t => t.chainId === chain.id && t.account.toLowerCase() === address?.toLowerCase()).map(tx => <div className="activity-item" key={tx.hash}><div><strong>{tx.action}</strong><span>{tx.step === "approval" ? "Token approval · does not deposit collateral" : "Contract operation"} · {tx.marketId}</span></div><span className="pill">{tx.status}</span><div>{explorer(`tx/${tx.hash}`, short(tx.hash))}<small>{new Date(tx.createdAt).toLocaleString("en-US")}</small></div></div>)}</div> : <div className="empty">No transactions recorded for this wallet in this browser.</div>}</section> : !ready && tab === "mine" ? (
           <div className="empty setup">
             <span className="empty-icon">↗</span>
             <h2>The next step is connecting the factory.</h2>
@@ -637,7 +643,7 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
               <div className="section-head">
                 <div>
                   <div className="eyebrow">YOU SET THE TERMS</div>
-                  <h2>Create an offer</h2>
+                  <h2>Write an option</h2>
                 </div>
               </div>
               <fieldset className="kind-picker">
@@ -741,16 +747,16 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
                 type="submit"
                 disabled={!canAct || !draft || !!expiryError || insufficientCollateral || market.isError || !portfolio}
               >
-                {busy ? "Processing…" : "Approve collateral and create offer"}
+                {busy ? "Processing…" : "Deposit collateral & write option"}
               </button>
               {!isConnected && (
-                <p className="fine">Connect a wallet to create your offer.</p>
+                <p className="fine">Connect a wallet to write an option.</p>
               )}
             </form>
             <aside className="create-note" aria-label="Offer funding summary">
               <p className="fine">{portfolio ? `Balances at block ${portfolio.blockNumber}` : "Connect your wallet to view balances"}{market.isFetching ? " · Refreshing…" : ""}</p>
               <div className="eyebrow">YOUR OFFER · {kind === 0 ? "COVERED CALL" : "CASH-SECURED PUT"}</div><h3>What changes for you</h3>
-              <p className="fine">Collateral is deposited when you create the offer. Premium arrives only when someone buys it.</p>
+              <p className="fine">Writing deploys a separate option contract and deposits collateral directly into it. Premium arrives only when someone buys it.</p>
               <dl className="balance-breakdown">
                 <div><dt>Available in wallet</dt><dd>{collateralRow ? displayAmount(collateralRow.available, collateralToken) : "Connect to view"}</dd></div>
                 <div><dt>In open orders</dt><dd>{collateralRow ? displayAmount(collateralRow.openCollateral, collateralToken) : "—"}</dd></div>
@@ -771,18 +777,17 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
         ) : tab === "market" ? (
           <div className={`trading-workspace ${selected ? "has-selection" : ""}`}>
             <div>
-              <OptionsChain positions={positions.slice(0, limit)} now={now} selected={detail} symbol={net.underlying.symbol}
+              <OptionsChain account={address} positions={positions} now={now} selected={detail} symbol={net.underlying.symbol}
                 quoteSymbol={net.quote.symbol} underlyingDecimals={net.underlying.decimals} quoteDecimals={net.quote.decimals}
                 loading={ready && (market.isFetching || health.isPending)} unavailable={!ready || health.isError || market.isError} configured={ready}
                 onSelect={openDetail} onRefresh={() => { void health.refetch(); void market.refetch(); }}
                 onCreate={() => { setTab("create"); openDetail(null); }} />
-              {market.data && market.data.total > BigInt(limit) && <div className="pagination"><p>Latest {limit} of {market.data.total.toString()} contracts loaded. Older offers may have other dates or strikes.</p><button className="button" disabled={market.isFetching} onClick={() => setLimit(n => n + 100)}>Load 100 older options</button></div>}
             </div>
             <aside className="trade-ticket" aria-label="Trade ticket">
               <div className="ticket-heading"><span>Review your option</span></div>
               {selected ? detailPanel : <div className="ticket-empty">
-                <div className="ticket-symbol" aria-hidden="true">↗</div><h2>What are you buying?</h2><p>Select an offer to see its total cost and what you can buy or sell when you exercise.</p>
-                <ol className="review-steps"><li><strong>Choose a date</strong><span>This is your exercise deadline.</span></li><li><strong>Compare calls and puts</strong><span>A call is a right to buy. A put is a right to sell.</span></li><li><strong>Review before buying</strong><span>See the exact lot and payment here.</span></li></ol>
+                <div className="ticket-symbol" aria-hidden="true">↗</div><h2>Buy an option or manage yours</h2><p>Options labeled “You wrote this” are waiting for someone else to buy. Select one to see its collateral or cancel it. Select another writer’s option to review a purchase.</p>
+                <ol className="review-steps"><li><strong>Choose a date</strong><span>The buyer must exercise before this deadline.</span></li><li><strong>Compare calls and puts</strong><span>A call is a right to buy. A put is a right to sell.</span></li><li><strong>Choose your next action</strong><span>Review a purchase or manage an option you wrote.</span></li></ol>
                 <p className="fine">Exercise is manual. Purchased options cannot be resold.</p>
               </div>}
             </aside>
@@ -820,10 +825,11 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
                 </button>
               </div>
             </div>
-            {tab === "mine" && <div className="position-scope"><button className={portfolioScope === "current" ? "active" : ""} aria-pressed={portfolioScope === "current"} onClick={() => setPortfolioScope("current")}>Open positions & orders</button><button className={portfolioScope === "history" ? "active" : ""} aria-pressed={portfolioScope === "history"} onClick={() => setPortfolioScope("history")}>Closed history</button></div>}
+            {tab === "mine" && <div className="position-scope"><button className={portfolioScope === "current" ? "active" : ""} aria-pressed={portfolioScope === "current"} onClick={() => setPortfolioScope("current")}>Open positions & orders</button><button className={portfolioScope === "history" ? "active" : ""} aria-pressed={portfolioScope === "history"} onClick={() => setPortfolioScope("history")}>Closed options</button></div>}
+            {tab === "mine" && <p className="history-source"><strong>Source: onchain option contracts.</strong> {portfolioScope === "history" ? "Exercised, canceled and reclaimed options from all configured markets on this network. Reconstructed for your connected wallet, including actions taken from another device. This is a list of closed contracts, not a transaction-by-transaction history." : "Options you wrote or bought, read directly from the configured contracts. Expired collateral stays here until reclaimed."}</p>}
             {tab === "mine" && !address ? (
               <div className="empty">
-                <h3>Your positions live in your wallet.</h3>
+                  <h3>Connect to see your options and collateral.</h3>
                 <p>Connect it to see the options you created or bought.</p>
                 <button className="button dark" onClick={walletConnect}>
                   Connect wallet
@@ -895,29 +901,15 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
                       : "There are no open offers yet."}
                   </h3>
                   <p>
-                    Create an option and share the link with your counterparty.
+                    Write an option and share the link with a potential buyer.
                   </p>
                   <button className="button" onClick={() => setTab("create")}>
-                    Create the first offer
+                    Write option
                   </button>
                 </div>
               )
             )}
-            {tab !== "mine" && market.data && market.data.total > BigInt(limit) && (
-              <div className="pagination">
-                <p>
-                  Showing the latest {limit} of {market.data.total.toString()}{" "}
-                  options. Your older positions may be in the next batch.
-                </p>
-                <button
-                  className="button"
-                  disabled={market.isFetching}
-                  onClick={() => setLimit((n) => n + 100)}
-                >
-                  Load 100 older options
-                </button>
-              </div>
-            )}
+
           </>
         )}
         <details className="exercise-guide">

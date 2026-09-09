@@ -230,3 +230,34 @@ footer { border-top:1px solid var(--line); padding:22px 0; display:flex; justify
 .position-scope button { border:1px solid var(--control); border-radius:6px; background:var(--panel); padding:10px 14px; min-height:44px; font-size:14px; }
 .position-scope .active { border-color:var(--accent); background:var(--selected); color:var(--accent); }
 @media(max-width:767px) { .balance-grid { grid-template-columns:1fr; } .capital-inline { gap:8px 16px; } .capital-inline > span { width:100%; } .capital-inline .text-button { margin-left:0; min-height:44px; } }
+/* Make writer ownership, acquisition cost and exercise terms explicit. */
+.ownership-filters { display:flex; flex-wrap:wrap; gap:8px; padding:0 24px 18px; }
+.ownership-filters button { min-height:44px; padding:9px 12px; border:1px solid var(--control); border-radius:6px; background:var(--panel); font-size:14px; }
+.ownership-filters button[aria-pressed="true"] { background:var(--selected); border-color:var(--accent); color:var(--accent); font-weight:600; }
+.ownership-filters button span { margin-left:7px; font-variant-numeric:tabular-nums; }
+.ownership-hint { padding:0 24px; margin:0 0 18px; font-size:14px; color:var(--muted); }
+.expiry-instruction { padding:0 24px 10px; font-size:14px; font-weight:600; }
+.writer-group + .writer-group { margin-top:14px; padding-top:14px; border-top:1px solid var(--line); }
+.chain-offer { gap:6px; }
+.chain-offer.own-option { background:#eef3f8; border-color:#7c90a5; }
+.chain-offer.chosen { outline:2px solid var(--accent); outline-offset:2px; }
+.writer-badge { font-size:12px; font-weight:650; padding:4px 7px; border:1px solid #81998c; border-radius:4px; color:#22634b; background:#e6efe9; }
+.writer-badge.is-you { color:#294c71; background:#e0eaf4; border-color:#7c90a5; }
+.quote-state { font-size:12px; color:var(--muted); }
+.chain-offer .quote-label { margin-top:10px; font-size:14px; }
+.quote-right { font-size:14px; line-height:1.6; margin-top:10px; overflow-wrap:anywhere; }
+.quote-right strong { font-weight:600; }
+.quote-exercise { font-size:14px; overflow-wrap:anywhere; }
+.quote-writer { font-size:12px; color:var(--muted); border-top:1px solid #c3cdd3; padding-top:10px; margin-top:7px; width:100%; overflow-wrap:anywhere; }
+.detail-role { display:flex; flex-direction:column; gap:4px; padding:14px 0; font-size:14px; }
+.detail-role span { color:var(--muted); }
+.collateral-location { border:1px solid #7c90a5; background:#eef3f8; border-radius:8px; padding:16px; margin:8px 0 18px; }
+.collateral-location > strong { display:block; font-size:21px; margin-top:6px; overflow-wrap:anywhere; }
+.collateral-location p { font-size:14px; margin:12px 0; }
+.escrow-address { display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
+.escrow-address .text-button { margin:0 0 0 auto; min-height:44px; }
+.history-source { padding:14px 16px; background:var(--raised); border-left:3px solid var(--control); font-size:14px; color:var(--muted); margin:18px 0; }
+.history-source strong { color:var(--ink); }
+.history-source p { margin:8px 0 0; }
+.contract-details code { overflow-wrap:anywhere; font-size:12px; }
+@media(max-width:767px) { .ownership-filters { padding:0 20px 18px; } .ownership-filters button { flex:1 1 auto; } .ownership-hint { padding:0 20px; } .expiry-instruction { padding:0 20px 10px; } }

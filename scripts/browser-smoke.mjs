@@ -34,11 +34,14 @@ const premium = 4_567_890n;
 const evidence = { chainId: 31337, baseUrl, factory, writer, buyer, startedAt: new Date().toISOString(), setupTransactions: [], scenarios: [] };
 let transactions = evidence.setupTransactions;
 const errors = [];
+let ownershipChecked = false;
 const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}) });
 const read = (address, abi, functionName, args = []) => client.readContract({ address, abi, functionName, args });
 
 async function walletPage(account) {
   const context = await browser.newContext({ timezoneId: 'UTC', permissions: ['clipboard-read', 'clipboard-write'] });
+  // A forked local RPC can isolate acceptance transactions from a coordinator's live demo.
+  if (rpcUrl !== deployment.rpcUrl) await context.route(`${deployment.rpcUrl}/**`, route => route.continue({ url: rpcUrl }));
   await context.exposeBinding('__localWalletRpc', async (_source, request) => {
     const { method, params = [] } = request;
     if (method === 'eth_accounts' || method === 'eth_requestAccounts') return [account];
@@ -136,7 +139,7 @@ async function create(page, type, usePreset = false) {
   await page.getByLabel(/^Strike per token/).fill('1');
   await page.getByLabel(/^Premium per token/).fill('1');
   await expect(page.getByRole('alert').filter({ hasText: /Not enough Mock/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Approve collateral and create offer' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Deposit collateral & write option' })).toBeDisabled();
   if (type === 0) {
     await page.getByRole('button', { name: 'Max', exact: true }).click();
     await expect(page.getByLabel(/^Quantity of/)).toHaveValue(formatUnits(before.underlying,18));
@@ -158,7 +161,7 @@ async function create(page, type, usePreset = false) {
     await page.getByLabel(/^Expiration · your local time/).fill(expiry);
     expectedExpiry = BigInt(Date.parse(`${expiry}:00Z`) / 1000);
   }
-  await complete(page, 'Approve collateral and create offer', 'Offer created. Collateral has been deposited in the contract.');
+  await complete(page, 'Deposit collateral & write option', 'Option written. Collateral is deposited in its own option contract.');
   assert.equal(await read(factory, factoryAbi, 'optionCount'), beforeCount + 1n);
   const option = await read(factory, factoryAbi, 'options', [beforeCount]);
   assert.equal(await read(option, optionAbi, 'underlyingAmount'), quantity);
@@ -177,6 +180,30 @@ async function create(page, type, usePreset = false) {
   await complete(page, 'Copy link', 'Option link copied.');
   const link = await page.evaluate(() => navigator.clipboard.readText());
   assert.equal(new URL(link).searchParams.get('option').toLowerCase(), option.toLowerCase());
+  await expect(page.getByRole('region', { name: 'Option collateral', exact: true })).toContainText('Held in this option’s contract');
+  await expect(page.getByRole('region', { name: 'Option collateral', exact: true })).toContainText(option.slice(0,6));
+  await expect(page.getByRole('button', { name: /^Buy (call|put) · / })).toHaveCount(0);
+  if (!ownershipChecked) {
+    await page.getByRole('tab', { name: 'Markets', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Written options awaiting buyers', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: /^My written options/ }).click();
+    await expect(page.locator('.chain-offer[data-owner="you"]').first()).toBeVisible();
+    await expect(page.locator('.chain-offer[data-owner="other"]')).toHaveCount(0);
+    await expect(page.locator('.chain-offer[data-owner="you"]').first()).toContainText('You earn when bought');
+    await page.getByRole('button', { name: /^Available to buy/ }).click();
+    await expect(page.locator('.chain-offer[data-owner="other"]').first()).toBeVisible();
+    await expect(page.locator('.chain-offer[data-owner="you"]')).toHaveCount(0);
+    await expect(page.locator('.chain-offer[data-owner="other"]').first()).toContainText('Cost to buy');
+    await page.getByRole('button', { name: /^All written options/ }).click();
+    await page.getByRole('tab', { name: 'Portfolio', exact: true }).click();
+    await page.getByRole('button', { name: 'Closed options', exact: true }).click();
+    await expect(page.locator('.history-source')).toContainText('Source: onchain option contracts.');
+    await page.getByRole('tab', { name: 'Activity', exact: true }).click();
+    await expect(page.locator('.history-source')).toContainText('Source: this browser + onchain receipts');
+    await page.goto(link);
+    ownershipChecked = true;
+    console.log('PASS writer filters, ownership-specific cards, onchain collateral location and distinct history sources');
+  }
   return { option, link, expiry: await read(option, optionAbi, 'expiry'), afterCollateral: after };
 }
 
@@ -209,6 +236,8 @@ try {
     await chainQuote.click();
     await expect(buyerPage).toHaveURL(new RegExp(`option=${offer.option}`, 'i'));
     await expect(buyerPage.getByRole('complementary', { name: 'Trade ticket' })).toBeVisible();
+    await expect(buyerPage.locator('.detail-role')).toContainText('Written by');
+    await expect(buyerPage.locator('.purchase-cost')).toContainText('Cost to buy this option');
     await expect(buyerPage.getByRole('button', { name: /^Buy (call|put) · / })).toBeDisabled();
     await buyerPage.getByRole('checkbox', { name: /^I understand that I must exercise before/ }).check();
     if (type === 0) {

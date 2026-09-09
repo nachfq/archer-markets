@@ -79,7 +79,7 @@ The creation form offers suggested Friday/monthly deadlines and a separate
 explicit UTC preview, and are not adjusted for exchange holidays. The **0.01 token**, **1 token**, and **Max** shortcuts help size affordable offers.
 Max uses available wallet collateral, not funds already committed to other options.
 
-1. Account A opens **Create offer** and chooses Call, quantity 1, strike per token
+1. Account A opens **Write option** and chooses Call, quantity 1, strike per token
    300 MockUSD, premium per token 8 MockUSD, and a future expiration.
 2. Approve 1 MockSTOCK to the factory, then create the offer. The stock moves from A
    into the option contract. Approval and creation are separate wallet transactions.
@@ -160,10 +160,23 @@ empty/offline states, and viewport reflow equivalent to 200% desktop zoom.
 
 ## Capital, activity, and fractional offers
 
+Markets lists written options awaiting buyers. Connect a wallet to filter between
+all listings, options available to buy from other writers, and your own written
+options. Your listings show the premium you would receive and a management action;
+other writers' listings show the purchase cost. At each strike, the cheapest option
+from each writer group stays visible and additional quotes can be expanded.
+
+Use **Write option** to deposit collateral in a newly created, separate option
+contract. Approval alone does not deposit tokens. The review panel shows the
+collateral amount, contract address, and whether it is held, recoverable, delivered,
+or returned. Portfolio's **Closed options** reads final contract states onchain;
+**Activity** records this browser's transactions and reconciles their receipts.
+
 Connect a wallet to see available tokens, open-order collateral, active collateral,
 and expired collateral ready to reclaim. Portfolio includes every configured market
-on the selected chain and lists all owned positions, including older contracts beyond
-the market's first 100 displayed offers. Total tracked is not net portfolio value.
+on the selected chain and lists all owned positions. Markets reads all registered
+options, then groups open listings by expiration and strike. Total tracked is not
+net portfolio value.
 Distinct tokens with the same symbol include their market label and shortened address.
 
 Try quantity 0.01, strike 300, premium 8: the exact exercise total is 3 MockUSD and

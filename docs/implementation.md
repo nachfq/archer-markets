@@ -264,3 +264,41 @@ there was no horizontal overflow. Empty-market, RPC failure and recovery also pa
 Two primary-option detail URLs emitted matching call/put metadata without inheriting
 the generic site image. Local chain state is reset after acceptance so the coordinator
 starts with clean seeded offers; saved test logs describe the pre-reset execution.
+
+## Writer ownership and collateral clarity — September 9, 2026
+
+The coordinating agent revised the market around written options awaiting buyers.
+Cards now distinguish the connected writer's premium income from a buyer's premium
+cost, display the lot and exercise total, and offer role-specific review actions.
+Ownership filters include counts. Own and other-writer quotes are grouped separately
+at each strike so a cheaper external listing does not conceal the writer's listing.
+The market uses the full registry snapshot, with dates, strikes and additional quotes
+progressively disclosed rather than truncating the input to 100 records.
+
+The writing action is now labeled Write option. Review shows the individual option
+contract address, agreed collateral amount and its disposition for open, purchased,
+expired, exercised, canceled and reclaimed states. Contract accounting and permissions
+are unchanged. Approval alone does not transfer collateral. Portfolio's Closed options
+explains its onchain contract-state source; Activity explicitly describes device-local
+transaction records reconciled with onchain receipts.
+
+Validation: all 51 existing tests, typecheck, lint and production build passed. The
+four browser transaction scenarios passed against a separate Anvil fork on port 8546,
+including the new ownership filters, role-specific copy, collateral location and
+history-source assertions. The coordinator's original Anvil instance on port 8545 was
+not reset or used for acceptance transactions during this change. Browser acceptance
+receipts from this run describe the isolated local fork, not public transactions.
+
+The visual suite passed desktop, tablet, mobile and reflow checks, sampled contrast
+of at least 5.35:1, and empty/offline/recovery states. The additional read-only
+`scripts/writer-ux-review.mjs` checked writer and buyer views at 1440px and 390px,
+including filter ownership, collateral detail and absence of horizontal overflow.
+It derives a display-only writer account from an existing local option and rejects
+signing requests. Screenshots in `/tmp/options-writer-ux` were inspected. Set
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` if using a system Chrome installation.
+
+Limitations: these are agent checks, not a human usability study or security audit.
+Collateral copy describes the contract's agreed collateral and lifecycle state, not
+a live audit of arbitrary ERC-20 transfers sent directly to its address. Activity is
+still device-local and Closed options is not an event-by-event transaction history.
+This iteration updates the local frontend; the hosted website was not republished.
