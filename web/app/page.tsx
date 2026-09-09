@@ -1,0 +1,75 @@
+import type { Metadata } from "next";
+import { isAddress } from "viem";
+import OptionsApp from "./options-app";
+import { client, deployment, ready } from "../lib/config";
+import { optionAbi, optionFactoryAbi } from "../lib/generated/abis";
+import { units } from "../lib/options";
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<Metadata> {
+  const selected = (await searchParams).option;
+  if (!selected) return {};
+  let title = "Option unavailable · Stock Options Lab";
+  let description =
+    "This option could not be verified in the configured factory. Check its status in the application.";
+  if (
+    typeof selected === "string" &&
+    isAddress(selected) &&
+    ready &&
+    deployment.deploymentBlock
+  ) {
+    try {
+      // Authenticate the address through the factory's indexed creation event before reading it.
+      const events = await client.getContractEvents({
+        address: deployment.factory!,
+        abi: optionFactoryAbi,
+        eventName: "OptionCreated",
+        args: { option: selected },
+        fromBlock: BigInt(deployment.deploymentBlock),
+        toBlock: "latest",
+      });
+      if (events.length) {
+        const [type, quantity, strike, premium] = await Promise.all([
+          client.readContract({
+            address: selected,
+            abi: optionAbi,
+            functionName: "optionType",
+          }),
+          client.readContract({
+            address: selected,
+            abi: optionAbi,
+            functionName: "underlyingAmount",
+          }),
+          client.readContract({
+            address: selected,
+            abi: optionAbi,
+            functionName: "strikeTotal",
+          }),
+          client.readContract({
+            address: selected,
+            abi: optionAbi,
+            functionName: "premium",
+          }),
+        ]);
+        title = `${type === 0 ? "Call" : "Put"} · ${units(quantity, deployment.underlying.decimals)} ${deployment.underlying.symbol} · Stock Options Lab`;
+        description = `Total premium ${units(premium, deployment.quote.decimals)} ${deployment.quote.symbol}; total exercise ${units(strike, deployment.quote.decimals)} ${deployment.quote.symbol}. Token delivery, manual exercise. Testnet only.`;
+      }
+    } catch {
+      /* Shareable links remain renderable during an RPC outage. */
+    }
+  }
+  // An individual position has no image. Never inherit the generic site card.
+  return {
+    title,
+    description,
+    openGraph: { title, description, images: [] },
+    twitter: { card: "summary", title, description, images: [] },
+  };
+}
+
+export default function Page() {
+  return <OptionsApp />;
+}
