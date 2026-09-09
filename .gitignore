@@ -16,3 +16,6 @@ web/lib/generated/local-deployment.json
 *.log
 .DS_Store
 
+
+packages/sdk/dist/
+*.tgz

@@ -11,11 +11,11 @@
     "contracts:build": "forge build --root contracts",
     "contracts:test": "forge test --root contracts",
     "abi": "node scripts/export-abis.mjs",
-    "build": "npm run contracts:build && npm run abi && npm --prefix web run build",
-    "test": "npm run contracts:test && node --test scripts/*.test.mjs && npm --prefix web test",
+    "build": "npm run contracts:build && npm run abi && npm run sdk:build && npm --prefix web run build",
+    "test": "npm run contracts:test && node --test scripts/*.test.mjs && npm run sdk:test && npm --prefix web test",
     "anvil": "anvil --host 127.0.0.1 --chain-id 31337 --silent",
-    "deploy:local": "npm run contracts:build && npm run abi && node scripts/deploy.mjs local",
-    "deploy:testnet": "npm run contracts:build && npm run abi && node --env-file-if-exists=.env scripts/deploy.mjs testnet",
+    "deploy:local": "npm run contracts:build && npm run abi && npm run sdk:build && node scripts/deploy.mjs local",
+    "deploy:testnet": "npm run contracts:build && npm run abi && npm run sdk:build && node --env-file-if-exists=.env scripts/deploy.mjs testnet",
     "check:testnet": "node --env-file-if-exists=.env scripts/check-testnet.mjs",
     "check:stylus": "node scripts/check-stylus.mjs",
     "wallet:testnet": "node scripts/create-testnet-wallet.mjs",
@@ -26,12 +26,19 @@
     "test:browser": "node scripts/browser-smoke.mjs",
     "dev": "npm --prefix web run dev",
     "dev:local": "VITE_CHAIN_ID=31337 npm --prefix web run dev",
-    "typecheck": "npm --prefix web run typecheck"
+    "typecheck": "npm run sdk:build && npm --prefix web run typecheck",
+    "sdk:build": "npm run build --workspace @stock-options-lab/sdk",
+    "sdk:test": "npm run sdk:build && npm run test --workspace @stock-options-lab/sdk",
+    "test:sdk:e2e": "node packages/sdk/examples/lifecycle.mjs deployments/31337.json"
   },
   "dependencies": {
-    "viem": "2.56.3"
+    "viem": "2.56.3",
+    "@stock-options-lab/sdk": "file:packages/sdk"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"
-  }
+  },
+  "workspaces": [
+    "packages/*"
+  ]
 }

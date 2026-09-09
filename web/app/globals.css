@@ -186,3 +186,47 @@ footer { border-top:1px solid var(--line); padding:22px 0; display:flex; justify
 @media(max-width:767px) { .review-open .instrument-bar,.review-open .tabs { display:none; } .review-open .trading-workspace { margin-top:20px; } .shell { padding:0 16px; } .topbar { min-height:100px; flex-wrap:wrap; padding:16px 0; gap:12px; } .wordmark { font-size:20px; } .environment-badge { order:3; width:100%; background:none; padding:0; } .instrument-bar { padding:26px 0; } h1 { font-size:25px; } h1 span { font-size:16px; } .market-intro { font-size:16px; } .tabs { gap:12px; } .tabs [role="tablist"] { gap:18px; } .tabs [role="tab"] { font-size:14px; } .create-nav { padding:10px; } .trading-workspace:not(.has-selection) .trade-ticket { display:none; } .trading-workspace.has-selection > div:first-child { display:none; } .trading-workspace.has-selection .trade-ticket { display:block; } .mobile-side-picker { display:flex; gap:10px; padding:0 20px 18px; } .mobile-side-picker button { min-height:44px; padding:10px 12px; flex:1; background:var(--panel); border:1px solid var(--control); border-radius:6px; font-size:14px; } .mobile-side-picker button[aria-pressed="true"] { background:var(--selected); color:var(--accent); border:2px solid var(--accent); } .show-calls .put-heading,.show-calls .put-side,.show-puts .call-heading,.show-puts .call-side { display:none; } .chain-table .strike-heading { width:34%; } .chain-table .strike-cell { font-size:16px; } .chain-table td { padding:10px; } .chain-table thead th { padding:16px; } .quote-price { font-size:20px; } .chain-heading { align-items:flex-start; } .chain-heading h2 { font-size:18px; } .expiry-strip { gap:8px; } .expiry-strip button { padding:10px; } .expiry-strip button.active { padding:9px; } .review-steps,.exercise-steps,.option-grid,.form-columns { grid-template-columns:1fr; } .create-layout { padding:22px; } .kind-picker { flex-direction:column; } .wallet-row { flex-direction:column; } .banner { align-items:flex-start; } .banner.warning { flex-wrap:wrap; } footer { flex-direction:column; } }
 @media(max-width:380px) { .tabs { flex-wrap:wrap; } .tabs .create-nav { width:100%; } .expiry-grid { grid-template-columns:1fr; } .mobile-side-picker { flex-wrap:wrap; } .mobile-side-picker button { font-size:12px; } }
 @media(prefers-reduced-motion:reduce) { * { transition:none!important; scroll-behavior:auto!important; } }
+/* Capital, offer impact, and activity share the same amount hierarchy. */
+.market-selector { margin-top:18px; }
+.market-selector label { font-size:14px; display:flex; align-items:center; gap:14px; color:var(--muted); }
+.market-selector select { max-width:100%; min-height:44px; padding:8px 12px; border:1px solid var(--control); border-radius:6px; background:var(--panel); color:var(--ink); font-size:14px; }
+.account-overview { margin-bottom:24px; }
+.account-overview > .section-head { margin-bottom:16px; }
+.balance-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+.balance-card { padding:22px; border:1px solid var(--line); background:var(--panel); border-radius:10px; min-width:0; }
+.balance-card h3 { margin:0 0 16px; display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.balance-card h3 span { font-size:12px; font-weight:400; color:var(--muted); }
+.available-number { display:block; font-size:26px; font-weight:650; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; margin-bottom:3px; }
+.balance-card > .term-label { color:var(--muted); font-weight:400; }
+.balance-breakdown { margin:18px 0 0; font-size:14px; }
+.balance-breakdown > div { display:flex; justify-content:space-between; align-items:baseline; gap:18px; padding:10px 0; }
+.balance-breakdown dt { color:var(--muted); flex:1; }
+.balance-breakdown dd { margin:0; font-weight:600; text-align:right; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; max-width:60%; }
+.balance-breakdown .balance-total { border-top:1px solid var(--line); margin-top:8px; padding-top:16px; }
+.balance-breakdown .funding-impact { border-top:2px solid #91ac9b; margin-top:24px; padding-top:24px; }
+.funding-impact dd { font-size:21px; color:var(--accent); }
+.create-note { position:sticky; top:24px; background:var(--panel); border-color:var(--control); }
+.create-note h3 { margin:12px 0; font-size:23px; }
+.create-layout { max-width:none; grid-template-columns:minmax(0,1fr) minmax(320px,0.85fr); background:transparent; border:0; padding:0; }
+.create-layout form { background:var(--panel); padding:26px; border:1px solid var(--line); border-radius:10px; }
+.exercise-funding { padding:16px; background:var(--raised); border-radius:8px; margin-top:20px; }
+.exercise-funding h3 { margin:0; font-size:16px; }
+.calendar-button { margin-top:14px; }
+.activity-panel > p { color:var(--muted); font-size:14px; }
+.activity-list { border:1px solid var(--line); border-radius:10px; background:var(--panel); }
+.activity-item { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(150px,auto); gap:24px; padding:20px; border-bottom:1px solid var(--line); align-items:center; font-size:14px; }
+.activity-item:last-child { border-bottom:0; }
+.activity-item strong,.activity-item small,.activity-item div > span { display:block; }
+.activity-item small,.activity-item div > span { color:var(--muted); font-size:12px; margin-top:6px; }
+@media(max-width:959px) { .create-layout { grid-template-columns:1fr; } .create-note { position:static; grid-row:1; } }
+@media(max-width:767px) { .balance-grid { grid-template-columns:1fr; } .tabs { flex-wrap:wrap; } .tabs [role="tablist"] { flex:1; justify-content:space-between; } .tabs .create-nav { width:100%; } .market-selector label { align-items:flex-start; flex-direction:column; gap:6px; } .market-selector select { width:100%; } .activity-item { grid-template-columns:minmax(0,1fr) auto; gap:12px; } .activity-item > div:last-child { grid-column:1/-1; } .create-layout form,.create-note { padding:20px; } }
+.asset-provenance { margin:-8px 0 16px; overflow-wrap:anywhere; }
+.balance-grid { grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); }
+.capital-inline { display:flex; align-items:center; flex-wrap:wrap; gap:12px 24px; padding:14px 18px; margin-bottom:16px; background:var(--panel); border:1px solid var(--line); border-radius:8px; font-size:14px; }
+.capital-inline > span { color:var(--muted); }
+.capital-inline strong { font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.capital-inline .text-button { margin:0 0 0 auto; min-height:32px; }
+.position-scope { display:flex; flex-wrap:wrap; gap:12px; margin-top:18px; }
+.position-scope button { border:1px solid var(--control); border-radius:6px; background:var(--panel); padding:10px 14px; min-height:44px; font-size:14px; }
+.position-scope .active { border-color:var(--accent); background:var(--selected); color:var(--accent); }
+@media(max-width:767px) { .balance-grid { grid-template-columns:1fr; } .capital-inline { gap:8px 16px; } .capital-inline > span { width:100%; } .capital-inline .text-button { margin-left:0; min-height:44px; } }

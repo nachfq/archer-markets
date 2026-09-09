@@ -1,4 +1,5 @@
-import { formatUnits, parseUnits, type Address } from "viem";
+import { formatUnits, type Address } from "viem";
+import { parseAmount, ProtocolError } from "@stock-options-lab/sdk";
 export type Position = {
   address: Address;
   writer: Address;
@@ -11,26 +12,15 @@ export type Position = {
   state: number;
 };
 export function amount(value: string, decimals: number): bigint {
-  if (!/^\d+(\.\d+)?$/.test(value.trim()))
-    throw new Error(
-      "Enter a positive amount without commas or scientific notation.",
-    );
-  const fraction = value.trim().split(".")[1] ?? "";
-  if (fraction.length > decimals)
-    throw new Error(`This asset supports up to ${decimals} decimal places.`);
-  const result = parseUnits(value.trim(), decimals);
-  if (result <= 0n) throw new Error("The amount must be greater than zero.");
-  if (result > 2n ** 256n - 1n)
-    throw new Error("The amount exceeds the allowed maximum.");
-  return result;
+  return parseAmount(value, decimals);
 }
 export function expiration(value: string, now = Date.now()): bigint {
   const time = new Date(value).getTime();
   if (!Number.isFinite(time) || time <= now)
-    throw new Error("Choose a future expiration.");
+    throw new ProtocolError("INVALID_TERMS", "Choose a future expiration.", "The deadline must be after the current chain time.");
   const seconds = BigInt(Math.floor(time / 1000));
   if (seconds <= BigInt(Math.floor(now / 1000)))
-    throw new Error("Choose a future expiration.");
+    throw new ProtocolError("INVALID_TERMS", "Choose a future expiration.", "The deadline must be after the current chain time.");
   return seconds;
 }
 export function actions(

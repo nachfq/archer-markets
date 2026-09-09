@@ -173,7 +173,7 @@ expressed in MockUSD base units.
 |---|---|
 | Published frontend | Private website deployment succeeded; configured for Robinhood testnet, chain 46630. |
 | Public testnet contracts | Browser manifest has `factory: null` and an unset MockUSD address. No funded public contract demo is claimed. |
-| Local contracts | Factory, options, MockUSD, and MockSTOCK were deployed and exercised on Anvil, chain 31337. Anvil was stopped after validation; fresh deployment is required after restarting it. |
+| Local contracts | Factory, options, MockUSD, and MockSTOCK were deployed and exercised on Anvil, chain 31337. Local sessions are ephemeral; fresh deployment is required after restarting Anvil. |
 | TSLA compatibility | Actual TSLA implementation exercised on a local RPC fork with synthetic balances; no public transactions. |
 
 Test ETH is still needed to deploy publicly, and test TSLA is needed to seed calls.
@@ -198,3 +198,69 @@ before the hosted website can use it.
 Call and put link metadata was also validated: it reflects onchain terms and does not
 inherit the site's generic image. The main image was generated with imagegen and
 inspected before inclusion.
+
+## Product roadmap and usable-pilot foundation
+
+The coordinating agent implemented the human-approved chain + portfolio direction,
+with per-token creation inputs, explicit whole-lot totals, and resale deferred to v2.
+The English product specification is in `docs/product-roadmap.md`. Its screen examples
+are illustrative, not market quotes or evidence of human validation.
+
+A new `@stock-options-lab/sdk` package owns generated ABIs, complete registry snapshots,
+portfolio accounting, exact price conversion, preparation of all v1 actions, simulation,
+and structured error decoding. The frontend and seed script consume it. It has no React
+or custody dependency. A packed tarball was installed into a separate temporary project;
+that project's copied lifecycle example completed calls, puts, cancellation and expiry
+recovery using only package exports, viem and a public local deployment manifest.
+
+The web now separates Markets, Portfolio and Activity. Market balances are compact;
+Portfolio shows available funds, open-order collateral, active collateral, reclaimable
+collateral and total tracked units. It includes all registered positions rather than
+only the first 100 chain rows. Shared payment tokens are counted once across markets,
+and same-symbol assets are distinguished by market and address. Closed history is
+separate from currently open orders and positions. The create screen shows available
+funds and exact deposit impact, uses fractional presets and Max, and rejects insufficient
+balances and unsupported precision before signing. Max refreshes the complete snapshot
+so a recent counterparty transaction is reflected in the result. Suggested expirations
+use estimated chain time; validation still checks a fresh block before execution.
+
+Transactions distinguish approval from operation, persist their public hashes and
+recover receipts across page reloads. A pending hash does not become failed on timeout.
+The UI checks the signing wallet account/network again and resimulates after approval.
+Known contract errors have actionable messages; unavailable revert diagnostics are not
+invented. Exercise review shows delivery/payment funding, and calendar export provides
+an optional reminder without executing the option.
+
+Deployment tooling now prepares an official-token primary factory and a separate
+MockSTOCK practice factory, sharing MockUSD. The testnet seed defaults to 0.01 token
+and scales its arbitrary example prices exactly. Both factories were deployed locally;
+no public transactions were sent. Existing Solidity contracts and financial permissions
+remain unchanged. The public testnet factory is still unset and the hosted frontend
+has not been republished. Launch still requires a fresh disposable signing wallet,
+verified public funding, token provenance and receipts; no exposed key was used.
+
+Validation for this implementation: 26 Solidity tests (including a local TSLA RPC fork),
+4 script tests, 9 SDK tests and 12 frontend tests passed: 51 total. Typecheck, lint and
+production build passed. The SDK registry regression uses 137 simulated records and
+asserts complete reads at one block; it does not claim 137 public transactions. The
+four browser transaction scenarios passed with actual Anvil receipts and conservation
+checks, plus low-balance prevention, refreshed Max, wrong-wallet-network recovery and
+signature rejection. A persisted pending record referencing an actual unmined Anvil
+transaction survived a browser reload and reconciled after mining. Connected desktop
+and mobile screenshots were inspected; no horizontal overflow appeared in the tested
+390px creation view. This is agent verification, not an audit or human usability study.
+
+Limitations: registry refresh remains linear in contract count and depends on RPC
+availability. The web selects one chain per build; SDK clients are configurable but
+another public EVM chain has not been tested. The Robinhood multiplier is display-only.
+Browser Activity is not a complete address history. A transaction replaced while the
+browser is offline may require external investigation if its original hash never gets
+a receipt. Local history does not follow users to other devices. Public deployment,
+human task-based validation, resale v2 and the second-chain trial remain outstanding.
+
+The final read-only visual suite passed at 1440px, 768px, 390px and 720px reflow
+(equivalent to 200% desktop layout zoom). Sampled contrast was at least 5.35:1 and
+there was no horizontal overflow. Empty-market, RPC failure and recovery also passed.
+Two primary-option detail URLs emitted matching call/put metadata without inheriting
+the generic site image. Local chain state is reset after acceptance so the coordinator
+starts with clean seeded offers; saved test logs describe the pre-reset execution.

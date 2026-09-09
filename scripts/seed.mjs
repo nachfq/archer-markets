@@ -1,4 +1,6 @@
 import { erc20Abi, decodeEventLog } from 'viem';
+import { parseAmount, quoteTotal, prepareCreateOffer } from '@stock-options-lab/sdk';
+import { executeOperation, marketFromManifest } from './sdk-operation.mjs';
 import { clients, artifact, readJson, saveJson, mined, reportError } from './config.mjs';
 
 try {
@@ -10,21 +12,20 @@ try {
   const wallets = [writer];
   if (mode === 'local' || process.env.BUYER_PRIVATE_KEY) wallets.push(await clients(mode, true, true));
   const evidence = [];
+  const quantity = parseAmount(process.env.SEED_QUANTITY || (mode === 'local' ? '1' : '0.01'), record.underlying.decimals);
+  const market = marketFromManifest(record);
   for (const actor of wallets) {
     const { publicClient, walletClient, account } = actor;
     await mined(publicClient, await walletClient.writeContract({ address: record.quote.address, abi: mockAbi, functionName: 'faucet' }));
     if (mode === 'local') await mined(publicClient, await walletClient.writeContract({ address: record.underlying.address, abi: mockAbi, functionName: 'faucet' }));
     const stock = await publicClient.readContract({ address: record.underlying.address, abi: erc20Abi, functionName: 'balanceOf', args: [account.address] });
-    if (stock < 10n ** 18n) throw new Error(`Fund ${account.address} with at least 1 testnet stock token before seeding a covered call.`);
+    if (stock < quantity) throw new Error(`Insufficient stock for the requested fractional seed lot in ${account.address}.`);
     const expiry = (await publicClient.getBlock()).timestamp + 7n * 24n * 60n * 60n;
     for (const type of [0, 1]) {
-      const quantity = 10n ** 18n;
-      const strike = BigInt(type === 0 ? 300 : 250) * 10n ** 6n;
-      const premium = BigInt(type === 0 ? 8 : 6) * 10n ** 6n;
-      const collateralToken = type === 0 ? record.underlying.address : record.quote.address;
-      const collateral = type === 0 ? quantity : strike;
-      await mined(publicClient, await walletClient.writeContract({ address: collateralToken, abi: erc20Abi, functionName: 'approve', args: [record.factory, collateral] }));
-      const receipt = await mined(publicClient, await walletClient.writeContract({ address: record.factory, abi: factoryAbi, functionName: 'createOption', args: [type, quantity, strike, premium, expiry] }));
+      const strike = quoteTotal(quantity, BigInt(type === 0 ? 300 : 250) * 10n ** 6n, record.underlying.decimals);
+      const premium = quoteTotal(quantity, BigInt(type === 0 ? 8 : 6) * 10n ** 6n, record.underlying.decimals);
+      const operation = await prepareCreateOffer(publicClient, market, account.address, { optionType: type, quantity, strikeTotal: strike, premium, expiry });
+      const receipt = await executeOperation(actor, operation);
       const event = receipt.logs.filter(log => log.address.toLowerCase() === record.factory.toLowerCase()).map(log => { try { return decodeEventLog({ abi: factoryAbi, ...log }); } catch { return null; } }).find(log => log?.eventName === 'OptionCreated');
       if (!event) throw new Error('Missing OptionCreated event.');
       evidence.push({ option: event.args.option, writer: account.address, type: type === 0 ? 'Call' : 'Put', transactionHash: receipt.transactionHash, expiry: expiry.toString() });

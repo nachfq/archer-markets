@@ -16,20 +16,21 @@ import {
   useDisconnect,
   useSwitchChain,
   useWriteContract,
+  useSendTransaction,
+  useWalletClient,
 } from "wagmi";
-import { BaseError, isAddress, type Address, type Hash } from "viem";
+import { isAddress, type Address, type Hash } from "viem";
 import {
   chain,
   client,
   config,
-  deployment as net,
-  ready,
+  deployment as initialNet,
+  marketRecords, asMarket, configuredMarkets,
   type Token,
 } from "../lib/config";
 import {
   erc20Abi,
   faucetAbi,
-  optionAbi,
   optionFactoryAbi,
 } from "../lib/generated/abis";
 import {
@@ -42,6 +43,8 @@ import {
   units,
   type Position,
 } from "../lib/options";
+import { getMarkets, getPortfolio, getTokenDisplayMetadata, quoteTotal, maximumQuantity, decodeProtocolError, prepareCreateOffer, prepareBuy, prepareExercise, prepareCancel, prepareReclaim, simulatePrepared, ProtocolError, type PreparedOperation } from "@stock-options-lab/sdk";
+import { readTransactions, writeTransactions, type TransactionRecord } from "../lib/transactions";
 import { deadlinePreview, suggestedExpirations, utcDeadline } from "../lib/expirations";
 
 const actionNames: Record<string, string> = {
@@ -60,66 +63,55 @@ const remaining = (end: bigint, now: bigint) => {
         ? `${Math.floor(seconds / 3600)} h ${Math.floor((seconds % 3600) / 60)} min remaining`
         : `${Math.floor(seconds / 60)} min ${seconds % 60} s remaining`;
 };
-const errorText = (error: unknown) =>
-  error instanceof BaseError
-    ? error.shortMessage
-    : error instanceof Error
-      ? error.message
-      : "The operation could not be completed.";
+const gasAmount = (value: bigint) => { const scale = 10n ** 12n; return value > 0n && value < scale ? "<0.000001 ETH" : `${value % scale ? "≈ " : ""}${readableNumber(units(value / scale * scale, 18))} ETH`; };
+const errorText = (error: unknown) => { const parsed = decodeProtocolError(error); return `${parsed.message} ${parsed.nextAction}`; };
 
-async function readPosition(address: Address): Promise<Position> {
-  const [
-    writer,
-    buyer,
-    underlyingAmount,
-    strikeTotal,
-    premium,
-    expiry,
-    optionType,
-    state,
-  ] = await Promise.all([
-    client.readContract({ address, abi: optionAbi, functionName: "writer" }),
-    client.readContract({ address, abi: optionAbi, functionName: "buyer" }),
-    client.readContract({
-      address,
-      abi: optionAbi,
-      functionName: "underlyingAmount",
-    }),
-    client.readContract({
-      address,
-      abi: optionAbi,
-      functionName: "strikeTotal",
-    }),
-    client.readContract({ address, abi: optionAbi, functionName: "premium" }),
-    client.readContract({ address, abi: optionAbi, functionName: "expiry" }),
-    client.readContract({
-      address,
-      abi: optionAbi,
-      functionName: "optionType",
-    }),
-    client.readContract({ address, abi: optionAbi, functionName: "state" }),
-  ]);
-  return {
-    address,
-    writer,
-    buyer,
-    underlyingAmount,
-    strikeTotal,
-    premium,
-    expiry,
-    optionType,
-    state,
-  };
-}
+function App({ initialMarketId }: { initialMarketId?: string }) {
+  const [marketId, setMarketId] = useState(initialMarketId ?? "primary");
+  const net = marketRecords.find(m => m.marketId === marketId) ?? initialNet;
+  const activeMarket = asMarket(net);
+  const ready = !!activeMarket;
 
-function App() {
   const { address, chainId, isConnected } = useConnection();
   const { connectAsync, connectors } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
+  const { sendTransactionAsync } = useSendTransaction();
+  const wallet = useWalletClient();
   const cache = useQueryClient();
-  const [tab, setTab] = useState<"market" | "create" | "mine">("market");
+  const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
+  const [trackingReady, setTrackingReady] = useState(false);
+  const [errorDetails, setErrorDetails] = useState("");
+  const [estimatedGas, setEstimatedGas] = useState<bigint | null>(null);
+  const pending = transactions.filter(t => t.chainId === chain.id && t.account.toLowerCase() === address?.toLowerCase() && t.status === "pending");
+  const updateTransaction = (record: TransactionRecord) => setTransactions(previous => {
+    const next = [record, ...previous.filter(t => t.hash !== record.hash)];
+    writeTransactions(next); return next;
+  });
+  useEffect(() => {
+    const hydrate = () => { setTransactions(readTransactions()); setTrackingReady(true); };
+    const timer = setTimeout(hydrate, 0);
+    window.addEventListener("storage", hydrate);
+    return () => { clearTimeout(timer); window.removeEventListener("storage", hydrate); };
+  }, []);
+  useEffect(() => {
+    if (!trackingReady) return;
+    const reconcile = async () => {
+      const records = readTransactions();
+      for (const tx of records.filter(t => t.chainId === chain.id && t.status === "pending")) {
+        try {
+          const result = await client.getTransactionReceipt({ hash: tx.hash });
+          updateTransaction({ ...tx, status: result.status === "success" ? "confirmed" : "reverted" });
+          void cache.invalidateQueries();
+        } catch { /* Missing receipts and RPC failures do not prove failure. */ }
+      }
+    };
+    void reconcile(); const timer = setInterval(() => void reconcile(), 5000);
+    return () => clearInterval(timer);
+  }, [trackingReady, cache]);
+  const [tab, setTab] = useState<"market" | "create" | "mine" | "activity">("market");
+  const [portfolioScope, setPortfolioScope] = useState<"current" | "history">("current");
   const [filter, setFilter] = useState<"all" | "call" | "put">("all");
   const [selected, setSelected] = useState<string | null>(null);
   const [limit, setLimit] = useState(100);
@@ -139,8 +131,6 @@ function App() {
   const [expiryMode, setExpiryMode] = useState<"suggested" | "custom">("suggested");
   const [presetExpiry, setPresetExpiry] = useState("");
   const [acceptedFor, setAcceptedFor] = useState("");
-  const expirySuggestions = suggestedExpirations(clock);
-  const effectiveExpiry = expiryMode === "custom" ? expiry : presetExpiry || expirySuggestions[0]?.value || "";
   const wrongChain = isConnected && chainId !== chain.id;
   const health = useQuery({
     queryKey: ["deployment-health", chain.id, net.factory],
@@ -190,11 +180,15 @@ function App() {
     },
   });
   const canAct =
-    ready && health.isSuccess && isConnected && !wrongChain && !busy;
+    ready && health.isSuccess && isConnected && !wrongChain && !busy && trackingReady && pending.length === 0;
 
   useEffect(() => {
-    const sync = () =>
-      setSelected(new URL(window.location.href).searchParams.get("option"));
+    const sync = () => {
+      const params = new URL(window.location.href).searchParams;
+      setSelected(params.get("option"));
+      const id = params.get("market") ?? "primary";
+      setMarketId(marketRecords.some(m => m.marketId === id) ? id : "primary");
+    };
     sync();
     const timer = setInterval(() => setClock(Date.now()), 1000);
     window.addEventListener("popstate", sync);
@@ -217,77 +211,32 @@ function App() {
         /* Periodic registry reads remain available when filters are unsupported. */
       },
     });
-  }, [cache]);
+  }, [cache, net.factory]);
 
   const market = useQuery({
-    queryKey: ["market", chain.id, limit],
+    queryKey: ["market", chain.id, address, marketId],
     enabled: ready && health.isSuccess,
     refetchInterval: 20_000,
     retry: 1,
     queryFn: async () => {
-      const factory = net.factory!;
-      const [total, block] = await Promise.all([
-        client.readContract({
-          address: factory,
-          abi: optionFactoryAbi,
-          functionName: "optionCount",
-        }),
-        client.getBlock(),
-      ]);
-      const count = Number(total > BigInt(limit) ? BigInt(limit) : total);
-      const positions: Position[] = [];
-      for (let offset = 0; offset < count; offset += 5) {
-        const batch = Array.from(
-          { length: Math.min(5, count - offset) },
-          (_, i) => total - 1n - BigInt(offset + i),
-        );
-        const addresses = await Promise.all(
-          batch.map((index) =>
-            client.readContract({
-              address: factory,
-              abi: optionFactoryAbi,
-              functionName: "options",
-              args: [index],
-            }),
-          ),
-        );
-        positions.push(...(await Promise.all(addresses.map(readPosition))));
-      }
-      return {
-        total,
-        positions,
-        timestamp: block.timestamp,
-        loadedAt: Date.now(),
-      };
+      const snapshots = await getMarkets(client, configuredMarkets);
+      const selected = snapshots.find(snapshot => snapshot.market.id === marketId) ?? snapshots[0];
+      const portfolio = address ? await getPortfolio(client, configuredMarkets, address, snapshots) : undefined;
+      return { ...selected, portfolio, loadedAt: Date.now() };
     },
   });
-  const balances = useQuery({
-    queryKey: ["balances", chain.id, address],
-    enabled: ready && health.isSuccess && !!address,
-    refetchInterval: 20_000,
-    queryFn: async () => {
-      const [underlying, quote, gas] = await Promise.all([
-        client.readContract({
-          address: net.underlying.address!,
-          abi: erc20Abi,
-          functionName: "balanceOf",
-          args: [address!],
-        }),
-        client.readContract({
-          address: net.quote.address!,
-          abi: erc20Abi,
-          functionName: "balanceOf",
-          args: [address!],
-        }),
-        client.getBalance({ address: address! }),
-      ]);
-      return { underlying, quote, gas };
-    },
-  });
+  const portfolio = market.data?.portfolio;
+  const rowFor = (token: Token) => portfolio?.tokens.find(row => row.token.address.toLowerCase() === token.address?.toLowerCase());
+  const balances = { data: portfolio ? { underlying: rowFor(net.underlying)?.available ?? 0n, quote: rowFor(net.quote)?.available ?? 0n, gas: portfolio.gas } : undefined, isError: market.isError };
+  const displayMetadata = useQuery({ queryKey: ["token-display", chain.id, net.underlying.address], enabled: !!activeMarket, queryFn: () => getTokenDisplayMetadata(client, activeMarket!.underlying), refetchInterval: 60_000 });
   const now = market.data
     ? market.data.timestamp +
       BigInt(Math.max(0, Math.floor((clock - market.data.loadedAt) / 1000)))
     : BigInt(Math.floor(clock / 1000));
+  const expirySuggestions = suggestedExpirations(Number(now) * 1000);
+  const effectiveExpiry = expiryMode === "custom" ? expiry : presetExpiry || expirySuggestions[0]?.value || "";
+  let expiryError = "";
+  if (effectiveExpiry) { try { expiration(effectiveExpiry, Number(now) * 1000); } catch { expiryError = "Choose an expiration after the current chain time."; } }
   const positions = market.data?.positions ?? [];
   const detail =
     selected && isAddress(selected)
@@ -295,9 +244,10 @@ function App() {
           (p) => p.address.toLowerCase() === selected.toLowerCase(),
         )
       : undefined;
-  const visible = positions.filter(
+  const visible = (tab === "mine" ? portfolio?.positions ?? [] : positions).filter(
     (p) =>
       (filter === "all" || p.optionType === (filter === "call" ? 0 : 1)) &&
+      (tab !== "mine" || (portfolioScope === "current" ? p.state <= 1 : p.state > 1)) &&
       (tab === "mine"
         ? !!address &&
           [p.writer, p.buyer].some(
@@ -306,7 +256,8 @@ function App() {
         : p.state === 0 && p.expiry > now),
   );
 
-  function openDetail(option: string | null) {
+  function openDetail(option: string | null, nextMarketId = marketId) {
+    if (nextMarketId !== marketId) setMarketId(nextMarketId);
     if (option) { lastOffer.current = option; previousScroll.current = window.scrollY; }
     requestAnimationFrame(() => {
       if (option && window.matchMedia("(max-width: 767px)").matches) {
@@ -321,6 +272,7 @@ function App() {
       }
     });
     const url = new URL(window.location.href);
+    url.searchParams.set("market", nextMarketId);
     if (option) url.searchParams.set("option", option);
     else url.searchParams.delete("option");
     window.history.pushState({}, "", url);
@@ -336,6 +288,7 @@ function App() {
       await connectAsync({ connector: connectors[0] });
     } catch (err) {
       setError(errorText(err));
+      setErrorDetails(decodeProtocolError(err).details?.technical ?? "");
     }
   }
   async function switchNetwork() {
@@ -344,16 +297,26 @@ function App() {
       setError("");
     } catch (err) {
       setError(errorText(err));
+      setErrorDetails(decodeProtocolError(err).details?.technical ?? "");
     }
   }
-  async function receipt(hash: Hash) {
+  async function checkWallet() {
+    if (!wallet.data || (await wallet.data.getChainId()) !== chain.id || !(await wallet.data.getAddresses()).some(a => a.toLowerCase() === address?.toLowerCase())) throw new ProtocolError("WRONG_NETWORK", "Your wallet or network changed.", "Reconnect the intended wallet before signing.");
+  }
+  async function receipt(hash: Hash, action = "Token faucet", step: TransactionRecord["step"] = "operation") {
     setTxHash(hash);
-    setNotice("Transaction sent. Waiting for confirmation…");
-    const result = await client.waitForTransactionReceipt({ hash });
-    if (result.status !== "success")
-      throw new Error(
-        "The transaction reverted. Check your balance, approvals, and expiration.",
-      );
+    setNotice(step === "approval" ? "Approval sent. Waiting for confirmation…" : "Transaction sent. Waiting for confirmation…");
+    let tracked: TransactionRecord = { hash, account: address!, chainId: chain.id, marketId, action, step, status: "pending", createdAt: new Date().toISOString() };
+    updateTransaction(tracked);
+    const result = await client.waitForTransactionReceipt({ hash, timeout: 120_000, onReplaced: replacement => {
+      updateTransaction({ ...tracked, status: "replaced", replacement: replacement.transaction.hash });
+      tracked = { ...tracked, hash: replacement.transaction.hash, action: replacement.reason === "cancelled" ? "Wallet cancellation" : tracked.action };
+      updateTransaction(tracked); setTxHash(tracked.hash);
+    } });
+    updateTransaction({ ...tracked, status: result.status === "success" ? "confirmed" : "reverted" });
+    if (result.status !== "success") throw new ProtocolError("REVERTED", "The transaction reverted onchain.", "Refresh balances before retrying. The receipt does not contain the original revert reason.", { txHash: result.transactionHash });
+    if (tracked.action === "Wallet cancellation") throw new ProtocolError("UNAVAILABLE", "The transaction was canceled in your wallet.", "Refresh and prepare the operation again.");
+    await cache.invalidateQueries();
   }
   async function approve(token: Token, spender: Address, value: bigint) {
     const allowance = await client.readContract({
@@ -373,7 +336,8 @@ function App() {
       args: [spender, value],
       account: address!,
     });
-    await receipt(await writeContractAsync({ ...request, chainId: chain.id }));
+    await checkWallet();
+    await receipt(await writeContractAsync({ ...request, chainId: chain.id }), `Approve ${token.symbol}`, "approval");
   }
   async function run(task: () => Promise<void>, success: string) {
     if (!canAct) {
@@ -382,6 +346,8 @@ function App() {
     }
     setBusy(true);
     setError("");
+    setErrorDetails("");
+    setEstimatedGas(null);
     setTxHash(null);
     setNotice("Preparing transaction…");
     try {
@@ -391,73 +357,49 @@ function App() {
     } catch (err) {
       setNotice("");
       setError(errorText(err));
+      setErrorDetails(decodeProtocolError(err).details?.technical ?? "");
       await cache.invalidateQueries();
     } finally {
       setBusy(false);
     }
   }
+  let draft: { quantity: bigint; strikeTotal: bigint; premium: bigint } | undefined;
+  let draftError = "";
+  if (quantity && strike && premium) {
+    try {
+      const q = amount(quantity, net.underlying.decimals);
+      draft = { quantity: q, strikeTotal: quoteTotal(q, amount(strike, net.quote.decimals), net.underlying.decimals), premium: quoteTotal(q, amount(premium, net.quote.decimals), net.underlying.decimals) };
+    } catch (err) { draftError = decodeProtocolError(err).message; }
+  }
+  const collateralToken = kind === 0 ? net.underlying : net.quote;
+  const collateralRow = rowFor(collateralToken);
+  const requiredCollateral = draft ? kind === 0 ? draft.quantity : draft.strikeTotal : undefined;
+  const insufficientCollateral = requiredCollateral !== undefined && collateralRow !== undefined && requiredCollateral > collateralRow.available;
+  async function executePrepared(operation: PreparedOperation) {
+    if (operation.approval) await approve(operation.approval.token, operation.approval.spender, operation.approval.amount);
+    setEstimatedGas(await simulatePrepared(client, operation));
+    await checkWallet();
+    setNotice("Confirm the transaction in your wallet.");
+    await receipt(await sendTransactionAsync({ ...operation.request, account: operation.account, chainId: chain.id }), operation.action);
+  }
   async function create(event: FormEvent) {
-    event.preventDefault();
-    setNoticeScope("create");
+    event.preventDefault(); setNoticeScope("create");
     await run(async () => {
-      const q = amount(quantity, net.underlying.decimals),
-        k = amount(strike, net.quote.decimals),
-        p = amount(premium, net.quote.decimals);
+      if (!draft || !activeMarket) throw new ProtocolError("INVALID_TERMS", draftError || "Complete the offer terms.", "Review quantity, strike and premium.");
       const block = await client.getBlock();
       const e = expiration(effectiveExpiry, Number(block.timestamp) * 1000);
-      await approve(
-        kind === 0 ? net.underlying : net.quote,
-        net.factory!,
-        kind === 0 ? q : k,
-      );
-      setNotice("Confirm offer creation and the collateral deposit.");
-      const { request } = await client.simulateContract({
-        address: net.factory!,
-        abi: optionFactoryAbi,
-        functionName: "createOption",
-        args: [kind, q, k, p, e],
-        account: address!,
-      });
-      await receipt(
-        await writeContractAsync({ ...request, chainId: chain.id }),
-      );
-      setTab("mine");
-      setQuantity("");
-      setStrike("");
-      setPremium("");
-      setExpiry("");
-      setPresetExpiry("");
+      await executePrepared(await prepareCreateOffer(client, activeMarket, address!, { optionType: kind as 0 | 1, ...draft, expiry: e }));
+      setTab("mine"); setPortfolioScope("current"); setQuantity(""); setStrike(""); setPremium(""); setExpiry(""); setPresetExpiry("");
     }, "Offer created. Collateral has been deposited in the contract.");
   }
   async function transact(position: Position, action: string) {
     setNoticeScope("trade");
     await run(async () => {
-      if (action === "buy" && acceptedFor !== `${address}:${position.address}`)
-        throw new Error("Confirm that you understand the manual exercise deadline before buying.");
-      if (action === "buy")
-        await approve(net.quote, position.address, position.premium);
-      if (action === "exercise")
-        await approve(
-          position.optionType === 0 ? net.quote : net.underlying,
-          position.address,
-          position.optionType === 0
-            ? position.strikeTotal
-            : position.underlyingAmount,
-        );
-      setNotice("Confirm the transaction in your wallet.");
-      const { request } = await client.simulateContract({
-        address: position.address,
-        abi: optionAbi,
-        functionName: action as
-          | "buy"
-          | "exercise"
-          | "cancel"
-          | "reclaimExpired",
-        account: address!,
-      });
-      await receipt(
-        await writeContractAsync({ ...request, chainId: chain.id }),
-      );
+      if (!activeMarket) throw new Error("Market is not configured.");
+      if (action === "buy" && acceptedFor !== `${address}:${position.address}`) throw new ProtocolError("INVALID_TERMS", "Acknowledge the manual exercise deadline.", "Read and check the acknowledgment before buying.");
+      const prepare = { buy: prepareBuy, exercise: prepareExercise, cancel: prepareCancel, reclaimExpired: prepareReclaim }[action];
+      if (!prepare) throw new Error("Unsupported operation.");
+      await executePrepared(await prepare(client, activeMarket, address!, position.address));
     }, "Transaction confirmed. Balances and position are up to date.");
   }
   async function faucet(token: Token) {
@@ -470,9 +412,8 @@ function App() {
         functionName: "faucet",
         account: address!,
       });
-      await receipt(
-        await writeContractAsync({ ...request, chainId: chain.id }),
-      );
+      await checkWallet();
+      await receipt(await writeContractAsync({ ...request, chainId: chain.id }), `Get ${token.symbol}`);
     }, `Test ${token.symbol} received.`);
   }
   const displayAmount = (value: bigint, token: Token) =>
@@ -493,6 +434,8 @@ function App() {
         >
           <div>
             {error || notice}
+            {error && errorDetails && <details><summary>Technical details</summary><code>{errorDetails}</code></details>}
+            {!error && estimatedGas !== null && <div className="fine">Estimated network fee: {units(estimatedGas, 18)} ETH. Your wallet shows the final estimate.</div>}
             {txHash && (
               <div className="tx-link">
                 {explorer(`tx/${txHash}`, `Transaction ${short(txHash)}`)}
@@ -531,6 +474,13 @@ function App() {
           <strong>{detail.expiry <= now && detail.state < 2 ? "This exercise right has expired" : "Manual exercise · No resale"}</strong>
           <p>{detail.expiry <= now && detail.state < 2 ? "Exercise is no longer possible. The writer may reclaim collateral and keeps the premium." : "An unexercised option expires without a payout or premium refund. You cannot resell this option."}</p>
         </div>
+        {address && (actions(detail, address, now).includes("buy") || actions(detail, address, now).includes("exercise")) && <section className="exercise-funding" aria-label="Funds for this option"><h3>{detail.state === 0 ? "Plan for exercise" : "Exercise this option"}</h3><dl className="balance-breakdown"><div><dt>{detail.state === 0 ? "Pay at purchase" : "Premium already paid"}</dt><dd>{displayAmount(detail.premium, net.quote)}</dd></div><div><dt>You deliver at exercise</dt><dd>{displayAmount(detail.optionType === 0 ? detail.strikeTotal : detail.underlyingAmount, detail.optionType === 0 ? net.quote : net.underlying)}</dd></div><div><dt>You receive at exercise</dt><dd>{displayAmount(detail.optionType === 0 ? detail.underlyingAmount : detail.strikeTotal, detail.optionType === 0 ? net.underlying : net.quote)}</dd></div><div><dt>Available to deliver now</dt><dd>{balances.data ? displayAmount(detail.optionType === 0 ? balances.data.quote : balances.data.underlying, detail.optionType === 0 ? net.quote : net.underlying) : "Loading…"}</dd></div></dl><p className="fine">Gas is separate. Buying a call spends part of the same payment-token balance you may later need to exercise.</p></section>}
+        {detail.expiry > now && <button className="button calendar-button" onClick={() => {
+          const stamp = (date: Date) => date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+          const start = new Date(Number(detail.expiry - 3600n) * 1000);
+          const body = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Stock Options Lab//Exercise reminder//EN", "BEGIN:VEVENT", `UID:${detail.address}@stock-options-lab`, `DTSTAMP:${stamp(new Date())}`, `DTSTART:${stamp(start)}`, `DTEND:${stamp(new Date(Number(detail.expiry) * 1000))}`, "SUMMARY:Review your option before expiration", "DESCRIPTION:Manual exercise requires a confirmed transaction before the contract deadline. This reminder does not exercise your option.", `URL:${window.location.href}`, "END:VEVENT", "END:VCALENDAR", ""].join("\r\n");
+          const url = URL.createObjectURL(new Blob([body], { type: "text/calendar" })); const link = document.createElement("a"); link.href = url; link.download = "option-exercise-reminder.ics"; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }}>Add exercise reminder</button>}
         {actions(detail, address, now).includes("buy") && <label className="exercise-ack"><input type="checkbox" checked={acceptedFor === `${address}:${detail.address}`} disabled={busy} onChange={event => setAcceptedFor(event.target.checked ? `${address}:${detail.address}` : "")} /><span>I understand that I must exercise before the deadline or lose the right and the premium.</span></label>}
         {noticeScope === "trade" && notification}
         <div className="detail-actions">
@@ -572,8 +522,13 @@ function App() {
       </header>
       <section className="instrument-bar" aria-label="Selected market">
         <div className="instrument-identity"><span className="asset-icon" aria-hidden="true">{net.underlying.symbol.slice(0, 1)}</span><div><div className="eyebrow">OPTIONS ON STOCK TOKENS</div><h1>{net.underlying.symbol} <span>/ {net.quote.symbol}</span></h1></div></div>
-        <p className="market-intro">Choose an expiration, compare options, review your purchase.</p>
+        <div className="market-selector"><label>Market <select aria-label="Market" value={marketId} disabled={busy || pending.length > 0} onChange={event => openDetail(null, event.target.value)}>{marketRecords.map(record => <option key={record.marketId} value={record.marketId}>{record.label} · {record.sandbox ? "Practice" : "Official test token"}</option>)}</select></label></div>
+        <p className="market-intro">Compare options. Know what is committed. Manage your next action.</p>
       </section>
+        <nav className="tabs" aria-label="Sections">
+          <div role="tablist" aria-label="Market views">{[["market", "Markets"], ["mine", "Portfolio"], ["activity", "Activity"]].map(([key, label]) => <button key={key} role="tab" aria-selected={tab === key} className={tab === key ? "active" : ""} disabled={busy} onClick={() => { setTab(key as typeof tab); openDetail(null); }}>{label}</button>)}</div>
+          <button className={`button create-nav ${tab === "create" ? "current" : ""}`} disabled={busy} onClick={() => { setTab("create"); openDetail(null); if (ready) void market.refetch(); }}>Create offer</button>
+        </nav>
       {wrongChain && (
         <div className="banner warning">
           <span>
@@ -585,7 +540,10 @@ function App() {
         </div>
       )}
       {!(selected && noticeScope === "trade") && !(tab === "create" && noticeScope === "create") && notification}
-      {isConnected && ready && (
+      {pending.length > 0 && <div className="banner warning" role="status"><span>{pending.length} transaction(s) awaiting a receipt. Approvals are not collateral deposits. New operations are paused until their status is known.</span><button className="button" onClick={() => { setTab("activity"); openDetail(null); }}>View activity</button></div>}
+      {isConnected && ready && tab === "mine" && !selected && <section className="account-overview" aria-label="Account balances"><div className="section-head"><h2>Your capital</h2><span className="fine">{portfolio ? `Block ${portfolio.blockNumber} · All configured markets on this network` : "Reading balances and collateral…"}</span></div>{market.isError ? <p role="alert">Could not reconcile your portfolio. Cached values may be outdated; refresh before trading.</p> : null}{portfolio && <div className="balance-grid">{(tab === "mine" ? portfolio.tokens.map(row => row.token) : [net.underlying, net.quote]).map(token => { const row = rowFor(token); return row && <div className="balance-card" key={token.address}><h3>{token.symbol}<span>{token.isMock ? "Practice token" : "Official test token"}</span></h3><p className="fine asset-provenance">{marketRecords.filter(m => m.underlying.address?.toLowerCase() === token.address?.toLowerCase()).map(m => m.label).join(" · ") || "Shared payment token"} · {token.address ? short(token.address) : ""}</p><strong className="available-number">{displayAmount(row.available, token)}</strong><span className="term-label">Available in wallet</span><dl className="balance-breakdown"><div><dt>Open orders</dt><dd>{displayAmount(row.openCollateral, token)}</dd></div><div><dt>Active collateral</dt><dd>{displayAmount(row.activeCollateral, token)}</dd></div><div><dt>Ready to reclaim</dt><dd>{displayAmount(row.reclaimable, token)}</dd></div><div className="balance-total"><dt>Total tracked</dt><dd>{displayAmount(row.totalTracked, token)}</dd></div></dl></div>; })}</div>}<p className="fine">Tracked token units include collateral backing your obligations. This is not net portfolio value. Purchased option rights are listed separately.</p></section>}
+      {isConnected && ready && tab === "market" && !selected && <div className="capital-inline"><span>Available in wallet</span><strong>{balances.data ? displayAmount(balances.data.underlying, net.underlying) : "Loading…"}</strong><strong>{balances.data ? displayAmount(balances.data.quote, net.quote) : "Loading…"}</strong><button className="text-button" onClick={() => setTab("mine")}>View collateral & positions →</button></div>}
+      {isConnected && ready && !selected && (
         <details className="wallet-panel"><summary>Wallet &amp; test funds</summary>
           <div className="eyebrow">YOUR WALLET · {short(address!)}</div>
           <div className="wallet-row">
@@ -608,7 +566,7 @@ function App() {
               <button disabled={!canAct} onClick={() => faucet(net.quote)}>
                 Get {net.quote.symbol}
               </button>
-              {chain.id === 31337 && net.underlying.isMock && (
+              {net.underlying.isMock && (
                 <button
                   disabled={!canAct}
                   onClick={() => faucet(net.underlying)}
@@ -630,11 +588,8 @@ function App() {
         </details>
       )}
       <section className="market" id="market">
-        <nav className="tabs" aria-label="Sections">
-          <div role="tablist" aria-label="Market views">{[["market", "Options"], ["mine", "My positions"]].map(([key, label]) => <button key={key} role="tab" aria-selected={tab === key} className={tab === key ? "active" : ""} disabled={busy} onClick={() => { setTab(key as typeof tab); openDetail(null); }}>{label}</button>)}</div>
-          <button className={`button create-nav ${tab === "create" ? "current" : ""}`} disabled={busy} onClick={() => { setTab("create"); openDetail(null); }}>Create offer</button>
-        </nav>
-        {!ready && tab === "mine" ? (
+
+        {tab === "activity" ? <section className="activity-panel"><h2>Transaction activity</h2><p>Transactions sent from this browser. Onchain option positions appear in Portfolio.</p>{transactions.filter(t => t.chainId === chain.id && t.account.toLowerCase() === address?.toLowerCase()).length ? <div className="activity-list">{transactions.filter(t => t.chainId === chain.id && t.account.toLowerCase() === address?.toLowerCase()).map(tx => <div className="activity-item" key={tx.hash}><div><strong>{tx.action}</strong><span>{tx.step === "approval" ? "Token approval · does not deposit collateral" : "Contract operation"} · {tx.marketId}</span></div><span className="pill">{tx.status}</span><div>{explorer(`tx/${tx.hash}`, short(tx.hash))}<small>{new Date(tx.createdAt).toLocaleString("en-US")}</small></div></div>)}</div> : <div className="empty">No transactions recorded for this wallet in this browser.</div>}</section> : !ready && tab === "mine" ? (
           <div className="empty setup">
             <span className="empty-icon">↗</span>
             <h2>The next step is connecting the factory.</h2>
@@ -710,8 +665,9 @@ function App() {
               </fieldset>
               <div className="lot-presets" aria-label="Lot size shortcuts">
                 <span>Lot size</span>
-                <button type="button" disabled={busy} aria-pressed={quantity === "100"} onClick={() => setQuantity("100")}>100 tokens</button>
+                <button type="button" disabled={busy} aria-pressed={quantity === "0.01"} onClick={() => setQuantity("0.01")}>0.01 token</button>
                 <button type="button" disabled={busy} aria-pressed={quantity === "1"} onClick={() => setQuantity("1")}>1 token</button>
+                <button type="button" disabled={busy || !collateralRow || market.isError || (kind === 1 && !strike)} onClick={async () => { try { const refreshed = await market.refetch(); const row = refreshed.data?.portfolio?.tokens.find(r => r.token.address.toLowerCase() === collateralToken.address?.toLowerCase()); if (refreshed.isError || !row) throw new Error("Could not refresh available collateral."); const q = maximumQuantity(row.available, kind, kind === 1 ? amount(strike, net.quote.decimals) : 0n, net.underlying.decimals); setQuantity(units(q, net.underlying.decimals)); } catch (err) { setNoticeScope("create"); setError(errorText(err)); } }}>Max</button>
                 <span>or enter a custom quantity below</span>
               </div>
               <label className="field">
@@ -726,12 +682,12 @@ function App() {
                 />
                 <small>
                   Token units, with up to {net.underlying.decimals} decimal
-                  places. A 100-token lot is not a guarantee of 100 shares.
+                  places. Delivery uses fixed token units, not adjusted share amounts.
                 </small>
               </label>
               <div className="form-columns">
                 <label className="field">
-                  Total exercise amount · {net.quote.symbol}
+                  Strike per token · {net.quote.symbol}
                   <input
                     inputMode="decimal"
                     placeholder="100"
@@ -740,10 +696,10 @@ function App() {
                     required
                     disabled={busy}
                   />
-                  <small>For the entire lot, not a price per token.</small>
+                  <small>Exercise price for one token. The total is calculated from your quantity.</small>
                 </label>
                 <label className="field">
-                  Total premium · {net.quote.symbol}
+                  Premium per token · {net.quote.symbol}
                   <input
                     inputMode="decimal"
                     placeholder="5"
@@ -776,11 +732,14 @@ function App() {
                 </label>}
                 {deadlinePreview(effectiveExpiry) && <p className="deadline-preview">Exercise strictly before <strong>{deadlinePreview(effectiveExpiry)}</strong></p>}
               </fieldset>
+              {expiryError && <div className="banner error" role="alert">{expiryError}</div>}
+              {draftError && <div className="banner error" role="alert">{draftError}</div>}
+              {insufficientCollateral && <div className="banner error" role="alert">Not enough {collateralToken.symbol}. Required: {displayAmount(requiredCollateral!, collateralToken)}. Available: {displayAmount(collateralRow!.available, collateralToken)}. Reduce the amount or reclaim eligible collateral.</div>}
               {noticeScope === "create" && notification}
               <button
                 className="button dark full"
                 type="submit"
-                disabled={!canAct}
+                disabled={!canAct || !draft || !!expiryError || insufficientCollateral || market.isError || !portfolio}
               >
                 {busy ? "Processing…" : "Approve collateral and create offer"}
               </button>
@@ -788,41 +747,31 @@ function App() {
                 <p className="fine">Connect a wallet to create your offer.</p>
               )}
             </form>
-            <aside className="create-note">
-              <span className="pill">
-                {kind === 0 ? "CALL" : "PUT"} · 100% COLLATERALIZED
-              </span>
-              <h3>
-                Clear terms.
-                <br />
-                Funds in the contract.
-              </h3>
-              <p>
-                You will deposit{" "}
-                <strong>
-                  {kind === 0
-                    ? quantity || "the quantity of"
-                    : strike || "the amount of"}{" "}
-                  {kind === 0 ? net.underlying.symbol : net.quote.symbol}
-                </strong>{" "}
-                as collateral.
-              </p>
-              <p>
-                The buyer can exercise at any time before expiration. If the
-                option expires unexercised, reclaim the deposit from My
-                positions.
-              </p>
-              <p>
-                Once purchased, the offer cannot be canceled. The premium and
-                amounts remain fixed.
-              </p>
-              <p><strong>No closing-price calculation.</strong> Exercise exchanges the agreed lot for the agreed payment. No app server chooses a settlement price or changes the deadline.</p>
+            <aside className="create-note" aria-label="Offer funding summary">
+              <p className="fine">{portfolio ? `Balances at block ${portfolio.blockNumber}` : "Connect your wallet to view balances"}{market.isFetching ? " · Refreshing…" : ""}</p>
+              <div className="eyebrow">YOUR OFFER · {kind === 0 ? "COVERED CALL" : "CASH-SECURED PUT"}</div><h3>What changes for you</h3>
+              <p className="fine">Collateral is deposited when you create the offer. Premium arrives only when someone buys it.</p>
+              <dl className="balance-breakdown">
+                <div><dt>Available in wallet</dt><dd>{collateralRow ? displayAmount(collateralRow.available, collateralToken) : "Connect to view"}</dd></div>
+                <div><dt>In open orders</dt><dd>{collateralRow ? displayAmount(collateralRow.openCollateral, collateralToken) : "—"}</dd></div>
+                <div><dt>In active collateral</dt><dd>{collateralRow ? displayAmount(collateralRow.activeCollateral, collateralToken) : "—"}</dd></div>
+                <div><dt>Ready to reclaim</dt><dd>{collateralRow ? displayAmount(collateralRow.reclaimable, collateralToken) : "—"}</dd></div>
+                <div className="balance-total"><dt>Total tracked</dt><dd>{collateralRow ? displayAmount(collateralRow.totalTracked, collateralToken) : "—"}</dd></div>
+                <div className="funding-impact"><dt>Deposit for this offer</dt><dd>{requiredCollateral !== undefined ? displayAmount(requiredCollateral, collateralToken) : "Enter terms"}</dd></div>
+                <div><dt>Available after deposit</dt><dd>{requiredCollateral !== undefined && collateralRow ? insufficientCollateral ? "Insufficient balance" : displayAmount(collateralRow.available - requiredCollateral, collateralToken) : "—"}</dd></div>
+                <div><dt>Premium if purchased</dt><dd>{draft ? displayAmount(draft.premium, net.quote) : "—"}</dd></div>
+                <div><dt>Total exercise payment</dt><dd>{draft ? displayAmount(draft.strikeTotal, net.quote) : "—"}</dd></div>
+                <div><dt>Gas available separately</dt><dd>{balances.data ? gasAmount(balances.data.gas) : "—"}</dd></div>
+              </dl>
+              <p>The buyer may exercise before the deadline. An unsold offer can be canceled; a sold option stays collateralized until exercise or recovery after expiry.</p>
+              {market.isError && <p role="alert">Portfolio refresh failed. Values may be stale. Retry before creating.</p>}
+              {!net.underlying.isMock && <p className="fine">Stock Token display multiplier: {displayMetadata.data?.multiplier !== undefined ? units(displayMetadata.data.multiplier, 18) : "Unavailable"}. Contract quantities remain fixed token units, not adjusted share amounts.</p>}
             </aside>
           </div>
         ) : tab === "market" ? (
           <div className={`trading-workspace ${selected ? "has-selection" : ""}`}>
             <div>
-              <OptionsChain positions={positions} now={now} selected={detail} symbol={net.underlying.symbol}
+              <OptionsChain positions={positions.slice(0, limit)} now={now} selected={detail} symbol={net.underlying.symbol}
                 quoteSymbol={net.quote.symbol} underlyingDecimals={net.underlying.decimals} quoteDecimals={net.quote.decimals}
                 loading={ready && (market.isFetching || health.isPending)} unavailable={!ready || health.isError || market.isError} configured={ready}
                 onSelect={openDetail} onRefresh={() => { void health.refetch(); void market.refetch(); }}
@@ -845,7 +794,7 @@ function App() {
                 <div className="eyebrow">
                   {tab === "mine" ? "YOUR ACTIVITY" : "THE MARKET"}
                 </div>
-                <h2>{tab === "mine" ? "My positions" : "Open offers"}</h2>
+                <h2>{tab === "mine" ? "Your positions and orders" : "Open offers"}</h2>
               </div>
               <div className="filters">
                 {[
@@ -871,6 +820,7 @@ function App() {
                 </button>
               </div>
             </div>
+            {tab === "mine" && <div className="position-scope"><button className={portfolioScope === "current" ? "active" : ""} aria-pressed={portfolioScope === "current"} onClick={() => setPortfolioScope("current")}>Open positions & orders</button><button className={portfolioScope === "history" ? "active" : ""} aria-pressed={portfolioScope === "history"} onClick={() => setPortfolioScope("history")}>Closed history</button></div>}
             {tab === "mine" && !address ? (
               <div className="empty">
                 <h3>Your positions live in your wallet.</h3>
@@ -885,12 +835,16 @@ function App() {
               </div>
             ) : visible.length ? (
               <div className="option-grid">
-                {visible.map((position) => (
+                {visible.map((position) => {
+                  const positionMarketId = "marketId" in position ? String(position.marketId) : marketId;
+                  const positionMarket = marketRecords.find(m => m.marketId === positionMarketId) ?? net;
+                  return (
                   <button
                     className="option-card"
                     key={position.address}
-                    onClick={() => openDetail(position.address)}
+                    onClick={() => openDetail(position.address, positionMarketId)}
                   >
+                    <div className="eyebrow">{position.writer.toLowerCase() === address?.toLowerCase() ? position.state === 0 && position.expiry > now ? "YOUR OPEN ORDER" : "YOUR WRITTEN OPTION" : "YOUR PURCHASED RIGHT"}</div>
                     <div className="card-top">
                       <span
                         className={`type ${position.optionType === 1 ? "put" : ""}`}
@@ -900,19 +854,19 @@ function App() {
                       <span className="fine">{status(position, now)}</span>
                     </div>
                     <h3>
-                      {displayAmount(position.underlyingAmount, net.underlying)}
+                      {displayAmount(position.underlyingAmount, positionMarket.underlying)}
                     </h3>
                     <div className="card-terms">
                       <div>
                         <span>Total premium</span>
                         <strong>
-                          {displayAmount(position.premium, net.quote)}
+                          {displayAmount(position.premium, positionMarket.quote)}
                         </strong>
                       </div>
                       <div>
                         <span>Total exercise</span>
                         <strong>
-                          {displayAmount(position.strikeTotal, net.quote)}
+                          {displayAmount(position.strikeTotal, positionMarket.quote)}
                         </strong>
                       </div>
                     </div>
@@ -929,7 +883,7 @@ function App() {
                       <span>View option ↗</span>
                     </div>
                   </button>
-                ))}
+                ); })}
               </div>
             ) : (
               !market.isError && (
@@ -937,7 +891,7 @@ function App() {
                   <span className="empty-icon">↗</span>
                   <h3>
                     {tab === "mine"
-                      ? "You have no loaded positions yet."
+                      ? portfolioScope === "history" ? "No closed positions yet." : "No open positions or orders."
                       : "There are no open offers yet."}
                   </h3>
                   <p>
@@ -949,7 +903,7 @@ function App() {
                 </div>
               )
             )}
-            {market.data && market.data.total > BigInt(limit) && (
+            {tab !== "mine" && market.data && market.data.total > BigInt(limit) && (
               <div className="pagination">
                 <p>
                   Showing the latest {limit} of {market.data.total.toString()}{" "}
@@ -1002,12 +956,12 @@ function App() {
     </main>
   );
 }
-export default function Home() {
+export default function Home({ initialMarketId }: { initialMarketId?: string }) {
   const [queryClient] = useState(() => new QueryClient());
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <App />
+        <App initialMarketId={initialMarketId} />
       </QueryClientProvider>
     </WagmiProvider>
   );

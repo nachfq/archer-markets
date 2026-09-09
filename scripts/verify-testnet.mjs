@@ -12,6 +12,10 @@ try {
     [record.quote.address, 'src/MockUSD.sol:MockUSD', null],
     [record.factory, 'src/OptionFactory.sol:OptionFactory', encodeAbiParameters(parseAbiParameters('address,address'), [record.underlying.address, record.quote.address])],
   ];
+  for (const market of record.markets ?? []) {
+    if (market.underlying.isMock) jobs.push([market.underlying.address, 'src/MockStock.sol:MockStock', null]);
+    jobs.push([market.factory, 'src/OptionFactory.sol:OptionFactory', encodeAbiParameters(parseAbiParameters('address,address'), [market.underlying.address, market.quote.address])]);
+  }
   const { abi: factoryAbi } = await artifact('OptionFactory');
   const { abi: optionAbi } = await artifact('Option');
   const count = await publicClient.readContract({ address: record.factory, abi: factoryAbi, functionName: 'optionCount' });

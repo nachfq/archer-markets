@@ -7,6 +7,8 @@ for (const [name, contract] of exports) {
   source += `export const ${name} = ${JSON.stringify(abi, null, 2)} as const;\n\n`;
 }
 source += `export const faucetAbi = ${JSON.stringify((await artifact('MockUSD')).abi.filter(x => x.type === 'function' && x.name === 'faucet'), null, 2)} as const;\n`;
+await mkdir(atRoot('packages/sdk/src'), { recursive: true });
+await writeFile(atRoot('packages/sdk/src/abis.ts'), source);
 await mkdir(atRoot('web/lib/generated'), { recursive: true });
-await writeFile(atRoot('web/lib/generated/abis.ts'), source);
+await writeFile(atRoot('web/lib/generated/abis.ts'), '// Generated SDK ABI re-export. Do not edit.\nexport { optionAbi, optionFactoryAbi, erc20Abi, faucetAbi } from \"@stock-options-lab/sdk/abis\";\n');
 console.log('Generated frontend ABIs from Solidity artifacts.');

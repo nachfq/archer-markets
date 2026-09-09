@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import { chromium, expect } from '@playwright/test';
-import { createPublicClient, erc20Abi, http } from 'viem';
+import { createPublicClient, erc20Abi, http, formatUnits } from 'viem';
 
 const root = new URL('../', import.meta.url);
 const json = async (path) => JSON.parse(await readFile(new URL(path, root), 'utf8'));
@@ -29,8 +29,8 @@ const quote = deployment.quote.address;
 assert((await client.getCode({ address: factory }))?.length > 2, 'Local factory is missing');
 
 const quantity = 1_250_000_000_000_000_000n;
-const strike = 312_345_678n;
-const premium = 4_567_891n;
+const strike = 312_345_680n;
+const premium = 4_567_890n;
 const evidence = { chainId: 31337, baseUrl, factory, writer, buyer, startedAt: new Date().toISOString(), setupTransactions: [], scenarios: [] };
 let transactions = evidence.setupTransactions;
 const errors = [];
@@ -131,11 +131,22 @@ async function create(page, type, usePreset = false) {
   const expiry = new Date(Math.max(Date.now(), Number(block.timestamp) * 1000) + 86_400_000).toISOString().slice(0, 16);
   await page.locator('.create-nav').click();
   await page.getByRole('radio', { name: type === 0 ? /^Covered call/ : /^Put/ }).check();
-  await page.getByRole('button', { name: '100 tokens', exact: true }).click();
-  await expect(page.getByLabel(/^Quantity of/)).toHaveValue('100');
+  await expect(page.getByRole('complementary', { name: 'Offer funding summary' })).toBeVisible();
+  await page.getByLabel(/^Quantity of/).fill('999999999');
+  await page.getByLabel(/^Strike per token/).fill('1');
+  await page.getByLabel(/^Premium per token/).fill('1');
+  await expect(page.getByRole('alert').filter({ hasText: /Not enough Mock/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Approve collateral and create offer' })).toBeDisabled();
+  if (type === 0) {
+    await page.getByRole('button', { name: 'Max', exact: true }).click();
+    await expect(page.getByLabel(/^Quantity of/)).toHaveValue(formatUnits(before.underlying,18));
+  }
+  await page.getByRole('button', { name: '0.01 token', exact: true }).click();
+  await expect(page.getByLabel(/^Quantity of/)).toHaveValue('0.01');
   await page.getByLabel(/^Quantity of/).fill('1.25');
-  await page.getByLabel(/^Total exercise amount/).fill('312.345678');
-  await page.getByLabel(/^Total premium/).fill('4.567891');
+  await page.getByLabel(/^Strike per token/).fill('249.876544');
+  await page.getByLabel(/^Premium per token/).fill('3.654312');
+  await expect(page.locator('.funding-impact dd')).toHaveText(type === 0 ? '1.25 MockSTOCK' : '312.34568 MockUSD');
   let expectedExpiry;
   if (usePreset) {
     await page.getByRole('radio', { name: 'Suggested dates', exact: true }).check();
@@ -252,6 +263,37 @@ try {
   assert.equal(Number(await read(expireOffer.option, optionAbi, 'state')), 4);
   expired.result = 'passed';
   console.log(`PASS ${expired.label}`);
+  // Persisted pending state references an actual local transaction, not a fake receipt.
+  await client.request({ method: 'evm_setAutomine', params: [false] });
+  try {
+    const pendingHash = await client.request({ method: 'eth_sendTransaction', params: [{ from: writer, to: writer, value: '0x0', gas: '0x5208' }] });
+    await writerPage.evaluate(({ hash, account }) => {
+      const key = 'stock-options:transactions:v1';
+      const items = JSON.parse(localStorage.getItem(key) || '[]');
+      items.unshift({ hash, account, chainId: 31337, marketId: 'primary', action: 'Pending recovery acceptance', step: 'operation', status: 'pending', createdAt: new Date().toISOString() });
+      localStorage.setItem(key, JSON.stringify(items));
+    }, { hash: pendingHash, account: writer });
+    await writerPage.goto(baseUrl);
+    await expect(writerPage.getByRole('status').filter({ hasText: 'transaction(s) awaiting a receipt' })).toBeVisible();
+    await writerPage.getByRole('button', { name: 'View activity', exact: true }).click();
+    await expect(writerPage.locator('.activity-item').filter({ hasText: 'Pending recovery acceptance' })).toContainText('pending');
+    await client.request({ method: 'evm_mine', params: [] });
+    await expect(writerPage.locator('.activity-item').filter({ hasText: 'Pending recovery acceptance' })).toContainText('confirmed', { timeout: 15000 });
+    console.log('PASS pending transaction survives reload and reconciles after a real local receipt');
+  } finally { await client.request({ method: 'evm_setAutomine', params: [true] }); }
+  // Connected visual evidence is kept local and is not human usability validation.
+  await writerPage.getByRole('tab', { name: 'Portfolio', exact: true }).click();
+  await expect(writerPage.getByRole('region', { name: 'Account balances' })).toBeVisible();
+  await expect(writerPage.locator('.balance-card')).toHaveCount(3);
+  await writerPage.screenshot({ path: '/tmp/options-portfolio-connected.png', fullPage: true });
+  await writerPage.locator('.create-nav').click();
+  await writerPage.getByLabel(/^Quantity of/).fill('0.01');
+  await writerPage.getByLabel(/^Strike per token/).fill('300');
+  await writerPage.getByLabel(/^Premium per token/).fill('8');
+  await writerPage.screenshot({ path: '/tmp/options-create-connected.png', fullPage: true });
+  await writerPage.setViewportSize({ width: 390, height: 844 });
+  await writerPage.screenshot({ path: '/tmp/options-create-mobile.png', fullPage: true });
+  assert.equal(await writerPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   evidence.finishedAt = new Date().toISOString();
   evidence.browserErrors = errors;
   assert.equal(errors.length, 0, `Browser runtime errors: ${errors.join('; ')}`);

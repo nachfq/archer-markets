@@ -1,0 +1,12 @@
+{
+  "name": "@stock-options-lab/sdk",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Chain-configured SDK for fully collateralized physical-delivery options",
+  "license": "UNLICENSED",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }, "./abis": { "types": "./dist/abis.d.ts", "import": "./dist/abis.js" } },
+  "files": ["dist", "README.md"],
+  "scripts": { "build": "tsc -p tsconfig.json", "test": "node --test test/*.test.mjs" },
+  "dependencies": { "viem": "2.56.3" },
+  "devDependencies": { "typescript": "5.9.3", "@types/node": "22.19.19" }
+}

@@ -38,12 +38,12 @@ Open the server URL, normally `http://localhost:3000`. The seed script creates o
 and one put from each of the first two Anvil accounts, with deposited test collateral.
 After every Anvil restart, repeat deployment and seeding.
 
-The default **Options** screen contains the options chain. Choose a listed expiration, then select a
+The default **Markets** screen contains the options chain. Choose a listed expiration, then select a
 call or put in the strike table. The **Review your option** panel shows the exact whole-lot terms
 and the available action for the connected wallet. The chain initially shows three
 expiration timestamps and five strikes; additional listings can be expanded.
 Only funded open offers appear, with no invented bids, trade history, or volume.
-Bought options remain under **My positions** and cannot be resold or transferred
+Bought options remain under **Portfolio** and cannot be resold or transferred
 in this contract version.
 
 ## Set up two browser wallet accounts
@@ -69,18 +69,18 @@ The writer cannot buy their own offer.
 
 These credentials are public test fixtures, not secrets: never send real assets to them
 or use them on a public network. Anvil supplies local ETH. Expand **Wallet & test funds** to access the faucet buttons, which provide
-MockUSD and, locally only, MockSTOCK. The seed step already funds both accounts with mocks.
+MockUSD and the selected practice market’s MockSTOCK. The seed step already funds both accounts with mocks.
 The amounts below are fictional terms, **not TSLA market quotes**.
 
 ## Covered call
 
 The creation form offers suggested Friday/monthly deadlines and a separate
 **Custom expiration** selector. Suggested dates use 16:00 New York time, with an
-explicit UTC preview, and are not adjusted for exchange holidays. The **100 tokens**
-shortcut only fills the quantity; the walkthrough below uses a smaller lot.
+explicit UTC preview, and are not adjusted for exchange holidays. The **0.01 token**, **1 token**, and **Max** shortcuts help size affordable offers.
+Max uses available wallet collateral, not funds already committed to other options.
 
-1. Account A opens **Create offer** and chooses Call, quantity 1, total exercise payment
-   300 MockUSD, premium 8 MockUSD, and a future expiration.
+1. Account A opens **Create offer** and chooses Call, quantity 1, strike per token
+   300 MockUSD, premium per token 8 MockUSD, and a future expiration.
 2. Approve 1 MockSTOCK to the factory, then create the offer. The stock moves from A
    into the option contract. Approval and creation are separate wallet transactions.
 3. Expand **Contract details**, copy the offer link, and open it with account B connected. Acknowledge the manual
@@ -94,7 +94,7 @@ To test buying first, B can instead open one of A's seeded calls and start at st
 
 ## Cash-secured put
 
-1. A creates a Put for 1 token, total exercise payment 250 MockUSD, and premium 6 MockUSD.
+1. A creates a Put for 1 token, strike per token 250 MockUSD, and premium per token 6 MockUSD.
 2. A approves 250 MockUSD to the factory and creates the offer. The test cash is escrowed.
 3. B acknowledges the manual exercise deadline, approves and pays the 6 MockUSD
    premium to buy. A receives the premium.
@@ -107,7 +107,7 @@ To test buying first, B can instead open one of A's seeded calls and start at st
 - A purchased offer cannot be cancelled. Its buyer decides whether to exercise.
 - Exercise must be included in a block before expiration. The browser countdown is
   informational; the blockchain timestamp is authoritative.
-- At or after expiration, **My positions** lets the writer reclaim collateral if the
+- At or after expiration, **Portfolio** lets the writer reclaim collateral if the
   option was not exercised. The writer keeps any premium already paid.
 - `npm run test:e2e` checks the exact expiration boundary using controlled Anvil time;
   no manual waiting is required for that test.
@@ -157,3 +157,26 @@ For visual and usability checks against a running local demo, run
 to `/tmp/options-ux-review` by default; `UX_REVIEW_OUTPUT` overrides that directory.
 It checks desktop/tablet/mobile layouts, keyboard focus, displayed text contrast,
 empty/offline states, and viewport reflow equivalent to 200% desktop zoom.
+
+## Capital, activity, and fractional offers
+
+Connect a wallet to see available tokens, open-order collateral, active collateral,
+and expired collateral ready to reclaim. Portfolio includes every configured market
+on the selected chain and lists all owned positions, including older contracts beyond
+the market's first 100 displayed offers. Total tracked is not net portfolio value.
+Distinct tokens with the same symbol include their market label and shortened address.
+
+Try quantity 0.01, strike 300, premium 8: the exact exercise total is 3 MockUSD and
+premium is 0.08 MockUSD. A call deposits 0.01 stock tokens; a put deposits 3 MockUSD.
+The creation summary shows the required deposit and remaining wallet balance. An
+unaffordable or unrepresentable lot disables creation and explains the reason.
+
+Activity distinguishes approval from operation and tracks pending hashes across reloads.
+Pending transactions pause new actions for that wallet/network until a receipt is known.
+A timeout is not treated as a revert. Browser history is not a complete wallet history;
+confirmed option positions are independently reconstructed from the onchain registry.
+Calendar export adds a review reminder one hour before expiration, not an automatic executor.
+
+Use the Market selector for the separate practice factory. Its MockSTOCK is a different
+contract from the primary asset; MockUSD is intentionally shared and counted once.
+The practice market starts empty and provides a faucet after connecting.

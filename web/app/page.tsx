@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { isAddress } from "viem";
 import OptionsApp from "./options-app";
-import { client, deployment, ready } from "../lib/config";
+import { client, deployment as defaultDeployment, marketRecords, asMarket } from "../lib/config";
 import { optionAbi, optionFactoryAbi } from "../lib/generated/abis";
 import { units } from "../lib/options";
 
@@ -10,7 +10,10 @@ export async function generateMetadata({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }): Promise<Metadata> {
-  const selected = (await searchParams).option;
+  const params = await searchParams;
+  const selected = params.option;
+  const deployment = marketRecords.find(m => m.marketId === params.market) ?? defaultDeployment;
+  const ready = !!asMarket(deployment);
   if (!selected) return {};
   let title = "Option unavailable · Stock Options Lab";
   let description =
@@ -70,6 +73,7 @@ export async function generateMetadata({
   };
 }
 
-export default function Page() {
-  return <OptionsApp />;
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const market = (await searchParams).market;
+  return <OptionsApp initialMarketId={typeof market === "string" ? market : undefined} />;
 }

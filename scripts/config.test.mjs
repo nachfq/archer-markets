@@ -37,3 +37,11 @@ test('browser manifests cannot accidentally include private provider URLs or sig
   assert.equal('receipts' in result, false);
   assert.doesNotMatch(JSON.stringify(result), /secret|sensitive/);
 });
+
+
+test('additional markets preserve identity and exclude private deployment fields', () => {
+  const result = publicDeployment({ chainId: 46630, markets: [{ marketId: 'practice', label: 'Practice', sandbox: true, factory: 'public', deploymentBlock: '12', underlying: { address: 'public-stock' }, quote: { address: 'public-quote' }, rpcUrl: 'https://private.invalid/secret', signing: 'sensitive' }] });
+  assert.equal(result.markets[0].marketId, 'practice');
+  assert.equal(result.markets[0].sandbox, true);
+  assert.doesNotMatch(JSON.stringify(result), /secret|sensitive/);
+});

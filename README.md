@@ -30,6 +30,13 @@ whenever the local services are not already running.
 Publishing the website did not deploy contracts to Robinhood. A public contract deployment
 still requires a funded testnet wallet. MockUSD and MockSTOCK have no real value.
 
+## Product roadmap and SDK
+
+The [product roadmap](docs/product-roadmap.md) defines the usable pilot, later resale,
+and EVM portability. The [standalone SDK](packages/sdk/README.md) is shared by the web
+and seed scripts; it exports reads, portfolio snapshots, transaction preparation and
+structured errors without React. Package it with `npm pack --workspace @stock-options-lab/sdk`.
+
 ## Run locally before using testnet
 
 Requirements: Node.js 22.13+ (developed with Node 24), npm, and Foundry (`forge`, `anvil`).
@@ -74,6 +81,7 @@ npm test
 npm run typecheck
 npm run build
 npm run test:e2e   # requires Anvil and deploy:local
+npm run test:sdk:e2e  # standalone SDK consumer; local transactions
 ```
 
 The end-to-end smoke test sends local transactions from two other accounts and checks
@@ -128,10 +136,12 @@ npm run verify:testnet
 npm run dev
 ```
 
-`deploy:testnet` deploys MockUSD and the factory, using the existing Stock Token.
+`deploy:testnet` deploys MockUSD and a factory using the existing Stock Token, plus
+a separate MockSTOCK practice market sharing the same MockUSD payment token.
 `verify:testnet` verifies the factory, MockUSD, and an existing instance of each
-option type in the explorer. `seed:testnet` requires at least one test TSLA per wallet
-and creates offers at arbitrary demonstration prices. Configure an optional second
+option type in the explorer. `seed:testnet` defaults to 0.01 test TSLA per wallet
+and creates offers at arbitrary demonstration prices. Override the quantity with
+`SEED_QUANTITY=0.02 npm run seed:testnet`; totals scale with the lot. Configure an optional second
 testnet wallet in `BUYER_PRIVATE_KEY` to create offers from both participants.
 Keep private keys only in `.env`, never in code, manifests, or messages.
 
@@ -149,7 +159,7 @@ frontend configuration; publishing that updated frontend is a separate operation
   represent exchange-traded options over a fixed number of equity shares.
 - One offer, one buyer, the entire lot; fixed positive premium and total exercise
   payment. No oracle, AMM, cash-settled difference, or secondary market.
-- Only the configured pair of non-rebasing ERC-20s without transfer fees.
+- Each factory uses a configured pair of non-rebasing ERC-20s without transfer fees.
   Transfers check exact balance changes at both ends.
 - No administrator, upgrades, or rescue function. Unsolicited transfers outside
   the agreed collateral cannot be recovered. A regression test ensures advance
