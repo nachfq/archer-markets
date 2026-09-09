@@ -52,6 +52,71 @@ surplus is outside the agreed lot and has no rescue mechanism.
 The subsequent README, coordination-guide, and operational-document translation is a
 documentation-only change. It does not constitute another execution of the tests above.
 
+## Expiration experience iteration
+
+The coordinating agent added Friday and third-Friday monthly expiration suggestions
+at 16:00 New York time, custom expiration, exact UTC previews, and 100-token/1-token
+quantity shortcuts. Suggested dates account for daylight saving but intentionally
+do not claim exchange-calendar or holiday alignment. Quantity, premium, and exercise
+payment retain their existing raw-token/whole-lot semantics.
+
+The offer detail now prominently explains manual exercise, the loss of the right at
+expiry, and the lack of automatic payouts or premium refunds. Purchase requires a
+UI acknowledgment bound to the connected account and option. Expired rights are
+explained even before collateral has been reclaimed. Creation validates its deadline
+against a fresh chain timestamp. The form can also preview terms when the testnet
+factory is unconfigured, with transactions disabled.
+
+See [expiration and settlement](expiration-and-settlement.md) for the distinction
+between this oracle-free physical-delivery PoC and a potential future settlement
+contract. No oracle, keeper, admin permission, or contract behavior changed.
+
+Validation for this iteration: all 26 Solidity tests (including the local TSLA fork),
+3 script tests, and 8 frontend logic tests passed. Typecheck, lint, and the production
+build passed. The four browser transaction scenarios passed with added checks that
+the 100-token shortcut fills the quantity, purchase is disabled until acknowledgment,
+and both suggested and custom deadlines are stored exactly onchain. These browser
+tests use local Anvil wallet fixtures; no public-chain transactions were sent.
+Changes are available in the local app; the previously published site has not been
+updated during this iteration.
+
+## Trading interface iteration
+
+The coordinating agent replaced the landing-page hero with a compact dark trading
+workspace. The default Options chain pairs calls and puts around a strike column,
+with listed expiration tabs and a trade ticket for the selected contract. Creation
+is a secondary tab and My positions retains the complete position lifecycle.
+
+The chain initially shows three expirations and five strikes, with expansion for
+additional listings. It never synthesizes two years of empty series. Any future
+timestamp already supported by the contracts can appear when an actual offer exists.
+Unavailable deployments show the empty trading surface with transactions disabled.
+
+Strikes are grouped and sorted as exact bigint ratios so different lot sizes with
+the same per-token strike can share a row. Individual offers are never aggregated
+into a fictitious order book. The lowest per-token ask is shown first; other offers
+in that cell can be expanded. Premiums and strikes are displayed per token, with
+an approximation marker where needed. Execution always uses the original whole-lot
+integer amounts, reviewed in the ticket. Distinct timestamps remain separate even
+on the same calendar date; dates include their UTC time.
+
+The current buyer cannot transfer or resell an option: the contract only sets buyer
+at purchase and requires that buyer for exercise. This iteration explicitly labels
+the primary-only market and does not implement a secondary market. That feature
+would require a new contract version with atomic right/payment transfer, expiry and
+exercise race handling, listing invalidation, and authorization tests.
+
+The social card was generated once for the new visual direction, inspected, and
+saved as `og-trading.png`; the previous asset remains available. Individual-option
+metadata still clears inherited images. The hosted site remains on its previously
+published version; this iteration updates the local repository and local app.
+
+Validation: 26 Solidity tests (including the local TSLA fork), 3 script tests, and
+11 frontend logic tests passed, along with typecheck and lint. All four browser
+transaction scenarios passed; purchase now starts by selecting a listed expiration
+and quote from the chain before reviewing the ticket. The production build passed.
+No public-chain deployment or secondary-market execution is claimed.
+
 ## Integration contract
 
 The factory fixes `underlying` and `quote`.

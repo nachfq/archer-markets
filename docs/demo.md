@@ -38,6 +38,14 @@ Open the server URL, normally `http://localhost:3000`. The seed script creates o
 and one put from each of the first two Anvil accounts, with deposited test collateral.
 After every Anvil restart, repeat deployment and seeding.
 
+The default screen is **Options chain**. Choose a listed expiration, then select a
+call or put in the strike table. The **Trade ticket** shows the exact whole-lot terms
+and the available action for the connected wallet. The chain initially shows three
+expiration timestamps and five strikes; additional listings can be expanded.
+Only funded open offers appear, with no invented bids, trade history, or volume.
+Bought options remain under **My positions** and cannot be resold or transferred
+in this contract version.
+
 ## Set up two browser wallet accounts
 
 Use a disposable development wallet, separate from any wallet holding real assets.
@@ -66,11 +74,17 @@ The amounts below are fictional terms, **not TSLA market quotes**.
 
 ## Covered call
 
+The creation form offers suggested Friday/monthly deadlines and a separate
+**Custom expiration** selector. Suggested dates use 16:00 New York time, with an
+explicit UTC preview, and are not adjusted for exchange holidays. The **100 tokens**
+shortcut only fills the quantity; the walkthrough below uses a smaller lot.
+
 1. Account A opens **Create offer** and chooses Call, quantity 1, total exercise payment
    300 MockUSD, premium 8 MockUSD, and a future expiration.
 2. Approve 1 MockSTOCK to the factory, then create the offer. The stock moves from A
    into the option contract. Approval and creation are separate wallet transactions.
-3. Copy the offer link and open it with account B connected. Approve the premium to
+3. Copy the offer link and open it with account B connected. Acknowledge the manual
+   exercise deadline. Approve the premium to
    that option, then buy. A receives 8 MockUSD; the stock remains in escrow.
 4. B approves 300 MockUSD to the option and exercises. B receives 1 MockSTOCK and
    A receives 300 MockUSD in the same exercise transaction.
@@ -82,7 +96,8 @@ To test buying first, B can instead open one of A's seeded calls and start at st
 
 1. A creates a Put for 1 token, total exercise payment 250 MockUSD, and premium 6 MockUSD.
 2. A approves 250 MockUSD to the factory and creates the offer. The test cash is escrowed.
-3. B approves and pays the 6 MockUSD premium to buy. A receives the premium.
+3. B acknowledges the manual exercise deadline, approves and pays the 6 MockUSD
+   premium to buy. A receives the premium.
 4. B approves 1 MockSTOCK to the option and exercises. A receives the token and
    B receives 250 MockUSD in the same transaction.
 

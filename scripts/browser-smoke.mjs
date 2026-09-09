@@ -110,23 +110,36 @@ function deltas(before, after, expected, message) {
   }
 }
 
-async function create(page, type) {
+async function create(page, type, usePreset = false) {
   const beforeCount = await read(factory, factoryAbi, 'optionCount');
   const before = { underlying: await read(underlying, erc20Abi, 'balanceOf', [writer]), quote: await read(quote, erc20Abi, 'balanceOf', [writer]) };
   const block = await client.getBlock();
   const expiry = new Date(Math.max(Date.now(), Number(block.timestamp) * 1000) + 86_400_000).toISOString().slice(0, 16);
   await page.getByRole('tab', { name: 'Create offer', exact: true }).click();
   await page.getByRole('radio', { name: type === 0 ? /^Covered call/ : /^Put/ }).check();
+  await page.getByRole('button', { name: '100 tokens', exact: true }).click();
+  await expect(page.getByLabel(/^Quantity of/)).toHaveValue('100');
   await page.getByLabel(/^Quantity of/).fill('1.25');
   await page.getByLabel(/^Total exercise amount/).fill('312.345678');
   await page.getByLabel(/^Total premium/).fill('4.567891');
-  await page.getByLabel(/^Expiration/).fill(expiry);
+  let expectedExpiry;
+  if (usePreset) {
+    await page.getByRole('radio', { name: 'Suggested dates', exact: true }).check();
+    const preset = page.locator('input[name="preset-expiry"]').first();
+    await preset.check();
+    expectedExpiry = BigInt(Date.parse(await preset.inputValue()) / 1000);
+  } else {
+    await page.getByRole('radio', { name: 'Custom expiration', exact: true }).check();
+    await page.getByLabel(/^Expiration · your local time/).fill(expiry);
+    expectedExpiry = BigInt(Date.parse(`${expiry}:00Z`) / 1000);
+  }
   await complete(page, 'Approve collateral and create offer', 'Offer created. Collateral has been deposited in the contract.');
   assert.equal(await read(factory, factoryAbi, 'optionCount'), beforeCount + 1n);
   const option = await read(factory, factoryAbi, 'options', [beforeCount]);
   assert.equal(await read(option, optionAbi, 'underlyingAmount'), quantity);
   assert.equal(await read(option, optionAbi, 'strikeTotal'), strike);
   assert.equal(await read(option, optionAbi, 'premium'), premium);
+  assert.equal(await read(option, optionAbi, 'expiry'), expectedExpiry, 'Stored deadline matches the selected preset or custom time');
   const after = await balances(option);
   for (const token of ['underlying', 'quote']) {
     const collateral = type === 0 ? token === 'underlying' ? quantity : 0n : token === 'quote' ? strike : 0n;
@@ -151,9 +164,21 @@ try {
   for (const [type, name] of [[0, 'CALL'], [1, 'PUT']]) {
     const entry = { label: `${name}: two wallets create, share, buy and exercise through interface`, transactions: [] };
     evidence.scenarios.push(entry); transactions = entry.transactions;
-    const offer = await create(writerPage, type);
+    const offer = await create(writerPage, type, type === 0);
     Object.assign(entry, offer);
-    await buyerPage.goto(offer.link);
+    await buyerPage.goto(baseUrl);
+    await expect(buyerPage.getByRole('region', { name: 'Options chain', exact: true })).toBeVisible();
+    const deadline = new Date(Number(offer.expiry) * 1000).toISOString().replace('T', ' ').replace('.000Z', ' UTC');
+    const expirationButton = buyerPage.locator(`.expiry-strip button[title="${deadline}"]`);
+    await expect(buyerPage.locator('.chain-offer').first()).toBeVisible();
+    if (await expirationButton.count() === 0) await buyerPage.locator('.more-dates').click();
+    await expirationButton.click();
+    const chainQuote = buyerPage.locator(`[data-offer="${offer.option}"]`);
+    await chainQuote.click();
+    await expect(buyerPage).toHaveURL(new RegExp(`option=${offer.option}`, 'i'));
+    await expect(buyerPage.getByRole('complementary', { name: 'Trade ticket' })).toBeVisible();
+    await expect(buyerPage.getByRole('button', { name: 'Buy option', exact: true })).toBeDisabled();
+    await buyerPage.getByRole('checkbox', { name: /^I understand that I must exercise before/ }).check();
     await complete(buyerPage, 'Buy option', 'Transaction confirmed. Balances and position are up to date.');
     const purchased = await balances(offer.option);
     deltas(offer.afterCollateral, purchased, { writer: { quote: premium }, buyer: { quote: -premium } }, `${name} UI purchase`);
