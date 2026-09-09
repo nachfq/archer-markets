@@ -302,3 +302,62 @@ Collateral copy describes the contract's agreed collateral and lifecycle state, 
 a live audit of arbitrary ERC-20 transfers sent directly to its address. Activity is
 still device-local and Closed options is not an event-by-event transaction history.
 This iteration updates the local frontend; the hosted website was not republished.
+
+## Compact trading workspace — September 9, 2026
+
+The human coordinator selected a dark thinkorswim-web-inspired direction for users
+familiar with trading, with buying and writing equally accessible. The implementation
+now uses graphite/slate surfaces, restrained green accents, compact offer rows, and
+Trade / Portfolio / Activity navigation. Trade has a Buy / Write dropdown; expiration,
+strike count (5, 10, all), and writer ownership are dropdowns. Each offer retains its
+individual lot, total premium, per-token comparison, and ownership. Additional offers
+remain expandable and the SDK still supplies the complete registry.
+
+The ticket opens only for a selected option. It shows exact whole-lot costs, exercise
+delivery and deadline; technical details, collateral location, copy actions and
+calendar export are collapsed. Exercise and no-resale conditions stay visible.
+Portfolio is a position table with role-specific review actions and status/type
+filters. Capital is under Balances & collateral. The wallet menu contains funds,
+faucets and disconnect; Activity is a compact browser-local receipt table.
+
+Writing now follows terms, Review offer, then Deposit collateral & write option.
+Reviewing does not send transactions. Editing terms clears review, market changes
+clear terms and selection, and final submission still rechecks the wallet, chain,
+collateral and simulation through the existing SDK. Mobile presents review separately
+from the form or chain, restoring keyboard focus when returning. Shared option URLs
+and browser back/forward remain supported. Contracts, SDK calculations, token units,
+deployment manifests, dependencies and permissions were not changed.
+
+Validation: all 51 existing tests passed (26 Solidity, 4 deployment-script, 9 SDK and
+12 frontend tests), including conservation and rollback coverage. Typecheck, ESLint
+and the chain-46630 production build passed. The browser smoke passed call and put
+purchase/exercise, unsold cancellation and expired collateral reclaim using actual
+receipts on an isolated local Anvil fork at port 8546. It also verified that review
+leaves factory count and balances unchanged, insufficient-collateral prevention,
+refreshed Max, wrong-network recovery, signature rejection without state or balance
+changes, and a pending transaction reconciled after mining. The original port-8545
+demo was not reset or used for acceptance transactions.
+
+The read-only visual suite passed at 1440, 768, 390 and 720px reflow, with no horizontal
+overflow and sampled text contrast of at least 5.82:1. It covers buy/write review,
+focus restoration, edit invalidation, market reset, empty markets and RPC recovery.
+Writer/buyer inspection also passed on desktop and mobile. The new
+`scripts/workspace-review.mjs` checks root and call/put detail metadata, browser
+history, strike controls and a locally served production build with the unconfigured
+testnet manifest. Connected wallet fixtures cannot sign; submission stays disabled
+without a factory on desktop and mobile. No public transactions were sent.
+
+Sites configuration was preserved. The existing hosted frontend was not republished.
+The checked local preview is available through the existing development server.
+Screenshots and transaction evidence are local test artifacts, not human usability
+validation, an audit, public deployment evidence, or market adoption.
+
+The Sites workflow also prompted a social-preview update. The built-in image tool
+generated a card and one corrective edit; the first candidate's unsupported bid/ask
+labels and extra slogans were removed. The accepted 1536×1024 raster is
+`web/public/og-workspace.png`, used only by root metadata. Existing images are
+preserved, and individual option URLs continue to clear the root image.
+
+Final built-in image-edit prompt:
+
+> Edit this social card. Keep the graphite/slate/green palette, main typography and layout. Remove all extra invented words. The only text anywhere in the entire final image must be exactly: 'Stock Options Lab', 'Trade. Write. Manage.', 'Fully collateralized Stock Token options', 'Testnet only', 'Trade', 'Portfolio', 'Activity'. Delete the entire bottom footer with its three icons and slogans. Delete the small slogan underneath the headline. In the right-hand table, delete ALL column labels, dropdown labels and all small text including Bid, Ask, Symbol, Expiration, Strategy, Calls, Puts, Strike. Leave only tasteful abstract fine grid lines and horizontal dashes, no labels and no numbers. Remove the flask icon. Do not introduce any new icons, words, claims or labels. Only the seven specified text strings may appear. This product has no bid/ask order book, so do not represent one with labels. The table must be abstract linework only. Keep it clean and spacious.

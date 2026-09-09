@@ -97,13 +97,16 @@ async function walletPage(account) {
   await page.goto(baseUrl);
   await expect(page.getByRole('button', { name: 'Refresh options', exact: true })).toBeEnabled({ timeout: 30_000 });
   await page.getByRole('button', { name: 'Connect wallet', exact: true }).click();
-  await expect(page.getByRole('button', { name: /Disconnect$/ })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByLabel('Wallet menu')).toBeVisible({ timeout: 15_000 });
   return page;
 }
 
 async function complete(page, button, success) {
   const dismiss = page.getByRole('button', { name: 'Dismiss notification' });
   if (await dismiss.isVisible()) await dismiss.click();
+  if (button.startsWith('Get ') && await page.locator('.wallet-menu').getAttribute('open') === null) {
+    await page.getByLabel('Wallet menu').click();
+  }
   await page.getByRole('button', { name: button === 'Buy option' ? /^Buy (call|put) · / : button, exact: button !== 'Buy option' }).click();
   await expect(page.getByRole('status').filter({ hasText: success })).toBeVisible({ timeout: 45_000 });
   await expect(page.getByRole('button', { name: 'Dismiss notification' })).toBeVisible();
@@ -132,35 +135,41 @@ async function create(page, type, usePreset = false) {
   const before = { underlying: await read(underlying, erc20Abi, 'balanceOf', [writer]), quote: await read(quote, erc20Abi, 'balanceOf', [writer]) };
   const block = await client.getBlock();
   const expiry = new Date(Math.max(Date.now(), Number(block.timestamp) * 1000) + 86_400_000).toISOString().slice(0, 16);
-  await page.locator('.create-nav').click();
-  await page.getByRole('radio', { name: type === 0 ? /^Covered call/ : /^Put/ }).check();
-  await expect(page.getByRole('complementary', { name: 'Offer funding summary' })).toBeVisible();
+  await page.getByRole('button', { name: 'Trade', exact: true }).click();
+  await page.getByLabel('Trade action').selectOption('write');
+  await page.getByLabel('Write option type').selectOption(String(type));
+  await expect(page.getByRole('complementary', { name: 'Offer funding summary' })).toHaveCount(0);
   await page.getByLabel(/^Quantity of/).fill('999999999');
   await page.getByLabel(/^Strike per token/).fill('1');
   await page.getByLabel(/^Premium per token/).fill('1');
   await expect(page.getByRole('alert').filter({ hasText: /Not enough Mock/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Deposit collateral & write option' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Review offer →' })).toBeDisabled();
   if (type === 0) {
     await page.getByRole('button', { name: 'Max', exact: true }).click();
     await expect(page.getByLabel(/^Quantity of/)).toHaveValue(formatUnits(before.underlying,18));
   }
-  await page.getByRole('button', { name: '0.01 token', exact: true }).click();
+  await page.getByLabel('Lot shortcut').selectOption('0.01');
   await expect(page.getByLabel(/^Quantity of/)).toHaveValue('0.01');
   await page.getByLabel(/^Quantity of/).fill('1.25');
   await page.getByLabel(/^Strike per token/).fill('249.876544');
   await page.getByLabel(/^Premium per token/).fill('3.654312');
-  await expect(page.locator('.funding-impact dd')).toHaveText(type === 0 ? '1.25 MockSTOCK' : '312.34568 MockUSD');
   let expectedExpiry;
   if (usePreset) {
-    await page.getByRole('radio', { name: 'Suggested dates', exact: true }).check();
-    const preset = page.locator('input[name="preset-expiry"]').first();
-    await preset.check();
-    expectedExpiry = BigInt(Date.parse(await preset.inputValue()) / 1000);
+    const preset = await page.getByLabel('Write expiration', { exact: true }).locator('option').first().getAttribute('value');
+    await page.getByLabel('Write expiration', { exact: true }).selectOption(preset);
+    expectedExpiry = BigInt(Date.parse(preset) / 1000);
   } else {
-    await page.getByRole('radio', { name: 'Custom expiration', exact: true }).check();
+    await page.getByLabel('Write expiration', { exact: true }).selectOption('custom');
     await page.getByLabel(/^Expiration · your local time/).fill(expiry);
     expectedExpiry = BigInt(Date.parse(`${expiry}:00Z`) / 1000);
   }
+  await page.getByRole('button', { name: 'Review offer →' }).click();
+  await expect(page.getByRole('complementary', { name: 'Offer funding summary' })).toBeVisible();
+  await expect(page.locator('.funding-impact dd')).toHaveText(type === 0 ? '1.25 MockSTOCK' : '312.34568 MockUSD');
+  // Reviewing must never send an approval or create a contract.
+  assert.equal(await read(factory, factoryAbi, 'optionCount'), beforeCount);
+  assert.equal(await read(underlying, erc20Abi, 'balanceOf', [writer]), before.underlying);
+  assert.equal(await read(quote, erc20Abi, 'balanceOf', [writer]), before.quote);
   await complete(page, 'Deposit collateral & write option', 'Option written. Collateral is deposited in its own option contract.');
   assert.equal(await read(factory, factoryAbi, 'optionCount'), beforeCount + 1n);
   const option = await read(factory, factoryAbi, 'options', [beforeCount]);
@@ -174,7 +183,7 @@ async function create(page, type, usePreset = false) {
     assert.equal(after.writer[token] - before[token], -collateral, 'Creation debits writer exact collateral');
     assert.equal(after.option[token], collateral, 'Creation funds exact escrow');
   }
-  await page.locator('.option-card').first().click();
+  await page.locator(`[data-offer="${option}"]`).click();
   await expect(page).toHaveURL(new RegExp(`option=${option}`, 'i'));
   await page.locator('.contract-details summary').click();
   await complete(page, 'Copy link', 'Option link copied.');
@@ -184,21 +193,21 @@ async function create(page, type, usePreset = false) {
   await expect(page.getByRole('region', { name: 'Option collateral', exact: true })).toContainText(option.slice(0,6));
   await expect(page.getByRole('button', { name: /^Buy (call|put) · / })).toHaveCount(0);
   if (!ownershipChecked) {
-    await page.getByRole('tab', { name: 'Markets', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Written options awaiting buyers', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: /^My written options/ }).click();
+    await page.getByRole('button', { name: 'Trade', exact: true }).click();
+    await expect(page.getByRole('heading', { name: /^Option chain/ })).toBeVisible();
+    await page.getByLabel('Filter by writer').selectOption('mine');
     await expect(page.locator('.chain-offer[data-owner="you"]').first()).toBeVisible();
     await expect(page.locator('.chain-offer[data-owner="other"]')).toHaveCount(0);
-    await expect(page.locator('.chain-offer[data-owner="you"]').first()).toContainText('You earn when bought');
-    await page.getByRole('button', { name: /^Available to buy/ }).click();
+    await expect(page.locator('.chain-offer[data-owner="you"]').first()).toContainText('Yours');
+    await page.getByLabel('Filter by writer').selectOption('others');
     await expect(page.locator('.chain-offer[data-owner="other"]').first()).toBeVisible();
     await expect(page.locator('.chain-offer[data-owner="you"]')).toHaveCount(0);
-    await expect(page.locator('.chain-offer[data-owner="other"]').first()).toContainText('Cost to buy');
-    await page.getByRole('button', { name: /^All written options/ }).click();
-    await page.getByRole('tab', { name: 'Portfolio', exact: true }).click();
-    await page.getByRole('button', { name: 'Closed options', exact: true }).click();
+    await expect(page.locator('.chain-offer[data-owner="other"]').first()).toContainText('Buy');
+    await page.getByLabel('Filter by writer').selectOption('all');
+    await page.getByRole('button', { name: 'Portfolio', exact: true }).click();
+    await page.getByLabel('Position status').selectOption('history');
     await expect(page.locator('.history-source')).toContainText('Source: onchain option contracts.');
-    await page.getByRole('tab', { name: 'Activity', exact: true }).click();
+    await page.getByRole('button', { name: 'Activity', exact: true }).click();
     await expect(page.locator('.history-source')).toContainText('Source: this browser + onchain receipts');
     await page.goto(link);
     ownershipChecked = true;
@@ -216,7 +225,7 @@ try {
   await expect(buyerPage.getByRole('button', { name: 'Switch network', exact: true })).toHaveCount(0);
   console.log('PASS wrong-wallet-network explanation and local switch recovery');
   for (const page of [writerPage, buyerPage]) {
-    await page.locator('.wallet-panel summary').click();
+    await page.getByLabel('Wallet menu').click();
     await complete(page, 'Get MockUSD', 'Test MockUSD received.');
     await complete(page, 'Get MockSTOCK', 'Test MockSTOCK received.');
   }
@@ -227,15 +236,13 @@ try {
     Object.assign(entry, offer);
     await buyerPage.goto(baseUrl);
     await expect(buyerPage.getByRole('region', { name: 'Options chain', exact: true })).toBeVisible();
-    const deadline = new Date(Number(offer.expiry) * 1000).toISOString().replace('T', ' ').replace('.000Z', ' UTC');
-    const expirationButton = buyerPage.locator(`.expiry-strip button[title="${deadline}"]`);
     await expect(buyerPage.locator('.chain-offer').first()).toBeVisible();
-    if (await expirationButton.count() === 0) await buyerPage.locator('.more-dates').click();
-    await expirationButton.click();
+    await buyerPage.getByLabel('Expiration', { exact: true }).selectOption(offer.expiry.toString());
+    await buyerPage.getByLabel('Strikes', { exact: true }).selectOption('all');
     const chainQuote = buyerPage.locator(`[data-offer="${offer.option}"]`);
     await chainQuote.click();
     await expect(buyerPage).toHaveURL(new RegExp(`option=${offer.option}`, 'i'));
-    await expect(buyerPage.getByRole('complementary', { name: 'Trade ticket' })).toBeVisible();
+    await expect(buyerPage.getByRole('region', { name: 'Trade ticket' })).toBeVisible();
     await expect(buyerPage.locator('.detail-role')).toContainText('Written by');
     await expect(buyerPage.locator('.purchase-cost')).toContainText('Cost to buy this option');
     await expect(buyerPage.getByRole('button', { name: /^Buy (call|put) · / })).toBeDisabled();
@@ -303,19 +310,20 @@ try {
       localStorage.setItem(key, JSON.stringify(items));
     }, { hash: pendingHash, account: writer });
     await writerPage.goto(baseUrl);
-    await expect(writerPage.getByRole('status').filter({ hasText: 'transaction(s) awaiting a receipt' })).toBeVisible();
+    await expect(writerPage.getByRole('status').filter({ hasText: 'Transaction pending.' })).toBeVisible();
     await writerPage.getByRole('button', { name: 'View activity', exact: true }).click();
-    await expect(writerPage.locator('.activity-item').filter({ hasText: 'Pending recovery acceptance' })).toContainText('pending');
+    await expect(writerPage.locator('.activity-table tbody tr').filter({ hasText: 'Pending recovery acceptance' })).toContainText('pending');
     await client.request({ method: 'evm_mine', params: [] });
-    await expect(writerPage.locator('.activity-item').filter({ hasText: 'Pending recovery acceptance' })).toContainText('confirmed', { timeout: 15000 });
+    await expect(writerPage.locator('.activity-table tbody tr').filter({ hasText: 'Pending recovery acceptance' })).toContainText('confirmed', { timeout: 15000 });
     console.log('PASS pending transaction survives reload and reconciles after a real local receipt');
   } finally { await client.request({ method: 'evm_setAutomine', params: [true] }); }
   // Connected visual evidence is kept local and is not human usability validation.
-  await writerPage.getByRole('tab', { name: 'Portfolio', exact: true }).click();
-  await expect(writerPage.getByRole('region', { name: 'Account balances' })).toBeVisible();
+  await writerPage.getByRole('button', { name: 'Portfolio', exact: true }).click();
+  await writerPage.locator('.account-overview summary').click();
   await expect(writerPage.locator('.balance-card')).toHaveCount(3);
   await writerPage.screenshot({ path: '/tmp/options-portfolio-connected.png', fullPage: true });
-  await writerPage.locator('.create-nav').click();
+  await writerPage.getByRole('button', { name: 'Trade', exact: true }).click();
+  await writerPage.getByLabel('Trade action').selectOption('write');
   await writerPage.getByLabel(/^Quantity of/).fill('0.01');
   await writerPage.getByLabel(/^Strike per token/).fill('300');
   await writerPage.getByLabel(/^Premium per token/).fill('8');

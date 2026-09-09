@@ -44,10 +44,10 @@ try {
     await page.locator('.chain-offer:visible').first().waitFor();
     await inspect(page, name);
     if (width < 768) {
-      await page.getByRole('button', { name: 'Puts · Sell right' }).click();
+      await page.getByLabel('Option type', { exact: true }).selectOption('puts');
       await expect(page.locator('.call-side').first()).not.toBeVisible();
       await expect(page.locator('.put-side').first()).toBeVisible();
-      await page.getByRole('button', { name: 'Calls · Buy right' }).click();
+      await page.getByLabel('Option type', { exact: true }).selectOption('calls');
     }
     const quote = page.locator('.chain-offer:visible').first();
     const selectedAddress = await quote.getAttribute('data-offer');
@@ -71,9 +71,30 @@ try {
       await inspect(zoomPage, 'zoom-200-reflow');
       await zoomContext.close();
     }
-    await page.locator('.create-nav').click();
-    await page.locator('input[name="preset-expiry"]').first().waitFor();
+    await page.getByLabel('Trade action').selectOption('write');
+    await page.getByLabel('Write expiration', { exact: true }).waitFor();
     await inspect(page, `${name}-create`);
+    await page.getByLabel(/^Quantity of/).fill('0.01');
+    await page.getByLabel(/^Strike per token/).fill('100');
+    await page.getByLabel(/^Premium per token/).fill('5');
+    await page.getByRole('button', { name: 'Review offer →' }).click();
+    await expect(page.locator('#write-review-heading')).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Connect wallet to continue' })).toBeVisible();
+    if (width < 768) await expect(page.locator('.create-layout > form')).not.toBeVisible();
+    await inspect(page, `${name}-write-review`);
+    await page.getByRole('button', { name: /Back to options/ }).click();
+    await expect(page.getByRole('button', { name: 'Review offer →' })).toBeFocused();
+    await expect(page.getByLabel(/^Quantity of/)).toHaveValue('0.01');
+    if (width >= 768) {
+      await page.getByRole('button', { name: 'Review offer →' }).click();
+      await page.getByLabel(/^Premium per token/).fill('6');
+      await expect(page.locator('.trade-ticket')).toHaveCount(0);
+      await page.getByLabel(/^Premium per token/).fill('5');
+      await expect(page.locator('.trade-ticket')).toHaveCount(0);
+    }
+    await page.getByLabel('Market', { exact: true }).selectOption('practice');
+    await expect(page.getByLabel(/^Quantity of/)).toHaveValue('');
+    await expect(page.locator('.trade-ticket')).toHaveCount(0);
     await page.close();
   }
   const empty = await browser.newPage();

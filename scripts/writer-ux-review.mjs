@@ -42,9 +42,9 @@ try {
       await page.goto(base);
       await expect(page.getByRole('button', { name: 'Refresh options', exact: true })).toBeEnabled();
       await page.getByRole('button', { name: 'Connect wallet', exact: true }).click();
-      await expect(page.getByRole('button', { name: /Disconnect$/ })).toBeVisible();
-      await page.getByRole('button', { name: role === 'writer' ? /^My written options/ : /^Available to buy/ }).click();
-      if (width < 720 && option.optionType === 1) await page.getByRole('button', { name: 'Puts · Sell right' }).click();
+      await expect(page.getByLabel('Wallet menu')).toBeVisible();
+      await page.getByLabel('Filter by writer').selectOption(role === 'writer' ? 'mine' : 'others');
+      if (width < 720 && option.optionType === 1) await page.getByLabel('Option type', { exact: true }).selectOption('puts');
       const owner = role === 'writer' ? 'you' : 'other';
       const card = page.locator(`.chain-offer[data-owner="${owner}"]:visible`).first();
       await expect(card).toBeVisible();
@@ -52,6 +52,7 @@ try {
       await page.screenshot({ path: `${output}/${name}-${role}-market.png`, fullPage: true });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
       await card.click();
+      await page.locator('.contract-details summary').click();
       await expect(page.getByRole('region', { name: 'Option collateral' })).toBeVisible();
       if (role === 'writer') await expect(page.getByRole('button', { name: /^Buy (call|put) · / })).toHaveCount(0);
       await page.screenshot({ path: `${output}/${name}-${role}-collateral.png`, fullPage: true });
