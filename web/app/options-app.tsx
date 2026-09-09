@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import OptionsChain from "./options-chain";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   QueryClient,
   QueryClientProvider,
@@ -34,6 +34,7 @@ import {
 } from "../lib/generated/abis";
 import {
   actions,
+  readableNumber,
   amount,
   expiration,
   short,
@@ -124,6 +125,9 @@ function App() {
   const [limit, setLimit] = useState(100);
   const [clock, setClock] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [noticeScope, setNoticeScope] = useState<"global" | "trade" | "create">("global");
+  const lastOffer = useRef<string | null>(null);
+  const previousScroll = useRef(0);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [txHash, setTxHash] = useState<Hash | null>(null);
@@ -303,6 +307,19 @@ function App() {
   );
 
   function openDetail(option: string | null) {
+    if (option) { lastOffer.current = option; previousScroll.current = window.scrollY; }
+    requestAnimationFrame(() => {
+      if (option && window.matchMedia("(max-width: 767px)").matches) {
+        document.getElementById("option-review-heading")?.focus();
+        window.scrollTo(0, 0);
+      } else if (!option && lastOffer.current) {
+        const target = document.querySelector<HTMLElement>(`[data-offer="${lastOffer.current}"]`);
+        if (target && target.getClientRects().length) {
+          window.scrollTo(0, previousScroll.current);
+          target.focus({ preventScroll: true });
+        }
+      }
+    });
     const url = new URL(window.location.href);
     if (option) url.searchParams.set("option", option);
     else url.searchParams.delete("option");
@@ -311,6 +328,7 @@ function App() {
     setAcceptedFor("");
   }
   async function walletConnect() {
+    setNoticeScope(selected ? "trade" : "global");
     setError("");
     try {
       if (!connectors[0])
@@ -380,6 +398,7 @@ function App() {
   }
   async function create(event: FormEvent) {
     event.preventDefault();
+    setNoticeScope("create");
     await run(async () => {
       const q = amount(quantity, net.underlying.decimals),
         k = amount(strike, net.quote.decimals),
@@ -411,6 +430,7 @@ function App() {
     }, "Offer created. Collateral has been deposited in the contract.");
   }
   async function transact(position: Position, action: string) {
+    setNoticeScope("trade");
     await run(async () => {
       if (action === "buy" && acceptedFor !== `${address}:${position.address}`)
         throw new Error("Confirm that you understand the manual exercise deadline before buying.");
@@ -441,6 +461,7 @@ function App() {
     }, "Transaction confirmed. Balances and position are up to date.");
   }
   async function faucet(token: Token) {
+    setNoticeScope("global");
     await run(async () => {
       setNotice(`Request test ${token.symbol} in your wallet.`);
       const { request } = await client.simulateContract({
@@ -455,7 +476,7 @@ function App() {
     }, `Test ${token.symbol} received.`);
   }
   const displayAmount = (value: bigint, token: Token) =>
-    `${units(value, token.decimals)} ${token.symbol}`;
+    `${readableNumber(units(value, token.decimals), token.symbol === net.quote.symbol ? 2 : 0)} ${token.symbol}`;
   const explorer = (path: string, text: string) =>
     net.explorerUrl ? (
       <a target="_blank" rel="noreferrer" href={`${net.explorerUrl}/${path}`}>
@@ -465,200 +486,7 @@ function App() {
       <span>{text}</span>
     );
 
-  const detailPanel = (
-          <div className="detail">
-            <button className="text-button" onClick={() => openDetail(null)}>
-              ← Back to offers
-            </button>
-            {detail ? (
-              <>
-                <div className="section-head">
-                  <div>
-                    <div className="eyebrow">INDIVIDUAL CONTRACT</div>
-                    <h2>
-                      {detail.optionType === 0
-                        ? "Covered call"
-                        : "Collateralized put"}{" "}
-                      · {net.underlying.symbol}
-                    </h2>
-                  </div>
-                  <span className="pill">{status(detail, now)}</span>
-                </div>
-                <div className="terms">
-                  <div>
-                    <span>Lot size</span>
-                    <strong>
-                      {displayAmount(detail.underlyingAmount, net.underlying)}
-                    </strong>
-                  </div>
-                  <div>
-                    <span>Total premium · paid when buying</span>
-                    <strong>{displayAmount(detail.premium, net.quote)}</strong>
-                  </div>
-                  <div>
-                    <span>Total exercise amount</span>
-                    <strong>
-                      {displayAmount(detail.strikeTotal, net.quote)}
-                    </strong>
-                  </div>
-                  <div>
-                    <span>
-                      Exercise deadline · {remaining(detail.expiry, now)} (estimated)
-                    </span>
-                    <strong>
-                      {utcDeadline(detail.expiry)}
-                    </strong>
-                    <small className="fine">Your local time: {new Date(Number(detail.expiry) * 1000).toLocaleString("en-US", { timeZoneName: "short" })}</small>
-                  </div>
-                </div>
-                {detail.state < 2 && (
-                  <div className={`deadline-notice ${detail.expiry <= now || detail.expiry - now < 86400n ? "urgent" : ""}`} role="note">
-                    <strong>{detail.expiry <= now ? "Exercise is no longer available" : "Manual exercise · before expiration"}</strong>
-                    <p>{detail.expiry <= now
-                      ? "The exercise deadline has passed. The buyer can no longer exercise, even if the collateral is still in the contract. The writer may reclaim it and keeps any premium paid."
-                      : "You must exercise before the deadline, even if the option is profitable. There is no automatic exercise or payout. If you miss it, the right expires, the premium is not refunded, and the writer can reclaim the collateral."}</p>
-                    {detail.expiry > now && <p>Allow time for approvals and transaction inclusion. A signed or pending transaction does not reserve your right to exercise.</p>}
-                  </div>
-                )}
-                <div className="delivery">
-                  <strong>
-                    When exercising this{" "}
-                    {detail.optionType === 0 ? "call" : "put"}
-                  </strong>
-                  <p>
-                    You deliver{" "}
-                    {detail.optionType === 0
-                      ? displayAmount(detail.strikeTotal, net.quote)
-                      : displayAmount(
-                          detail.underlyingAmount,
-                          net.underlying,
-                        )}{" "}
-                    and receive{" "}
-                    {detail.optionType === 0
-                      ? displayAmount(detail.underlyingAmount, net.underlying)
-                      : displayAmount(detail.strikeTotal, net.quote)}
-                    . The exchange happens in a single transaction.
-                  </p>
-                </div>
-                <p className="fine">
-                  Contract{" "}
-                  {explorer(`address/${detail.address}`, short(detail.address))}{" "}
-                  · Writer {short(detail.writer)}
-                  {detail.state !== 0 &&
-                  detail.buyer !== "0x0000000000000000000000000000000000000000"
-                    ? ` · Buyer ${short(detail.buyer)}`
-                    : ""}
-                </p>
-                {actions(detail, address, now).includes("buy") && (
-                  <label className="exercise-ack">
-                    <input type="checkbox" checked={acceptedFor === `${address}:${detail.address}`} disabled={busy}
-                      onChange={(event) => setAcceptedFor(event.target.checked ? `${address}:${detail.address}` : "")} />
-                    <span>I understand that I must exercise before {utcDeadline(detail.expiry)} and that an unexercised option expires without a payout or premium refund.</span>
-                  </label>
-                )}
-                <div className="detail-actions">
-                  {actions(detail, address, now).map((action) => (
-                    <button
-                      className="button dark"
-                      key={action}
-                      disabled={!canAct || market.isError || (action === "buy" && acceptedFor !== `${address}:${detail.address}`)}
-                      onClick={() => transact(detail, action)}
-                    >
-                      {busy ? "Processing…" : actionNames[action]}
-                    </button>
-                  ))}
-                  {!address && (
-                    <button className="button dark" onClick={walletConnect}>
-                      Connect to trade
-                    </button>
-                  )}
-                  <button
-                    className="button"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(
-                          window.location.href,
-                        );
-                        setNotice("Option link copied.");
-                      } catch {
-                        setError("Copy the link from your address bar.");
-                      }
-                    }}
-                  >
-                    Copy link
-                  </button>
-                </div>
-                <p className="fine">
-                  Exercise manually before expiration. No automatic exercise or
-                  partial purchases. Collateral is not returned automatically.
-                  Purchased options cannot be transferred or resold in this version.
-                </p>
-              </>
-            ) : (
-              <div className="empty">
-                <h3>
-                  {market.isFetching
-                    ? "Looking up the option…"
-                    : "This option is not among the loaded contracts."}
-                </h3>
-                <p>
-                  Transactions are only enabled for contracts created by the
-                  configured factory.
-                </p>
-                {market.data && market.data.total > BigInt(limit) && (
-                  <button
-                    className="button"
-                    onClick={() => setLimit((n) => n + 100)}
-                  >
-                    Load 100 older options
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-  );
-
-  return (
-    <main className="shell">
-      <header className="topbar">
-        <Link className="wordmark" href="/">
-          stock options<span>lab</span>
-        </Link>
-        <div className="network">
-          <i />
-          {net.name}
-        </div>
-        {isConnected ? (
-          <button
-            className="button"
-            disabled={busy}
-            onClick={() => disconnect()}
-            title="Disconnect wallet"
-          >
-            {short(address!)} · Disconnect
-          </button>
-        ) : (
-          <button className="button dark" onClick={walletConnect}>
-            Connect wallet
-          </button>
-        )}
-      </header>
-      <section className="instrument-bar" aria-label="Selected market">
-        <div className="instrument-identity"><span className="asset-icon">{net.underlying.symbol.slice(0, 1)}</span><div><div className="eyebrow">STOCK TOKEN OPTIONS</div><h1>{net.underlying.symbol} <span>/ {net.quote.symbol}</span></h1></div></div>
-        <div className="market-metrics"><div><span>Open offers</span><strong>{market.data ? positions.filter(p => p.state === 0 && p.expiry > now).length : "—"}</strong></div><div><span>Settlement</span><strong>Token delivery</strong></div><div><span>Network</span><strong>{chain.id === 31337 ? "Local simulation" : "Robinhood testnet"}</strong></div></div>
-        <span className="test-badge">TEST FUNDS · NO REAL VALUE</span>
-      </section>
-      {wrongChain && (
-        <div className="banner warning">
-          <span>
-            Your wallet is on another network. Switch to {net.name} to trade.
-          </span>
-          <button className="button" disabled={busy} onClick={switchNetwork}>
-            Switch network
-          </button>
-        </div>
-      )}
-      {(notice || error) && (
+  const notification = (notice || error) ? (
         <div
           className={`banner ${error ? "error" : ""}`}
           role={error ? "alert" : "status"}
@@ -685,9 +513,80 @@ function App() {
             </button>
           )}
         </div>
+  ) : null;
+
+  const detailPanel = (
+    <div className="detail">
+      <button className="text-button" disabled={busy} onClick={() => openDetail(null)}>← Back to options</button>
+      {detail ? <>
+        <div className="section-head"><div><div className="eyebrow">{detail.optionType === 0 ? "CALL · RIGHT TO BUY" : "PUT · RIGHT TO SELL"}</div><h2 id="option-review-heading" tabIndex={-1}>{net.underlying.symbol} option</h2></div><span className="pill">{status(detail, now)}</span></div>
+        <div className="purchase-cost">
+          <span>{detail.state === 0 ? (detail.writer.toLowerCase() === address?.toLowerCase() ? "Buyer pays" : "You pay now") : "Agreed premium"}</span>
+          <strong>{displayAmount(detail.premium, net.quote)}</strong>
+          <small>{detail.state === 0 ? "Total premium for the entire option. Gas is paid separately." : "Premium is paid at purchase and is not refunded."}</small>
+        </div>
+        <div className="right-summary"><span className="term-label">{detail.writer.toLowerCase() === address?.toLowerCase() ? "The buyer’s right" : "Your right"}</span><p>{detail.optionType === 0 ? "Buy" : "Sell"} <strong>{displayAmount(detail.underlyingAmount, net.underlying)}</strong> for a total of <strong>{displayAmount(detail.strikeTotal, net.quote)}</strong> {detail.writer.toLowerCase() === address?.toLowerCase() ? "if the buyer exercises before expiration." : "if you exercise before expiration."}</p></div>
+        <div className="deadline-summary"><span className="term-label">Exercise before</span><strong>{new Date(Number(detail.expiry) * 1000).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit", timeZoneName: "short" })}</strong><small>{utcDeadline(detail.expiry)}</small><small>{remaining(detail.expiry, now)} · estimated</small></div>
+        <div className={`deadline-notice ${detail.expiry <= now && detail.state < 2 ? "urgent" : ""}`} role="note">
+          <strong>{detail.expiry <= now && detail.state < 2 ? "This exercise right has expired" : "Manual exercise · No resale"}</strong>
+          <p>{detail.expiry <= now && detail.state < 2 ? "Exercise is no longer possible. The writer may reclaim collateral and keeps the premium." : "An unexercised option expires without a payout or premium refund. You cannot resell this option."}</p>
+        </div>
+        {actions(detail, address, now).includes("buy") && <label className="exercise-ack"><input type="checkbox" checked={acceptedFor === `${address}:${detail.address}`} disabled={busy} onChange={event => setAcceptedFor(event.target.checked ? `${address}:${detail.address}` : "")} /><span>I understand that I must exercise before the deadline or lose the right and the premium.</span></label>}
+        {noticeScope === "trade" && notification}
+        <div className="detail-actions">
+          {actions(detail, address, now).map(action => <button className="button dark" key={action} disabled={!canAct || market.isError || (action === "buy" && acceptedFor !== `${address}:${detail.address}`)} onClick={() => transact(detail, action)}>{busy ? "Processing…" : action === "buy" ? `Buy ${detail.optionType === 0 ? "call" : "put"} · ${displayAmount(detail.premium, net.quote)}` : actionNames[action]}</button>)}
+          {!address && <button className="button dark" onClick={walletConnect}>Connect wallet to continue</button>}
+          {address && !wrongChain && actions(detail, address, now).includes("buy") && acceptedFor !== `${address}:${detail.address}` && <p className="fine">Check the acknowledgment above to enable purchase.</p>}
+        </div>
+        <details className="contract-details"><summary>Contract details</summary>
+          <p>Exercise exchanges the full token lot for the agreed total in one transaction. Have the required tokens, approvals, and gas ready. A pending transaction does not reserve your exercise right.</p>
+          <p>The blockchain timestamp determines the deadline. Collateral recovery requires a transaction from the writer after expiry.</p>
+          <p>Contract {explorer(`address/${detail.address}`, short(detail.address))} · Writer {short(detail.writer)}</p>
+          <button className="button" onClick={async () => { setNoticeScope("trade"); try { await navigator.clipboard.writeText(window.location.href); setNotice("Option link copied."); } catch { setError("Copy the link from your address bar."); } }}>Copy link</button>
+        </details>
+      </> : <div className="empty"><h2 id="option-review-heading" tabIndex={-1}>{market.isFetching ? "Looking up the option…" : "Option not found in loaded offers"}</h2><p>Only options verified in this market can be traded.</p>{market.data && market.data.total > BigInt(limit) && <button className="button" onClick={() => setLimit(n => n + 100)}>Load 100 older options</button>}</div>}
+    </div>
+  );
+
+  return (
+    <main className={`shell ${selected ? "review-open" : ""}`}>
+      <header className="topbar">
+        <Link className="wordmark" href="/">
+          stock options<span>lab</span>
+        </Link>
+        <span className="environment-badge">{chain.id === 31337 ? "Local demo" : "Testnet"} · Test funds only</span>
+        {isConnected ? (
+          <button
+            className="button"
+            disabled={busy}
+            onClick={() => disconnect()}
+            title="Disconnect wallet"
+          >
+            {short(address!)} · Disconnect
+          </button>
+        ) : (
+          <button className="button dark" onClick={walletConnect}>
+            Connect wallet
+          </button>
+        )}
+      </header>
+      <section className="instrument-bar" aria-label="Selected market">
+        <div className="instrument-identity"><span className="asset-icon" aria-hidden="true">{net.underlying.symbol.slice(0, 1)}</span><div><div className="eyebrow">OPTIONS ON STOCK TOKENS</div><h1>{net.underlying.symbol} <span>/ {net.quote.symbol}</span></h1></div></div>
+        <p className="market-intro">Choose an expiration, compare options, review your purchase.</p>
+      </section>
+      {wrongChain && (
+        <div className="banner warning">
+          <span>
+            Your wallet is on another network. Switch to {net.name} to trade.
+          </span>
+          <button className="button" disabled={busy} onClick={switchNetwork}>
+            Switch network
+          </button>
+        </div>
       )}
+      {!(selected && noticeScope === "trade") && !(tab === "create" && noticeScope === "create") && notification}
       {isConnected && ready && (
-        <section className="wallet-panel">
+        <details className="wallet-panel"><summary>Wallet &amp; test funds</summary>
           <div className="eyebrow">YOUR WALLET · {short(address!)}</div>
           <div className="wallet-row">
             {balances.data ? (
@@ -728,29 +627,13 @@ function App() {
               )}
             </div>
           </div>
-        </section>
+        </details>
       )}
       <section className="market" id="market">
-        <div className="tabs" role="tablist" aria-label="Sections">
-          {[
-            ["market", "Options chain"],
-            ["create", "Create offer"],
-            ["mine", "My positions"],
-          ].map(([key, label]) => (
-            <button
-              key={key}
-              role="tab"
-              aria-selected={tab === key}
-              className={tab === key ? "active" : ""}
-              onClick={() => {
-                setTab(key as typeof tab);
-                openDetail(null);
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <nav className="tabs" aria-label="Sections">
+          <div role="tablist" aria-label="Market views">{[["market", "Options"], ["mine", "My positions"]].map(([key, label]) => <button key={key} role="tab" aria-selected={tab === key} className={tab === key ? "active" : ""} disabled={busy} onClick={() => { setTab(key as typeof tab); openDetail(null); }}>{label}</button>)}</div>
+          <button className={`button create-nav ${tab === "create" ? "current" : ""}`} disabled={busy} onClick={() => { setTab("create"); openDetail(null); }}>Create offer</button>
+        </nav>
         {!ready && tab === "mine" ? (
           <div className="empty setup">
             <span className="empty-icon">↗</span>
@@ -893,6 +776,7 @@ function App() {
                 </label>}
                 {deadlinePreview(effectiveExpiry) && <p className="deadline-preview">Exercise strictly before <strong>{deadlinePreview(effectiveExpiry)}</strong></p>}
               </fieldset>
+              {noticeScope === "create" && notification}
               <button
                 className="button dark full"
                 type="submit"
@@ -936,22 +820,21 @@ function App() {
             </aside>
           </div>
         ) : tab === "market" ? (
-          <div className="trading-workspace">
+          <div className={`trading-workspace ${selected ? "has-selection" : ""}`}>
             <div>
               <OptionsChain positions={positions} now={now} selected={detail} symbol={net.underlying.symbol}
                 quoteSymbol={net.quote.symbol} underlyingDecimals={net.underlying.decimals} quoteDecimals={net.quote.decimals}
-                loading={ready && (market.isFetching || health.isPending)} unavailable={!ready || health.isError || market.isError}
+                loading={ready && (market.isFetching || health.isPending)} unavailable={!ready || health.isError || market.isError} configured={ready}
                 onSelect={openDetail} onRefresh={() => { void health.refetch(); void market.refetch(); }}
                 onCreate={() => { setTab("create"); openDetail(null); }} />
               {market.data && market.data.total > BigInt(limit) && <div className="pagination"><p>Latest {limit} of {market.data.total.toString()} contracts loaded. Older offers may have other dates or strikes.</p><button className="button" disabled={market.isFetching} onClick={() => setLimit(n => n + 100)}>Load 100 older options</button></div>}
             </div>
             <aside className="trade-ticket" aria-label="Trade ticket">
-              <div className="ticket-heading"><span>TRADE TICKET</span><span className="ticket-mode">PRIMARY MARKET</span></div>
+              <div className="ticket-heading"><span>Review your option</span></div>
               {selected ? detailPanel : <div className="ticket-empty">
-                <div className="ticket-symbol">↗</div><h2>Select a contract</h2><p>Choose a call or put from the chain to review the premium, lot, and exercise terms.</p>
-                <dl><div><dt>Order type</dt><dd>Fixed-price offer</dd></div><div><dt>Exercise</dt><dd>Manual · American</dd></div><div><dt>Collateral</dt><dd>Fully deposited</dd></div><div><dt>Resale</dt><dd>Not available</dd></div></dl>
-                <button className="button full" onClick={() => { setTab("create"); openDetail(null); }}>Write an option</button>
-                <p className="fine">Buying requires the premium. Exercising later requires the agreed tokens and gas, before the deadline.</p>
+                <div className="ticket-symbol" aria-hidden="true">↗</div><h2>What are you buying?</h2><p>Select an offer to see its total cost and what you can buy or sell when you exercise.</p>
+                <ol className="review-steps"><li><strong>Choose a date</strong><span>This is your exercise deadline.</span></li><li><strong>Compare calls and puts</strong><span>A call is a right to buy. A put is a right to sell.</span></li><li><strong>Review before buying</strong><span>See the exact lot and payment here.</span></li></ol>
+                <p className="fine">Exercise is manual. Purchased options cannot be resold.</p>
               </div>}
             </aside>
           </div>
@@ -1091,6 +974,13 @@ function App() {
             <div><strong>03 · An unused right expires</strong><p>No automatic exercise, payout, or premium refund, even if exercising would have been profitable. The writer keeps the premium and can reclaim the collateral.</p></div>
           </div>
           <p className="fine">The contract uses the block timestamp. The countdown is an estimate, and network delays can prevent timely execution. No app operator can extend an existing contract&apos;s deadline or override its terms.</p>
+        <p className="raw-notice">
+          Quantities refer to tokens. They do not guarantee a fixed number of shares. The
+          exercise amount covers the entire lot.{" "}
+          {net.underlying.isMock
+            ? "This network uses a mock underlying token."
+            : "Stock Tokens represent economic exposure, not direct share ownership."}
+        </p>
         </details>
         {ready && market.isError && (
           <div className="banner error" role="alert">
@@ -1103,22 +993,11 @@ function App() {
             </button>
           </div>
         )}
-        <p className="raw-notice">
-          Amounts use ERC-20 token units, not a fixed number of shares. The
-          exercise amount covers the entire lot.{" "}
-          {net.underlying.isMock
-            ? "This network uses a mock underlying token."
-            : "Stock Tokens represent economic exposure, not direct share ownership."}
-        </p>
+
       </section>
       <footer>
         <span>Stock Options Lab · Built by agents, coordinated by humans.</span>
-        <span>
-          Testnet · No real value ·{" "}
-          {net.factory
-            ? explorer(`address/${net.factory}`, "Factory")
-            : "Factory not configured"}
-        </span>
+        <span>Stock Token options · Robinhood Chain</span>
       </footer>
     </main>
   );

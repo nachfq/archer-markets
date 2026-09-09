@@ -25,3 +25,11 @@ The default trading workspace groups actual open offers by exact expiration time
 and per-token strike, with calls and puts side by side. Three dates and five strikes
 are shown initially; more can be expanded. The ticket preserves whole-lot totals,
 and My positions shows purchased and written contracts. Resale is not supported.
+
+The light theme targets occasional investors: total premium and lot size are the
+primary quote labels; per-token premium is secondary, and strike remains per token.
+The review panel separates **You pay now**, **Your right**, and **Exercise before**.
+Technical information lives under **Contract details**, while manual exercise and
+no-resale conditions remain visible before purchase. Mobile uses a call/put selector
+and a dedicated review view with focus restoration. All number grouping is display-only
+and preserves the complete stored precision.

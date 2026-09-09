@@ -117,6 +117,43 @@ transaction scenarios passed; purchase now starts by selecting a listed expirati
 and quote from the chain before reviewing the ticket. The production build passed.
 No public-chain deployment or secondary-market execution is claimed.
 
+## Light UI and occasional-investor experience
+
+The human coordinator selected an occasional-investor audience and a soft light
+theme. The coordinating agent implemented a gray-green page background, white
+surfaces, slate text, and forest-green actions. Body text is 16px, table labels and
+controls 14px, and auxiliary copy at least 12px. Semantic CSS variables define the
+palette; controls have visible borders and keyboard focus.
+
+The Options screen now makes total premium and token quantity primary, with per-token
+premium secondary. Strike remains the exercise price per token. Exact string-based
+number grouping preserves all digits, including large integers and tiny fractions.
+The review separates You pay now, Your right, and Exercise before, keeps the manual
+exercise/no-resale conditions visible, and moves technical information under Contract
+details. Approval, signature, receipt, and error messages appear next to the operation.
+Wallet balances and faucets are under Wallet & test funds. Mobile has a call/put
+selector and a dedicated review view; returning restores focus to the selected offer.
+
+Validation: 26 Solidity tests, 3 script tests, and 12 frontend logic tests passed.
+Typecheck, lint, and production build passed. Four transaction flows passed, plus
+wrong-wallet-network recovery and rejected-signature retry; rejection left option
+state and token balances unchanged. No public transactions were sent.
+
+`scripts/ux-browser-review.mjs` captured and checked 1440px desktop, 768px tablet,
+390px mobile, and 200%-equivalent desktop viewport reflow with doubled device scale.
+It verifies minimum visible font size, horizontal overflow, keyboard selection/focus
+restoration, call/put switching, empty markets, RPC failure, and connection recovery.
+Measured sampled text contrast was at least 5.35:1; tested views had no horizontal
+overflow and no text below 12px. This is targeted UI verification, not a full WCAG
+certification or a completed human usability study. Screenshots and JSON evidence
+are saved outside the repository at `/tmp/options-ux-review` by default.
+
+Design references: [WCAG text contrast](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html),
+[non-text contrast](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html),
+and [progressive disclosure](https://www.nngroup.com/articles/progressive-disclosure/).
+The social card was generated once, inspected, and saved as `og-light.png`. Delivery
+is local only; the published site and smart-contract interfaces are unchanged.
+
 ## Integration contract
 
 The factory fixes `underlying` and `quote`.

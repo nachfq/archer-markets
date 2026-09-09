@@ -67,12 +67,26 @@ async function walletPage(account) {
       chainId: '0x7a69',
       networkVersion: '31337',
       isConnected: () => true,
-      request: (request) => window.__localWalletRpc(request),
+      request: async (request) => {
+        if (request.method === 'eth_chainId' && window.__testChainId) return window.__testChainId;
+        if (request.method === 'eth_sendTransaction' && window.__rejectNextSignature) {
+          window.__rejectNextSignature = false;
+          throw Object.assign(new Error('User rejected the request.'), { code: 4001 });
+        }
+        const result = await window.__localWalletRpc(request);
+        if (request.method === 'wallet_switchEthereumChain') window.__setTestChainId('0x7a69');
+        return result;
+      },
       on: (event, handler) => { const set = listeners.get(event) ?? new Set(); set.add(handler); listeners.set(event, set); return provider; },
       removeListener: (event, handler) => { listeners.get(event)?.delete(handler); return provider; },
       removeAllListeners: (event) => { if (event) listeners.delete(event); else listeners.clear(); return provider; },
     };
     window.ethereum = provider;
+    window.__setTestChainId = (chainId) => {
+      window.__testChainId = chainId;
+      provider.chainId = chainId;
+      for (const handler of listeners.get('chainChanged') ?? []) handler(chainId);
+    };
   }, { account });
   const page = await context.newPage();
   page.setDefaultTimeout(30_000);
@@ -87,7 +101,7 @@ async function walletPage(account) {
 async function complete(page, button, success) {
   const dismiss = page.getByRole('button', { name: 'Dismiss notification' });
   if (await dismiss.isVisible()) await dismiss.click();
-  await page.getByRole('button', { name: button, exact: true }).click();
+  await page.getByRole('button', { name: button === 'Buy option' ? /^Buy (call|put) · / : button, exact: button !== 'Buy option' }).click();
   await expect(page.getByRole('status').filter({ hasText: success })).toBeVisible({ timeout: 45_000 });
   await expect(page.getByRole('button', { name: 'Dismiss notification' })).toBeVisible();
 }
@@ -115,7 +129,7 @@ async function create(page, type, usePreset = false) {
   const before = { underlying: await read(underlying, erc20Abi, 'balanceOf', [writer]), quote: await read(quote, erc20Abi, 'balanceOf', [writer]) };
   const block = await client.getBlock();
   const expiry = new Date(Math.max(Date.now(), Number(block.timestamp) * 1000) + 86_400_000).toISOString().slice(0, 16);
-  await page.getByRole('tab', { name: 'Create offer', exact: true }).click();
+  await page.locator('.create-nav').click();
   await page.getByRole('radio', { name: type === 0 ? /^Covered call/ : /^Put/ }).check();
   await page.getByRole('button', { name: '100 tokens', exact: true }).click();
   await expect(page.getByLabel(/^Quantity of/)).toHaveValue('100');
@@ -148,6 +162,7 @@ async function create(page, type, usePreset = false) {
   }
   await page.locator('.option-card').first().click();
   await expect(page).toHaveURL(new RegExp(`option=${option}`, 'i'));
+  await page.locator('.contract-details summary').click();
   await complete(page, 'Copy link', 'Option link copied.');
   const link = await page.evaluate(() => navigator.clipboard.readText());
   assert.equal(new URL(link).searchParams.get('option').toLowerCase(), option.toLowerCase());
@@ -157,7 +172,13 @@ async function create(page, type, usePreset = false) {
 try {
   const writerPage = await walletPage(writer);
   const buyerPage = await walletPage(buyer);
+  await buyerPage.evaluate(() => window.__setTestChainId('0x1'));
+  await expect(buyerPage.getByRole('button', { name: 'Switch network', exact: true })).toBeVisible();
+  await buyerPage.getByRole('button', { name: 'Switch network', exact: true }).click();
+  await expect(buyerPage.getByRole('button', { name: 'Switch network', exact: true })).toHaveCount(0);
+  console.log('PASS wrong-wallet-network explanation and local switch recovery');
   for (const page of [writerPage, buyerPage]) {
+    await page.locator('.wallet-panel summary').click();
     await complete(page, 'Get MockUSD', 'Test MockUSD received.');
     await complete(page, 'Get MockSTOCK', 'Test MockSTOCK received.');
   }
@@ -177,8 +198,18 @@ try {
     await chainQuote.click();
     await expect(buyerPage).toHaveURL(new RegExp(`option=${offer.option}`, 'i'));
     await expect(buyerPage.getByRole('complementary', { name: 'Trade ticket' })).toBeVisible();
-    await expect(buyerPage.getByRole('button', { name: 'Buy option', exact: true })).toBeDisabled();
+    await expect(buyerPage.getByRole('button', { name: /^Buy (call|put) · / })).toBeDisabled();
     await buyerPage.getByRole('checkbox', { name: /^I understand that I must exercise before/ }).check();
+    if (type === 0) {
+      const beforeReject = await balances(offer.option);
+      await buyerPage.evaluate(() => { window.__rejectNextSignature = true; });
+      await buyerPage.getByRole('button', { name: /^Buy call · / }).click();
+      await expect(buyerPage.getByRole('alert').filter({ hasText: /rejected/i })).toBeVisible();
+      assert.equal(Number(await read(offer.option, optionAbi, 'state')), 0);
+      assert.deepEqual(await balances(offer.option), beforeReject);
+      await expect(buyerPage.getByRole('button', { name: /^Buy call · / })).toBeEnabled();
+      console.log('PASS rejected signature leaves option and token balances unchanged; retry available');
+    }
     await complete(buyerPage, 'Buy option', 'Transaction confirmed. Balances and position are up to date.');
     const purchased = await balances(offer.option);
     deltas(offer.afterCollateral, purchased, { writer: { quote: premium }, buyer: { quote: -premium } }, `${name} UI purchase`);

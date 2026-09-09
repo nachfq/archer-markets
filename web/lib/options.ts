@@ -55,5 +55,14 @@ export function status(position: Position, now: bigint) {
 }
 export const units = (value: bigint, decimals: number) =>
   formatUnits(value, decimals);
+// Display-only grouping: keep every fractional digit and never convert through Number.
+export function readableNumber(value: string, minimumFraction = 0): string {
+  const approximate = value.startsWith("≈");
+  const raw = approximate ? value.slice(1) : value;
+  if (!/^\d+(\.\d+)?$/.test(raw)) return value;
+  const [integer, fraction = ""] = raw.split(".");
+  const digits = fraction.padEnd(minimumFraction, "0");
+  return `${approximate ? "≈" : ""}${integer.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}${digits ? `.${digits}` : ""}`;
+}
 export const short = (address: string) =>
   `${address.slice(0, 6)}…${address.slice(-4)}`;

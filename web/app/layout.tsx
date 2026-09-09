@@ -28,7 +28,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const title = "Stock Options Lab";
   const description =
     "Explore Stock Token calls and puts by expiration and strike. Fully collateralized primary offers, manual exercise, and token delivery. Testnet only, no real value.";
-  const image = new URL("/og-trading.png", origin).href;
+  const image = new URL("/og-light.png", origin).href;
   return {
     metadataBase: origin,
     title,
@@ -42,7 +42,7 @@ export async function generateMetadata(): Promise<Metadata> {
           url: image,
           width: 1734,
           height: 907,
-          alt: "Stock Options Lab · Options, by expiration · Testnet",
+          alt: "Stock Options Lab · Understand your next option · Testnet",
         },
       ],
     },

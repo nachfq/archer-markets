@@ -38,8 +38,8 @@ Open the server URL, normally `http://localhost:3000`. The seed script creates o
 and one put from each of the first two Anvil accounts, with deposited test collateral.
 After every Anvil restart, repeat deployment and seeding.
 
-The default screen is **Options chain**. Choose a listed expiration, then select a
-call or put in the strike table. The **Trade ticket** shows the exact whole-lot terms
+The default **Options** screen contains the options chain. Choose a listed expiration, then select a
+call or put in the strike table. The **Review your option** panel shows the exact whole-lot terms
 and the available action for the connected wallet. The chain initially shows three
 expiration timestamps and five strikes; additional listings can be expanded.
 Only funded open offers appear, with no invented bids, trade history, or volume.
@@ -68,7 +68,7 @@ account to B when buying or exercising; separate browser profiles are also suita
 The writer cannot buy their own offer.
 
 These credentials are public test fixtures, not secrets: never send real assets to them
-or use them on a public network. Anvil supplies local ETH. The app's faucet buttons provide
+or use them on a public network. Anvil supplies local ETH. Expand **Wallet & test funds** to access the faucet buttons, which provide
 MockUSD and, locally only, MockSTOCK. The seed step already funds both accounts with mocks.
 The amounts below are fictional terms, **not TSLA market quotes**.
 
@@ -83,7 +83,7 @@ shortcut only fills the quantity; the walkthrough below uses a smaller lot.
    300 MockUSD, premium 8 MockUSD, and a future expiration.
 2. Approve 1 MockSTOCK to the factory, then create the offer. The stock moves from A
    into the option contract. Approval and creation are separate wallet transactions.
-3. Copy the offer link and open it with account B connected. Acknowledge the manual
+3. Expand **Contract details**, copy the offer link, and open it with account B connected. Acknowledge the manual
    exercise deadline. Approve the premium to
    that option, then buy. A receives 8 MockUSD; the stock remains in escrow.
 4. B approves 300 MockUSD to the option and exercises. B receives 1 MockSTOCK and
@@ -151,3 +151,9 @@ become public evidence only after those transactions actually occur.
 Deploying contracts and publishing a website are separate steps. The existing hosted
 frontend remains configured without a factory until an updated frontend configuration
 is published.
+
+For visual and usability checks against a running local demo, run
+`node scripts/ux-browser-review.mjs`. The script writes screenshots and a JSON report
+to `/tmp/options-ux-review` by default; `UX_REVIEW_OUTPUT` overrides that directory.
+It checks desktop/tablet/mobile layouts, keyboard focus, displayed text contrast,
+empty/offline states, and viewport reflow equivalent to 200% desktop zoom.
