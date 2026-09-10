@@ -58,8 +58,8 @@ export function stockAddress() { return getAddress(process.env.RH_STOCK_ADDRESS 
 export function publicDeployment(record) {
   if (![31337, 46630].includes(record.chainId)) throw new Error('Unsupported deployment chain.');
   // Explicit allowlist: private provider endpoints, signing data, and receipts never go into browser config.
-  const { chainId, name, explorerUrl, underlying, quote, factory, deploymentBlock, marketId, label, sandbox } = record;
-  return { chainId, name, explorerUrl, underlying, quote, factory, deploymentBlock, ...(marketId ? { marketId, label, sandbox } : {}), ...(record.markets ? { markets: record.markets.map(({ marketId, label, sandbox, factory, deploymentBlock, underlying, quote }) => ({ marketId, label, sandbox, factory, deploymentBlock, underlying, quote })) } : {}),
+  const { chainId, name, explorerUrl, underlying, quote, factory, deploymentBlock, marketId, label, sandbox, version, legacy } = record;
+  return { chainId, name, explorerUrl, underlying, quote, factory, deploymentBlock, version, legacy, ...(marketId ? { marketId, label, sandbox } : {}), ...(record.markets ? { markets: record.markets.map(({ marketId, label, sandbox, factory, deploymentBlock, underlying, quote, version, legacy }) => ({ marketId, label, sandbox, factory, deploymentBlock, underlying, quote, version, legacy })) } : {}),
     rpcUrl: chainId === 31337 ? 'http://127.0.0.1:8545' : 'https://rpc.testnet.chain.robinhood.com' };
 }
 export function reportError(error) {

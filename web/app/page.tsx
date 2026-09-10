@@ -62,8 +62,9 @@ export async function generateMetadata({
             functionName: "premium",
           }),
         ]);
+        const resale = deployment.version === 2 ? await client.readContract({ address: selected, abi: optionAbi, functionName: "resalePrice" }) : 0n;
         title = `${type === 0 ? "Call" : "Put"} · ${units(quantity, deployment.underlying.decimals)} ${deployment.underlying.symbol} · Stock Options Lab`;
-        description = `Total premium ${units(premium, deployment.quote.decimals)} ${deployment.quote.symbol}; total exercise ${units(strike, deployment.quote.decimals)} ${deployment.quote.symbol}. Token delivery, manual exercise. Testnet only.`;
+        description = `${resale > 0n ? "Resale asking price" : "Original option price"} — total ${units(resale > 0n ? resale : premium, deployment.quote.decimals)} ${deployment.quote.symbol}; exercise payment — total ${units(strike, deployment.quote.decimals)} ${deployment.quote.symbol}. Verify current availability in the app. Token delivery, manual exercise. Testnet only.`;
       }
     } catch {
       /* Shareable links remain renderable during an RPC outage. */

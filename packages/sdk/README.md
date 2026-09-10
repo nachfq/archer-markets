@@ -2,8 +2,10 @@
 
 A framework-independent TypeScript SDK for fully collateralized, physically delivered
 American options. It uses public manifests and caller-supplied viem clients. It never
-stores keys or signs on behalf of an integration. Version 0.1 supports protocol v1;
-there is no secondary transfer, automatic exercise, oracle settlement, or mainnet configuration.
+stores keys or signs on behalf of an integration. It supports legacy protocol v1 and
+protocol v2 whole-option resale. There is no automatic exercise, oracle settlement,
+or mainnet configuration. Omitted market versions default to 1; version 2 factories
+must report `version() == 2`.
 
 ## Install and build
 
@@ -45,6 +47,11 @@ Use a separate client per chain. Market factories and decimals are checked again
 Exports include `getMarkets`, `getOption`, `getPortfolio`, `prepareCreateOffer`,
 `prepareBuy`, `prepareExercise`, `prepareCancel`, `prepareReclaim`, `simulatePrepared`,
 `decodeProtocolError`, `parseAmount`, `quoteTotal`, `maximumQuantity`, and generated ABIs.
+Version 2 also exports `prepareListResale`, `prepareCancelResale`, and
+`prepareBuyResale`. The last takes the reviewed `{ seller, price, nonce }` quote;
+do not silently replace it with a refreshed price before sending. The contract
+validates the quote atomically. Listing can be edited by listing again; it never
+locks exercise. Self-purchases and original-writer buybacks are forbidden.
 All amounts use bigint base units. `quoteTotal` converts quantity and per-token price
 into an exact whole-lot payment, rejecting unrepresentable totals rather than rounding.
 Max put quantity may be zero when no positive exact lot fits the balance at that price.
@@ -53,8 +60,10 @@ Portfolio snapshots read every option at one mined block. Shared token balances 
 collateral are not double-counted. `totalTracked` is a token quantity, not net asset
 value: the writer still has obligations against active collateral. A failed registry
 or token read rejects the snapshot rather than returning a misleading complete total.
-Immutable registry addresses are cached after checking the prior block hash; position
-states are always read again. Initial reads and state refresh scale linearly with
+Immutable registry addresses and terms are cached after checking the prior block hash;
+position states, holders and listings are always read again at one snapshot block.
+V2 purchase/resale events retain past holders and actual payment history. V1 reads
+never call resale getters. Initial reads and state refresh scale linearly with
 option count. This is appropriate for a small pilot, not a production indexer.
 
 `ProtocolError` supplies a stable code, message, next action, and optional structured

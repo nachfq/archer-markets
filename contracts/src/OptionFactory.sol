@@ -15,6 +15,7 @@ contract OptionFactory is ReentrancyGuard {
     address public immutable underlying;
     address public immutable quote;
     address[] public options;
+    uint256 public constant version = 2;
 
     event OptionCreated(address indexed option, address indexed writer, Option.OptionType optionType);
 

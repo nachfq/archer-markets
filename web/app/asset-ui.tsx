@@ -23,7 +23,7 @@ export function AssetLogo({ presentation }: { presentation: AssetPresentation })
 
 export function MarketList({ markets, selected, disabled, onSelect }: { markets: Deployment[]; selected: string; disabled: boolean; onSelect: (id: string) => void }) {
   const list = useRef<HTMLDivElement>(null);
-  useEffect(() => { list.current?.querySelector('[aria-pressed="true"]')?.scrollIntoView({ block: "nearest", inline: "nearest" }); }, [selected]);
+  useEffect(() => { const node = list.current?.querySelector<HTMLElement>('[aria-pressed="true"]'); if (node && list.current && list.current.scrollWidth > list.current.clientWidth) list.current.scrollTo({ left: Math.max(0, node.offsetLeft - list.current.offsetLeft), behavior: "smooth" }); }, [selected]);
   return <aside className="market-list" aria-label="Markets"><h2>Markets <span className="count-badge">{markets.length}</span></h2><div className="market-list-items" ref={list}>
     {markets.map(market => <button key={market.marketId} data-market={market.marketId} aria-pressed={market.marketId === selected} disabled={disabled}
       onClick={() => onSelect(market.marketId!)}>

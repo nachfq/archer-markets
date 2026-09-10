@@ -10,6 +10,9 @@ built by agents under human coordination to explore a product for Arbitrum Open 
 The writer sets the token quantity, total exercise payment, premium, and expiration.
 Another wallet buys the entire lot and can exercise manually before expiration.
 Exercise exchanges both assets atomically. The premium goes to the writer at purchase.
+Local V2 markets also let the current holder resell the whole exercise right for a
+new total price. Collateral and original exercise terms do not change; existing V1
+contracts are not upgraded. See the [five-market demo and resale guide](docs/local-demo-v2.md).
 
 | Option | Collateral at creation | Buyer delivers on exercise | Buyer receives |
 |---|---|---|---|
@@ -32,8 +35,9 @@ still requires a funded testnet wallet. MockUSD and MockSTOCK have no real value
 
 ## Product roadmap and SDK
 
-The [product roadmap](docs/product-roadmap.md) defines the usable pilot, later resale,
-and EVM portability. The [standalone SDK](packages/sdk/README.md) is shared by the web
+The [product roadmap](docs/product-roadmap.md) records the pilot direction; local V2 resale
+is now implemented as described in the [current demo guide](docs/local-demo-v2.md).
+EVM portability remains a separate roadmap item. The [standalone SDK](packages/sdk/README.md) is shared by the web
 and seed scripts; it exports reads, portfolio snapshots, transaction preparation and
 structured errors without React. Package it with `npm pack --workspace @stock-options-lab/sdk`.
 
@@ -59,20 +63,26 @@ npm run anvil
 In terminal B, deploy contracts, create funded demo offers, and start the local frontend:
 
 ```sh
-npm run deploy:local
-npm run seed:local
+npm run contracts:build
+npm run abi
+npm run sdk:build
+npm run demo:local -- --dry-run
+npm run demo:local
 npm run dev:local
 ```
 
 Open the URL printed by the server, normally `http://localhost:3000`.
 Use two disposable Anvil development accounts in an EVM browser wallet with chain
-**31337** and RPC `http://127.0.0.1:8545`. The seed script creates four collateralized
-offers across the first two Anvil accounts. [Wallet setup and buy/exercise steps](docs/demo.md)
+**31337** and RPC `http://127.0.0.1:8545`. The demo creates 390 options across five named
+mock equities using accounts 1–9; account 0 is reserved for your wallet. The older
+`seed:local` is a separate four-offer legacy fixture and does use account 0, so do not
+use it to populate this demo. [Wallet setup and buy/exercise steps](docs/demo.md)
 cover the manual test. Anvil credentials are public and must only be used locally;
 the application does not embed them in its browser bundle.
 
 Deployment scripts export compiled ABIs, addresses, and the initial block to the app.
-After restarting Anvil, rerun `deploy:local` and `seed:local` before testing.
+After restarting Anvil, follow the fresh-ledger instructions in the V2 demo guide;
+do not assume a previous manifest represents contracts on a new node.
 
 ## Verification
 
@@ -80,13 +90,13 @@ After restarting Anvil, rerun `deploy:local` and `seed:local` before testing.
 npm test
 npm run typecheck
 npm run build
-npm run test:e2e   # requires Anvil and deploy:local
+ANVIL_RPC_URL=http://127.0.0.1:8546 npm run test:e2e   # isolated fork of the deployed local demo
 npm run test:sdk:e2e  # standalone SDK consumer; local transactions
 ```
 
 The end-to-end smoke test sends local transactions from two other accounts and checks
 balance conservation, permissions, atomic rollback, and expiration. **It advances
-Anvil time**: run it before `seed:local` when preparing fresh demo offers. Evidence is
+Anvil time**: use an isolated fork on port 8546, never the active demo node. Evidence is
 written to the ignored `deployments/local-smoke.json`.
 
 Optional integration with the existing TSLA implementation, without public transactions:
@@ -102,10 +112,10 @@ For functional browser testing, keep Anvil and `dev:local` running after deploym
 
 ```sh
 npx playwright install chromium
-npm run test:browser
+ANVIL_RPC_URL=http://127.0.0.1:8546 npm run test:browser
 ```
 
-This uses two test wallet providers backed by unlocked Anvil accounts, interacts with
+This uses three test wallet providers backed by unlocked Anvil accounts 1, 8 and 9, interacts with
 buttons, and checks transactions and balances. It only accepts loopback hosts and
 chain 31337. It does not automate a real wallet extension or send private keys to the
 browser. Its final scenario advances local chain time.

@@ -1,6 +1,8 @@
 "use client";
 
 import type { FormEvent, ReactNode } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { Token } from "../lib/config";
 import { deadlinePreview, type suggestedExpirations } from "../lib/expirations";
 
@@ -21,10 +23,10 @@ export default function WriteOptionForm({ values, onChange, underlying, quote, b
     <div className="section-head"><div><div className="eyebrow">CREATE AN OFFER</div><h2>Write an option</h2></div><span className="pill">Fully collateralized</span></div>
     <div className="write-fields">
       <label className="field">Option type<select aria-label="Write option type" value={values.kind} onChange={event => onChange.kind(Number(event.target.value))} disabled={busy}><option value="0">Covered call</option><option value="1">Cash-secured put</option></select><small>You deposit {values.kind === 0 ? underlying.symbol : quote.symbol}.</small></label>
-      <label className="field">Quantity of {underlying.symbol}<span className="lot-input"><input aria-label={`Quantity of ${underlying.symbol}`} inputMode="decimal" placeholder="0.5" value={values.quantity} onChange={event => onChange.quantity(event.target.value)} required disabled={busy} /><button className="button" type="button" disabled={busy || !canMax} onClick={onMax}>Max</button></span><small>Fixed token units · Full lot</small></label>
+      <label className="field">Quantity of {underlying.symbol}<span className="lot-input"><Input aria-label={`Quantity of ${underlying.symbol}`} inputMode="decimal" placeholder="0.5" value={values.quantity} onChange={event => onChange.quantity(event.target.value)} required disabled={busy} />{values.kind === 0 && <Button variant="outline" type="button" disabled={busy || !canMax} onClick={onMax}>Max</Button>}</span><small>The buyer takes this entire quantity, including fractions.</small></label>
       <label className="field">Lot shortcut<select aria-label="Lot shortcut" value={["0.01", "1"].includes(values.quantity) ? values.quantity : "custom"} disabled={busy} onChange={event => { if (event.target.value !== "custom") onChange.quantity(event.target.value); }}><option value="custom">Custom quantity</option><option value="0.01">0.01 token</option><option value="1">1 token</option></select></label>
-      <label className="field">Strike per token · {quote.symbol}<input inputMode="decimal" placeholder="100" value={values.strike} onChange={event => onChange.strike(event.target.value)} required disabled={busy} /></label>
-      <label className="field">Premium per token · {quote.symbol}<input inputMode="decimal" placeholder="5" value={values.premium} onChange={event => onChange.premium(event.target.value)} required disabled={busy} /></label>
+      <label className="field">Exercise payment — total · {quote.symbol}<Input inputMode="decimal" placeholder="185" value={values.strike} onChange={event => onChange.strike(event.target.value)} required disabled={busy} /><small>{values.kind === 0 ? "The buyer pays you this amount only if they exercise." : "You deposit this amount now; the buyer receives it if they exercise."}</small>{values.kind === 1 && <Button variant="outline" type="button" disabled={busy || !canMax} onClick={onMax}>Use available collateral</Button>}</label>
+      <label className="field">Option price — total · {quote.symbol}<Input inputMode="decimal" placeholder="8" value={values.premium} onChange={event => onChange.premium(event.target.value)} required disabled={busy} /><small>You receive this amount when someone buys. Separate from exercise.</small></label>
       <fieldset className="expiration-picker" disabled={busy}>
         <legend>Expiration</legend>
         <select aria-label="Write expiration" value={values.expiryMode === "custom" ? "custom" : effectiveExpiry} onChange={event => {

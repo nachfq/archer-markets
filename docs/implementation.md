@@ -423,3 +423,104 @@ market valuation; Activity remains browser-local. These are automated agent chec
 not an audit or human usability validation. Contracts, SDK interfaces, ABIs and
 deployment manifests are unchanged. The Sites workflow preserved the existing
 hosting setup and social asset; this iteration remains local and was not republished.
+
+## Named demo markets, exact totals and local resale V2 — September 9, 2026
+
+This section supersedes the earlier UI descriptions of per-token premium inputs,
+sticky review cards, and deferred resale. Earlier evidence and limitations above
+are preserved as the record of those iterations, not claims about this version.
+
+Implemented the human-approved local V2 scope: `Option` retains its five lifecycle
+states and immutable writer/terms/collateral, while `buyer` is the current holder.
+Listing, updating, removing and atomically buying a whole right are supported.
+Seller/price/nonce guards reject stale reviewed offers. Resale proceeds go only to
+the selling holder, not the writer. Exercise remains possible while listed.
+Exercise, resale and reclaim invalidate the listing; exact-transfer failures roll
+back ownership, listing, nonce and balances. Self-purchases and writer buybacks
+are forbidden. No fees, partial lots, free transfers, NFTs, oracle, AMM, automatic
+settlement or public-chain contract deployment were introduced.
+
+Factory `version()` authenticates new V2 deployments. Manifests, generated ABIs
+and the shared SDK now distinguish V1/V2; omitted versions remain V1. Legacy
+contracts are not upgraded. The SDK authenticates option registry membership for
+resale preparation, retains the reviewed resale quote through approvals, and
+reads mutable holder/state/listing information at the snapshot block. Immutable
+terms are cached with reorg checks and local HTTP reads are batched. V2 Bought
+and Resold events preserve past-holder history and actual payments. Event reads
+still scan the market history: this is a PoC, not a production indexer.
+
+The frontend uses shadcn base-nova source components with pinned Base UI 1.8.0,
+class-variance-authority 0.7.1, clsx 2.1.1 and tailwind-merge 3.6.0. Source components
+come from the official shadcn registry; icons use the existing self-hosted font
+system. Button, tabs, input, dropdown, alert, table, collapsible, scroll area and
+drawer primitives share the existing graphite/green tokens. Optional platform
+packages in the lockfile were preserved. Sites guidance preserved vinext, hosting
+configuration and the existing social asset; no website publication was performed.
+
+Trade now uses a controlled nonmodal bottom drawer without a backdrop, outside-click
+dismissal or page-scroll lock. Selection updates the same mounted panel; explicit
+close, Escape, a height control and internal scrolling remain available. Portfolio
+details remain inline. Buy/Write is an aligned accessible tab control. Active market
+identity includes the full name, symbol and ID; switching clears review/amounts and
+resets custom expiration mode. Writing takes independent quantity, total exercise
+payment and total option price. Call Max changes quantity; put Use available
+collateral changes only exercise payment. Unit premium/average columns are removed.
+
+Strike is only a grouping reference. Each expiry/strike expands to independent
+whole quantities ordered by quantity then total asking price, with new/resale
+source labels and current-seller ownership tint. Dates remain horizontally scrollable
+and the strike count defaults to 10. Docs has sticky navigation, offset anchors,
+a call/put delivery comparison, resale mechanics and context-preserving return.
+The mobile chain grid minimum-width bug found during screenshot review was fixed.
+
+`demo:local` deploys Mock Tesla, Mock NVIDIA, Mock Apple, Mock Amazon and Mock
+Microsoft plus five V2 factories using unlocked Anvil accounts 1–9, never 0. It
+reuses valid MockUSD or bootstraps one from account 1. Existing local primary and
+practice deployments remain legacy Portfolio assets. The main 8545 node was not
+reset or time-warped. It now has exactly 390 seeded V2 contracts: 360 primary offers,
+10 held rights, 10 resale listings and 10 canceled options (370 available offers).
+Reference prices, synthetic premium formula, dates and reproduction commands are
+in `docs/local-demo-v2.md` and `scripts/demo-config.mjs`.
+
+The ignored per-transaction ledger records intents before broadcast and recovers
+known nonces/receipts on interruption. Dry-run performs no writes; deploy/seed
+stages are separately selectable. Completed human-altered fixtures are skipped.
+Two concurrent seed processes are not supported. A ledger from another node is
+rejected; do not discard the ledger to reseed an existing chain.
+
+Validation performed locally:
+
+- `npm test`: 90 passing executions (53 Solidity, including inherited lifecycle
+  regressions; 7 script tests; 11 SDK tests; 19 frontend tests). Coverage includes
+  call/put conservation, repeated resale, old-holder rejection, stale/canceled
+  listings, exact expiry, failed approvals, transfer-fee rollback and reentrancy.
+- Typecheck and ESLint passed. ABI regeneration and both chain-31337 and default
+  chain-46630 production builds passed. The existing large-bundle warning remains.
+- `test:e2e` on isolated Anvil 8546: nine lifecycle scenarios/460 checks, plus V2
+  call/put resale transactions, stale-quote rollback, current-holder permissions,
+  history and exercise conservation. Evidence is in ignored local smoke manifests.
+- Browser acceptance used accounts 1, 8 and 9 on isolated 8546, never the user's
+  8545 node. Call and put creation/purchase/resale/exercise, rejected signatures,
+  cancellation, expired reclaim and pending receipt reconciliation passed. An
+  additional write-and-cancel check confirmed all five actual target factories.
+- `demo-resume-check.mjs` recovered an interrupted-broadcast ledger and reran it:
+  the same 390 addresses and no additional blocks/transactions. Fresh deployment
+  bootstrapping and rerunning the deploy stage passed on isolated Anvil 8547.
+- Read-only UI checks passed at 1440, 768 and 390px: five market contexts,
+  independent totals, fractional lots, same-node nonmodal drawer selection, Docs
+  anchors/return, pinned navigation and no page-level horizontal overflow.
+  A connected chain-46630 preview also produced zero signing requests and kept
+  creation disabled with no configured factory. Unsold canceled/expired options
+  explicitly show no payment instead of inventing premium income.
+- Read-only account-zero snapshots before and after the live seed were identical:
+  nonce 23, native ETH and all three existing token balances unchanged. Evidence:
+  `deployments/local-demo-account0-check.json`. Seed senders are accounts 1–9 only.
+
+Environment limitation: the system partition filled during additional Chrome/build
+runs. Task-specific temporary directories on the repository disk allowed validation
+to continue without deleting user files or stopping their services. Failed attempts
+were rerun after correcting the environment and the UI issues they exposed.
+
+These are automated agent checks, not an audit or human approval. Prices and faucet
+balances are synthetic. The V2 resale scope is local only; the hosted Robinhood
+testnet manifest still has no factory and remains incapable of funded trading.

@@ -6,6 +6,7 @@ export type CatalogEntry = { marketId: string; visible: boolean; underlying: Ass
 // Owner-curated order and presentation only. Addresses and deployment validity stay in the manifests.
 export const marketCatalog: Record<number, CatalogEntry[]> = {
   31337: [
+    ...[["tesla", "Mock Tesla"], ["nvidia", "Mock NVIDIA"], ["apple", "Mock Apple"], ["amazon", "Mock Amazon"], ["microsoft", "Mock Microsoft"]].map(([marketId, name]): CatalogEntry => ({ marketId, visible: true, underlying: { name, kind: "stock" }, quote: { name: "Mock US Dollar", kind: "stablecoin" } })),
     { marketId: "primary", visible: true, underlying: { name: "Mock Stock", kind: "stock" }, quote: { name: "Mock US Dollar", kind: "stablecoin" } },
     { marketId: "practice", visible: true, underlying: { name: "Practice Stock", kind: "stock" }, quote: { name: "Mock US Dollar", kind: "stablecoin" } },
   ],

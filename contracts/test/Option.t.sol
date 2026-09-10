@@ -495,4 +495,52 @@ contract TokenSafetyTest is Test {
         assertEq(stock.callbackError(), ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
         assertEq(factory.optionCount(), 1);
     }
+
+    function testResaleFeeRollsBackOwnershipListingAndBalances() public {
+        Option option = _create();
+        _buy(option);
+        address nextBuyer = makeAddr("nextBuyer");
+        usd.mint(nextBuyer, 1000);
+        vm.prank(buyer);
+        option.listForResale(20);
+        usd.setFee(true);
+        vm.startPrank(nextBuyer);
+        usd.approve(address(option), 20);
+        vm.expectRevert(Option.UnsupportedTokenTransfer.selector);
+        option.buyResale(buyer, 20, 1);
+        vm.stopPrank();
+        assertEq(option.buyer(), buyer);
+        assertEq(option.resalePrice(), 20);
+        assertEq(option.listingNonce(), 1);
+        assertEq(usd.balanceOf(nextBuyer), 1000);
+        assertEq(usd.balanceOf(buyer), 990);
+        assertEq(usd.balanceOf(writer), 1010);
+        assertEq(stock.balanceOf(address(option)), 100);
+        assertEq(usd.allowance(nextBuyer, address(option)), 20);
+    }
+
+    function testResaleRejectsReentryAndExerciseRollbackPreservesListing() public {
+        Option option = _create();
+        _buy(option);
+        address nextBuyer = makeAddr("nextBuyer");
+        usd.mint(nextBuyer, 1000);
+        vm.prank(buyer);
+        option.listForResale(20);
+        usd.setCallback(address(option), abi.encodeCall(Option.buyResale, (buyer, 20, 1)));
+        vm.startPrank(nextBuyer);
+        usd.approve(address(option), type(uint256).max);
+        option.buyResale(buyer, 20, 1);
+        assertEq(usd.callbackError(), ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
+        option.listForResale(30);
+        stock.setFee(true);
+        vm.expectRevert(Option.UnsupportedTokenTransfer.selector);
+        option.exercise();
+        vm.stopPrank();
+        assertEq(option.buyer(), nextBuyer);
+        assertEq(option.resalePrice(), 30);
+        assertEq(option.listingNonce(), 3);
+        assertEq(usd.balanceOf(nextBuyer), 980);
+        assertEq(usd.balanceOf(writer), 1010);
+        assertEq(stock.balanceOf(address(option)), 100);
+    }
 }

@@ -1,5 +1,6 @@
 import { formatUnits } from "viem";
 import type { Position } from "./options.ts";
+import { isListed, optionPrice } from "./options.ts";
 
 export type StrikeRow = { key: string; numerator: bigint; denominator: bigint; calls: Position[]; puts: Position[] };
 const compare = (a: bigint, b: bigint) => a < b ? -1 : a > b ? 1 : 0;
@@ -8,12 +9,12 @@ function gcd(a: bigint, b: bigint): bigint {
   return a;
 }
 export function listedExpirations(positions: Position[], now: bigint): bigint[] {
-  return [...new Set(positions.filter(p => p.state === 0 && p.expiry > now).map(p => p.expiry))].sort(compare);
+  return [...new Set(positions.filter(p => isListed(p, now)).map(p => p.expiry))].sort(compare);
 }
 export function strikeRows(positions: Position[], expiry: bigint, now: bigint): StrikeRow[] {
   const rows = new Map<string, StrikeRow>();
   for (const position of positions) {
-    if (position.state !== 0 || position.expiry !== expiry || position.expiry <= now || position.underlyingAmount <= 0n) continue;
+    if (!isListed(position, now) || position.expiry !== expiry || position.underlyingAmount <= 0n) continue;
     const divisor = gcd(position.strikeTotal, position.underlyingAmount);
     const numerator = position.strikeTotal / divisor;
     const denominator = position.underlyingAmount / divisor;
@@ -23,7 +24,7 @@ export function strikeRows(positions: Position[], expiry: bigint, now: bigint): 
     rows.set(key, row);
   }
   for (const row of rows.values()) {
-    const priceOrder = (a: Position, b: Position) => compare(a.premium * b.underlyingAmount, b.premium * a.underlyingAmount) || a.address.localeCompare(b.address);
+    const priceOrder = (a: Position, b: Position) => compare(a.underlyingAmount, b.underlyingAmount) || compare(optionPrice(a), optionPrice(b)) || a.address.localeCompare(b.address);
     row.calls.sort(priceOrder);
     row.puts.sort(priceOrder);
   }

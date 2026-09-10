@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { encodeErrorResult } from 'viem';
-import { parseAmount, quoteTotal, maximumQuantity, summarizePortfolio, getMarkets, getPortfolio, prepareCreateOffer, prepareBuy, decodeProtocolError, ProtocolError, optionAbi } from '../dist/index.js';
+import { parseAmount, quoteTotal, maximumQuantity, summarizePortfolio, getMarkets, getPortfolio, prepareCreateOffer, prepareBuy, prepareBuyResale, prepareListResale, decodeProtocolError, ProtocolError, optionAbi } from '../dist/index.js';
 const addr = n => `0x${n.toString(16).padStart(40, '0')}`;
 const writer = addr(1), buyer = addr(2);
 const stock = { address: addr(3), symbol: 'STOCK', decimals: 18, isMock: true };
@@ -99,4 +99,29 @@ test('nested revert bytes, wallet rejection and unavailable diagnostics are dist
   const pending=new ProtocolError('PENDING','Pending','Check receipt');
   assert.equal(decodeProtocolError(pending),pending);
   assert.equal(decodeProtocolError(new Error('opaque RPC')).details.technical,'opaque RPC');
+});
+test('legacy markets default to V1, never read resale fields and refuse resale preparation', async () => {
+  const { client, reads } = fakeClient([option(0)]);
+  await getMarkets(client, [{ ...market, version: undefined }]);
+  assert(!reads.some(r => ['version', 'resalePrice', 'listingNonce'].includes(r.functionName)));
+  await assert.rejects(() => prepareListResale(client, market, buyer, addr(100), 2n), { code: 'UNAVAILABLE' });
+  await assert.rejects(() => prepareBuyResale(client, market, buyer, addr(100), { seller: writer, price: 2n, nonce: 1n }), { code: 'UNAVAILABLE' });
+});
+test('cached terms never cache mutable ownership, state or resale quotes', async () => {
+  const positions = [option(0, { state: 1, resalePrice: 2n, listingNonce: 1n })];
+  const { client, reads } = fakeClient(positions);
+  const read = client.readContract;
+  client.readContract = async r => r.functionName === 'version' ? 2n : read(r);
+  client.getLogs = async () => [];
+  await getMarkets(client, [{ ...market, version: 2 }]);
+  const fixedReads = reads.filter(r => r.functionName === 'strikeTotal').length;
+  positions[0].buyer = addr(7); positions[0].resalePrice = 4n; positions[0].listingNonce = 3n;
+  const [snapshot] = await getMarkets(client, [{ ...market, version: 2 }]);
+  assert.equal(snapshot.positions[0].buyer, addr(7));
+  assert.equal(snapshot.positions[0].resalePrice, 4n);
+  assert.equal(snapshot.positions[0].listingNonce, 3n);
+  assert.equal(reads.filter(r => r.functionName === 'strikeTotal').length, fixedReads);
+  client.getBlock = async () => ({ number: 10n, hash: `0x${'b'.repeat(64)}`, timestamp: 50n });
+  positions[0].strikeTotal = 20n;
+  assert.equal((await getMarkets(client, [{ ...market, version: 2 }]))[0].positions[0].strikeTotal, 20n, 'A reorg invalidates cached immutable terms');
 });

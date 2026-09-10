@@ -19,3 +19,5 @@ web/lib/generated/local-deployment.json
 
 packages/sdk/dist/
 *.tgz
+.qa-tmp-*/
+cache/

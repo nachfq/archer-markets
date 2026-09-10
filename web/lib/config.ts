@@ -20,7 +20,9 @@ export type Deployment = {
   marketId?: string;
   label?: string;
   sandbox?: boolean;
-  markets?: Array<Pick<Deployment, "marketId" | "label" | "sandbox" | "factory" | "deploymentBlock" | "underlying" | "quote">>;
+  version?: 1 | 2;
+  legacy?: boolean;
+  markets?: Array<Pick<Deployment, "marketId" | "label" | "sandbox" | "factory" | "deploymentBlock" | "underlying" | "quote" | "version" | "legacy">>;
   underlying: Token;
   quote: Token;
 };
@@ -49,7 +51,7 @@ export const config = createConfig({
 });
 export const client = createPublicClient({
   chain,
-  transport: http(deployment.rpcUrl, { retryCount: 1 }),
+  transport: http(deployment.rpcUrl, { retryCount: 1, batch: { batchSize: 64, wait: 5 } }),
   batch: { multicall: false },
 });
 export const ready = !!(
@@ -60,9 +62,10 @@ export const ready = !!(
 
 const manifestMarkets: Deployment[] = [deployment, ...(deployment.markets ?? []).map(m => ({ ...deployment, ...m, markets: undefined }))].map((m, i) => ({ ...m, marketId: m.marketId ?? (i === 0 ? "primary" : `market-${i}`), label: m.label ?? `${m.underlying.symbol} / ${m.quote.symbol}`, sandbox: m.sandbox ?? m.underlying.isMock }));
 export const marketRecords = curatedMarkets(manifestMarkets, marketCatalog[deployment.chainId] ?? []);
+export const tradeMarkets = marketRecords.filter(m => !m.legacy);
 export function asMarket(record: Deployment): MarketConfig | null {
   if (!record.factory || !record.underlying.address || !record.quote.address || record.deploymentBlock === null) return null;
-  return { id: record.marketId ?? "primary", chainId: record.chainId, factory: record.factory, deploymentBlock: BigInt(record.deploymentBlock), version: 1, sandbox: record.sandbox ?? record.underlying.isMock,
+  return { id: record.marketId ?? "primary", chainId: record.chainId, factory: record.factory, deploymentBlock: BigInt(record.deploymentBlock), version: record.version ?? 1, sandbox: record.sandbox ?? record.underlying.isMock,
     underlying: { ...record.underlying, address: record.underlying.address, adapter: record.underlying.isMock ? "erc20" : "robinhood" },
     quote: { ...record.quote, address: record.quote.address, adapter: "erc20" } };
 }

@@ -6,7 +6,7 @@ const token = { address: "0x1111111111111111111111111111111111111111", symbol: "
 const primary: Deployment = { chainId: 31337, name: "Local", rpcUrl: "http://127.0.0.1:8545", explorerUrl: "", factory: null, deploymentBlock: null, marketId: "primary", underlying: token, quote: { ...token, address: "0x2222222222222222222222222222222222222222", symbol: "USD", decimals: 6 } };
 const practice = { ...primary, marketId: "practice", underlying: { ...token, address: "0x3333333333333333333333333333333333333333" as const } };
 test("owner catalog determines visibility and order without fabricating deployments", () => {
-  const entries = marketCatalog[31337];
+  const entries = ["primary", "practice"].map(id => marketCatalog[31337].find(m => m.marketId === id)!);
   assert.deepEqual(curatedMarkets([primary, practice], [entries[1], entries[0]]).map(m => m.marketId), ["practice", "primary"]);
   assert.deepEqual(curatedMarkets([primary, practice], [{ ...entries[0], visible: false }, entries[1]]), [practice]);
   assert.deepEqual(curatedMarkets([primary], [entries[1]]), []);

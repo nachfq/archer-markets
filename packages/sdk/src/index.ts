@@ -1,10 +1,11 @@
-import { BaseError, ContractFunctionRevertedError, decodeErrorResult, encodeFunctionData, erc20Abi, formatUnits, parseUnits, type Address, type Hash, type PublicClient } from 'viem';
+import { BaseError, ContractFunctionRevertedError, decodeErrorResult, encodeFunctionData, erc20Abi, formatUnits, parseAbiItem, parseUnits, type Address, type Hash, type PublicClient } from 'viem';
 import { optionAbi, optionFactoryAbi, erc20Abi as tokenErrorsAbi } from './abis.js';
 export { optionAbi, optionFactoryAbi } from './abis.js';
 export type ChainConfig = { chainId: number; name: string; rpcUrl: string; explorerUrl: string };
 export type TokenConfig = { address: Address; symbol: string; decimals: number; isMock: boolean; adapter?: 'erc20' | 'robinhood' };
-export type MarketConfig = { id: string; chainId: number; factory: Address; deploymentBlock: bigint; version: 1; underlying: TokenConfig; quote: TokenConfig; sandbox: boolean };
-export type Option = { address: Address; writer: Address; buyer: Address; underlyingAmount: bigint; strikeTotal: bigint; premium: bigint; expiry: bigint; optionType: number; state: number };
+export type MarketConfig = { id: string; chainId: number; factory: Address; deploymentBlock: bigint; version?: 1 | 2; underlying: TokenConfig; quote: TokenConfig; sandbox: boolean };
+export type OptionTrade = { seller: Address; buyer: Address; price: bigint; blockNumber: bigint; transactionHash: Hash };
+export type Option = { address: Address; writer: Address; buyer: Address; underlyingAmount: bigint; strikeTotal: bigint; premium: bigint; expiry: bigint; optionType: number; state: number; resalePrice?: bigint; listingNonce?: bigint; trades?: OptionTrade[] };
 export type MarketSnapshot = { market: MarketConfig; blockNumber: bigint; blockHash: Hash; timestamp: bigint; positions: Option[]; total: bigint };
 export type TokenBalance = { token: TokenConfig; available: bigint; openCollateral: bigint; activeCollateral: bigint; reclaimable: bigint; totalTracked: bigint };
 export type Portfolio = { blockNumber: bigint; timestamp: bigint; gas: bigint; tokens: TokenBalance[]; positions: (Option & { marketId: string })[]; complete: true };
@@ -15,6 +16,7 @@ export class ProtocolError extends Error {
   constructor(public code: ErrorCode, message: string, public nextAction: string, public details?: { token?: string; required?: string; available?: string; technical?: string; txHash?: Hash }) { super(message); this.name = 'ProtocolError'; }
 }
 const messages: Record<string, [ErrorCode, string, string]> = {
+  StaleListing: ['UNAVAILABLE', 'This resale offer changed after you reviewed it.', 'Refresh and review the current seller and total price before buying.'],
   ERC20InsufficientBalance: ['INSUFFICIENT_BALANCE', 'The token balance is too low.', 'Reduce the amount or add the required tokens.'],
   ERC20InsufficientAllowance: ['INSUFFICIENT_ALLOWANCE', 'The token approval is insufficient.', 'Approve the required amount and try again.'],
   OptionExpired: ['EXPIRED', 'This option has expired.', 'Exercise is no longer possible. The writer can reclaim collateral.'],
@@ -75,19 +77,23 @@ export async function validateMarket(client: PublicClient, market: MarketConfig)
     client.readContract({ address: market.underlying.address, abi: erc20Abi, functionName: 'decimals' }),
     client.readContract({ address: market.quote.address, abi: erc20Abi, functionName: 'decimals' }),
   ]);
-  if (!code || code === '0x' || underlying.toLowerCase() !== market.underlying.address.toLowerCase() || quote.toLowerCase() !== market.quote.address.toLowerCase() || ud !== market.underlying.decimals || qd !== market.quote.decimals || market.version !== 1) throw new ProtocolError('UNAVAILABLE', 'Deployment does not match the market configuration.', 'Check the network, factory, version and token metadata.');
+  const version = market.version ?? 1;
+  if (![1, 2].includes(version) || (version === 2 && await client.readContract({ address: market.factory, abi: optionFactoryAbi, functionName: 'version' }) !== 2n) || !code || code === '0x' || underlying.toLowerCase() !== market.underlying.address.toLowerCase() || quote.toLowerCase() !== market.quote.address.toLowerCase() || ud !== market.underlying.decimals || qd !== market.quote.decimals) throw new ProtocolError('UNAVAILABLE', 'Deployment does not match the market configuration.', 'Check the network, factory, version and token metadata.');
 }
 async function parallelMap<T, R>(items: T[], fn: (item: T) => Promise<R>): Promise<R[]> {
   const results: R[] = [];
   for (let i = 0; i < items.length; i += 8) results.push(...await Promise.all(items.slice(i, i + 8).map(fn)));
   return results;
 }
-// Only immutable registry addresses are cached. State and balances are always reread at a block.
-const registries = new WeakMap<PublicClient, Map<string, { block: bigint; hash: Hash; addresses: Address[] }>>();
-async function readOption(client: PublicClient, address: Address, blockNumber: bigint): Promise<Option> {
-  const names = ['writer', 'buyer', 'underlyingAmount', 'strikeTotal', 'premium', 'expiry', 'optionType', 'state'] as const;
+// Reorg-checked immutable terms only. Ownership, listing, state and balances share one snapshot block.
+const registries = new WeakMap<PublicClient, Map<string, { block: bigint; hash: Hash; addresses: Address[]; terms: Map<Address, Partial<Option>> }>>();
+async function readOption(client: PublicClient, address: Address, blockNumber: bigint, version: number, terms: Map<Address, Partial<Option>>): Promise<Option> {
+  const fixed = ['writer', 'underlyingAmount', 'strikeTotal', 'premium', 'expiry', 'optionType'] as const;
+  const names = [...(terms.has(address) ? [] : fixed), 'buyer', 'state', ...(version === 2 ? ['resalePrice', 'listingNonce'] as const : [])] as const;
   const values = await Promise.all(names.map(functionName => client.readContract({ address, abi: optionAbi, functionName, blockNumber })));
-  return { address, ...Object.fromEntries(names.map((name, i) => [name, values[i]])) } as Option;
+  const option = { address, ...terms.get(address), ...Object.fromEntries(names.map((name, i) => [name, values[i]])) } as Option;
+  terms.set(address, Object.fromEntries(fixed.map(name => [name, option[name]])));
+  return option;
 }
 export async function getMarkets(client: PublicClient, markets: MarketConfig[]): Promise<MarketSnapshot[]> {
   if (markets.some(m => m.chainId !== markets[0]?.chainId)) throw new ProtocolError('WRONG_NETWORK', 'Use one chain per client snapshot.', 'Create a separate client for each chain.');
@@ -108,8 +114,21 @@ export async function getMarkets(client: PublicClient, markets: MarketConfig[]):
     for (let start = addresses.length; start < Number(total); start += 40) {
       addresses.push(...await parallelMap(Array.from({ length: Math.min(40, Number(total) - start) }, (_, n) => BigInt(start + n)), index => client.readContract({ address: market.factory, abi: optionFactoryAbi, functionName: 'options', args: [index], blockNumber: block.number })));
     }
-    cache!.set(key, { block: block.number, hash: block.hash!, addresses });
-    const positions = await parallelMap([...addresses].reverse(), address => readOption(client, address, block.number));
+    const terms = previous?.terms ?? new Map<Address, Partial<Option>>();
+    cache!.set(key, { block: block.number, hash: block.hash!, addresses, terms });
+    const positions = await parallelMap([...addresses].reverse(), address => readOption(client, address, block.number, market.version ?? 1, terms));
+    if (market.version === 2 && addresses.length) {
+      const trades = new Map<string, OptionTrade[]>();
+      for (let start = 0; start < addresses.length; start += 100) {
+        const logs = await client.getLogs({ address: addresses.slice(start, start + 100), events: [parseAbiItem('event Bought(address indexed buyer, uint256 premium)'), parseAbiItem('event Resold(address indexed seller, address indexed buyer, uint256 price, uint256 nonce)')], fromBlock: market.deploymentBlock, toBlock: block.number, strict: true });
+        for (const log of logs) {
+          const key = log.address.toLowerCase(), p = positions.find(p => p.address.toLowerCase() === key)!;
+          const trade: OptionTrade = { seller: log.eventName === 'Bought' ? p.writer : log.args.seller, buyer: log.args.buyer, price: log.eventName === 'Bought' ? log.args.premium : log.args.price, blockNumber: log.blockNumber, transactionHash: log.transactionHash };
+          trades.set(key, [...(trades.get(key) ?? []), trade]);
+        }
+      }
+      for (const p of positions) p.trades = trades.get(p.address.toLowerCase()) ?? [];
+    }
     return { market, total, positions, blockNumber: block.number, blockHash: block.hash!, timestamp: block.timestamp };
   });
 }
@@ -156,7 +175,7 @@ export async function getPortfolio(client: PublicClient, markets: MarketConfig[]
     if (!balances.has(key)) balances.set(key, await client.readContract({ address: token.address, abi: erc20Abi, functionName: 'balanceOf', args: [account], blockNumber }));
   }
   const gas = await client.getBalance({ address: account, blockNumber });
-  const positions = data.flatMap(s => s.positions.filter(p => [p.writer, p.buyer].some(a => a.toLowerCase() === account.toLowerCase())).map(p => ({ ...p, marketId: s.market.id })));
+  const positions = data.flatMap(s => s.positions.filter(p => [p.writer, p.buyer, ...(p.trades ?? []).flatMap(t => [t.seller, t.buyer])].some(a => a.toLowerCase() === account.toLowerCase())).map(p => ({ ...p, marketId: s.market.id })));
   return { complete: true, blockNumber, timestamp: data[0].timestamp, gas, tokens: summarizePortfolio(data, account, balances), positions };
 }
 async function prepare(client: PublicClient, market: MarketConfig, account: Address, action: string, request: PreparedOperation['request'], spend?: Spend): Promise<PreparedOperation> {
@@ -203,6 +222,30 @@ export const prepareBuy = (client: PublicClient, market: MarketConfig, account: 
 export const prepareExercise = (client: PublicClient, market: MarketConfig, account: Address, option: Address) => prepareAction(client, market, account, option, 'exercise');
 export const prepareCancel = (client: PublicClient, market: MarketConfig, account: Address, option: Address) => prepareAction(client, market, account, option, 'cancel');
 export const prepareReclaim = (client: PublicClient, market: MarketConfig, account: Address, option: Address) => prepareAction(client, market, account, option, 'reclaimExpired');
+function requireResale(market: MarketConfig) {
+  if (market.version !== 2) throw new ProtocolError('UNAVAILABLE', 'Resale is unavailable for this legacy contract.', 'Use a version 2 market. Existing positions are not migrated.');
+}
+export async function prepareListResale(client: PublicClient, market: MarketConfig, account: Address, address: Address, price: bigint) {
+  requireResale(market);
+  await getOption(client, market, address);
+  if (price <= 0n || price > 2n ** 256n - 1n) throw new ProtocolError('INVALID_TERMS', 'Enter a positive total resale price.', 'Use the payment token precision.');
+  return prepare(client, market, account, 'listForResale', { to: address, data: encodeFunctionData({ abi: optionAbi, functionName: 'listForResale', args: [price] }) });
+}
+export async function prepareCancelResale(client: PublicClient, market: MarketConfig, account: Address, address: Address) {
+  requireResale(market);
+  await getOption(client, market, address);
+  return prepare(client, market, account, 'cancelResale', { to: address, data: encodeFunctionData({ abi: optionAbi, functionName: 'cancelResale' }) });
+}
+export async function prepareBuyResale(client: PublicClient, market: MarketConfig, account: Address, address: Address, listing: { seller: Address; price: bigint; nonce: bigint }) {
+  requireResale(market);
+  const option = await getOption(client, market, address);
+  if (option.buyer.toLowerCase() !== listing.seller.toLowerCase() || option.resalePrice !== listing.price || option.listingNonce !== listing.nonce) {
+    const [code, message, next] = messages.StaleListing;
+    throw new ProtocolError(code, message, next);
+  }
+  if (listing.price <= 0n) throw new ProtocolError('UNAVAILABLE', 'This option is not listed for resale.', 'Refresh the chain.');
+  return prepare(client, market, account, 'buyResale', { to: address, data: encodeFunctionData({ abi: optionAbi, functionName: 'buyResale', args: [listing.seller, listing.price, listing.nonce] }) }, { token: market.quote, amount: listing.price });
+}
 export async function getTokenDisplayMetadata(client: PublicClient, token: TokenConfig): Promise<{ multiplier?: bigint; available: boolean }> {
   if (token.adapter !== 'robinhood') return { available: true };
   try {

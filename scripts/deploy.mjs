@@ -44,9 +44,9 @@ try {
     explorerUrl: chain.blockExplorers?.default.url || '',
     underlying: { address: underlying, symbol: mode === 'local' ? 'MockSTOCK' : await publicClient.readContract({ address: underlying, abi: erc20Abi, functionName: 'symbol' }), decimals: 18, isMock: mode === 'local' },
     quote: { address: quote, symbol: 'MockUSD', decimals: 6, isMock: true },
-    factory, deploymentBlock: primaryBlock,
+    factory, deploymentBlock: primaryBlock, version: 2,
     marketId: 'primary', label: mode === 'local' ? 'MockSTOCK / MockUSD' : 'TSLA / MockUSD', sandbox: mode === 'local',
-    markets: [{ marketId: 'practice', label: 'Practice STOCK / MockUSD', sandbox: true, factory: practiceFactory, deploymentBlock: practiceBlock, underlying: { address: practiceStock, symbol: 'MockSTOCK', decimals: 18, isMock: true }, quote: { address: quote, symbol: 'MockUSD', decimals: 6, isMock: true } }],
+    markets: [{ marketId: 'practice', label: 'Practice STOCK / MockUSD', sandbox: true, version: 2, factory: practiceFactory, deploymentBlock: practiceBlock, underlying: { address: practiceStock, symbol: 'MockSTOCK', decimals: 18, isMock: true }, quote: { address: quote, symbol: 'MockUSD', decimals: 6, isMock: true } }],
   };
   await saveJson(file, { ...record, deployer: account.address, receipts });
   const manifestPath = 'web/lib/generated/deployments.json';

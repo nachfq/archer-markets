@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useEffect, useRef, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
+import { Drawer, DrawerContent, DrawerTitle, DrawerDescription } from "@/components/ui/drawer";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent } from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { AssetLogo, FontIcon } from "./asset-ui";
 import { assetPresentation } from "../lib/catalog";
-import { perToken } from "../lib/chain";
 import type { Deployment } from "../lib/config";
-import { actions, status, short, readableNumber, type Position } from "../lib/options";
+import { actions, status, short, optionPayments, type Position } from "../lib/options";
 import type { TransactionRecord } from "../lib/transactions";
 
 export type WorkspaceTab = "market" | "create" | "mine" | "activity" | "docs";
@@ -27,34 +30,21 @@ export function WorkspaceHeader({ tab, disabled, environment, wallet, onNavigate
 }
 
 export function WalletMenu({ label, children }: { label: string; children: ReactNode }) {
-  const ref = useRef<HTMLDetailsElement>(null);
-  useEffect(() => {
-    const close = (event: PointerEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) ref.current.open = false;
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && ref.current?.open && ref.current.contains(document.activeElement)) {
-        ref.current.open = false;
-        ref.current.querySelector("summary")?.focus();
-      }
-    };
-    document.addEventListener("pointerdown", close);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-      document.removeEventListener("keydown", escape);
-    };
-  }, []);
-  return <details className="wallet-menu" ref={ref}><summary className="button" aria-label="Wallet menu">{label} ▾</summary><div className="wallet-popover">{children}</div></details>;
+  return <DropdownMenu><DropdownMenuTrigger render={<Button variant="outline" />} aria-label="Wallet menu">{label} ▾</DropdownMenuTrigger><DropdownMenuContent className="wallet-dropdown" align="end">{children}</DropdownMenuContent></DropdownMenu>;
 }
 
 export function TradeTicket({ title, busy, onClose, children, inline = false }: {
   title: string; busy: boolean; onClose: () => void; children: ReactNode; inline?: boolean;
 }) {
-  return <section className={`trade-ticket ${inline ? "inline-ticket" : ""}`} aria-label="Trade ticket">
-    <div className="ticket-heading"><h2>{title}</h2><button className="text-button" disabled={busy} onClick={onClose}>{inline ? "Close details" : "← Back to options"}</button></div>
-    {children}
-  </section>;
+  const [expanded, setExpanded] = useState(false);
+  if (inline) return <section className="trade-ticket inline-ticket" aria-label="Trade ticket"><div className="ticket-heading"><h2>{title}</h2><Button variant="ghost" disabled={busy} onClick={onClose}>Close details</Button></div>{children}</section>;
+  return <Drawer open modal={false} disablePointerDismissal onOpenChange={open => { if (!open && !busy) onClose(); }}>
+    <DrawerContent className={`trade-sheet ${expanded ? "sheet-expanded" : ""}`} initialFocus={false} finalFocus={false}>
+      <div className="sheet-handle" aria-hidden="true" />
+      <div className="ticket-heading"><div><DrawerTitle>{title}</DrawerTitle><DrawerDescription>Whole option · Exact totals · Gas is separate</DrawerDescription></div><div className="sheet-controls"><Button variant="ghost" aria-label={expanded ? "Reduce panel height" : "Expand panel height"} onClick={() => setExpanded(!expanded)}>{expanded ? "Reduce" : "Expand"}</Button><Button variant="outline" disabled={busy} onClick={onClose}>Close</Button></div></div>
+      <ScrollArea className="sheet-body">{children}</ScrollArea>
+    </DrawerContent>
+  </Drawer>;
 }
 
 export function PortfolioTable({ positions, markets, marketId, account, now, displayAmount, onSelect, selected, detail, disabled }: {
@@ -65,25 +55,26 @@ export function PortfolioTable({ positions, markets, marketId, account, now, dis
   // Keyboard users need to reach the horizontally scrollable table independently of row actions.
   // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
   return <section className="positions-panel table-scroll" aria-label="Positions" tabIndex={0}><table className="positions-table">
-    <thead><tr>{["Market / Type", "Role", "Quantity", "Strike / token", "Premium / token", "Total premium", "Expiration", "Status", "Actions"].map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
+    <thead><tr>{["Market / Type", "Role", "Token quantity", "Exercise payment — total", "Option payment — total", "Expiration", "Status", "Actions"].map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
     <tbody>{positions.map(position => {
       const id = "marketId" in position ? String(position.marketId) : marketId;
       const market = markets.find(m => m.marketId === id)!;
       const action = actions(position, account, now)[0];
       const expanded = selected?.toLowerCase() === position.address.toLowerCase();
-      const unit = (value: bigint) => `${readableNumber(perToken(value, position.underlyingAmount, market.underlying.decimals, market.quote.decimals), 2)} ${market.quote.symbol}`;
+      const isWriter = position.writer.toLowerCase() === account?.toLowerCase();
+      const isHolder = position.buyer.toLowerCase() === account?.toLowerCase();
+      const payments = optionPayments(position, account);
       const label = action === "exercise" ? "Review exercise" : action === "cancel" ? "Review cancellation" : action === "reclaimExpired" ? "Review reclaim" : "View option";
       return <Fragment key={position.address}><tr className={expanded ? "expanded-position" : ""} onClick={() => { if (!disabled) onSelect(expanded ? null : position.address, id); }}>
         <td data-label="Market / Type"><div className="asset-cell"><AssetLogo presentation={assetPresentation(market, "underlying")} /><span>{market.underlying.symbol} <small>{position.optionType === 0 ? "CALL" : "PUT"} · {assetPresentation(market, "underlying").name}</small></span></div></td>
-        <td data-label="Role">{position.writer.toLowerCase() === account?.toLowerCase() ? "Writer" : "Buyer"}</td>
+        <td data-label="Role">{isWriter ? "Writer" : isHolder ? "Holder" : "Past holder"}{market.legacy && <small className="term-label">Legacy · No resale</small>}</td>
         <td data-label="Quantity">{displayAmount(position.underlyingAmount, market.underlying)}</td>
-        <td data-label="Strike / token">{unit(position.strikeTotal)}</td>
-        <td data-label="Premium / token">{unit(position.premium)}</td>
-        <td data-label="Total premium">{displayAmount(position.premium, market.quote)}</td>
+        <td data-label="Exercise payment — total">{displayAmount(position.strikeTotal, market.quote)}</td>
+        <td data-label="Option payment — total">{Object.keys(payments).length ? Object.entries(payments).map(([kind, value]) => <span className="term-label" key={kind}>{kind === "paid" ? "Paid" : kind === "received" ? "Received" : "Asking price"} {displayAmount(value, market.quote)}</span>) : <span className="term-label">Not purchased · No payment</span>}</td>
         <td data-label="Expiration">{new Date(Number(position.expiry) * 1000).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC", timeZoneName: "short" })}</td>
         <td data-label="Status"><span className="pill">{status(position, now)}</span></td>
         <td data-label="Actions"><button className="text-button" data-offer={position.address} disabled={disabled} aria-expanded={expanded} aria-controls={`position-${position.address}`} onClick={event => { event.stopPropagation(); onSelect(expanded ? null : position.address, id); }}>{expanded ? "Close details" : label} <FontIcon name="chevron-down" /></button></td>
-      </tr>{expanded && <tr className="position-detail-row"><td colSpan={9}><div id={`position-${position.address}`}>{detail}</div></td></tr>}</Fragment>;
+      </tr>{expanded && <tr className="position-detail-row"><td colSpan={8}><div id={`position-${position.address}`}>{detail}</div></td></tr>}</Fragment>;
     })}</tbody>
   </table></section>;
 }

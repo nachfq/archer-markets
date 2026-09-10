@@ -29,6 +29,7 @@ contract Option is ReentrancyGuard {
     error NotExpired();
     error NotFunded();
     error UnsupportedTokenTransfer();
+    error StaleListing();
 
     address public immutable factory;
     address public immutable writer;
@@ -42,11 +43,16 @@ contract Option is ReentrancyGuard {
     address public buyer;
     State public state;
     bool public funded;
+    uint256 public resalePrice;
+    uint256 public listingNonce;
 
     event Bought(address indexed buyer, uint256 premium);
     event Exercised(address indexed buyer);
     event Cancelled();
     event ExpiredReclaimed();
+    event ResaleListed(address indexed seller, uint256 price, uint256 nonce);
+    event ResaleCancelled(address indexed seller, uint256 nonce);
+    event Resold(address indexed seller, address indexed buyer, uint256 price, uint256 nonce);
 
     constructor(
         address writer_,
@@ -101,11 +107,50 @@ contract Option is ReentrancyGuard {
         emit Bought(msg.sender, premium);
     }
 
+    /// @notice Listing transfers no collateral and never prevents manual exercise.
+    function listForResale(uint256 totalPrice) external nonReentrant {
+        if (msg.sender != buyer) revert Unauthorized();
+        if (state != State.Active) revert InvalidState();
+        if (block.timestamp >= expiry) revert OptionExpired();
+        if (totalPrice == 0) revert InvalidTerms();
+        resalePrice = totalPrice;
+        ++listingNonce;
+        emit ResaleListed(buyer, totalPrice, listingNonce);
+    }
+
+    function cancelResale() external nonReentrant {
+        if (msg.sender != buyer) revert Unauthorized();
+        if (state != State.Active || resalePrice == 0) revert InvalidState();
+        _clearListing();
+        emit ResaleCancelled(buyer, listingNonce);
+    }
+
+    /// @notice Atomic, whole-lot secondary sale. The reviewed quote must still match.
+    function buyResale(address expectedSeller, uint256 expectedPrice, uint256 expectedNonce) external nonReentrant {
+        if (state != State.Active) revert InvalidState();
+        if (block.timestamp >= expiry) revert OptionExpired();
+        if (msg.sender == buyer || msg.sender == writer) revert Unauthorized();
+        if (resalePrice == 0 || buyer != expectedSeller || resalePrice != expectedPrice || listingNonce != expectedNonce) {
+            revert StaleListing();
+        }
+        address seller = buyer;
+        buyer = msg.sender;
+        _clearListing();
+        _transferExact(IERC20(quote), msg.sender, seller, expectedPrice);
+        emit Resold(seller, msg.sender, expectedPrice, expectedNonce);
+    }
+
+    function _clearListing() private {
+        resalePrice = 0;
+        ++listingNonce;
+    }
+
     function exercise() external nonReentrant {
         if (msg.sender != buyer) revert Unauthorized();
         if (state != State.Active) revert InvalidState();
         if (block.timestamp >= expiry) revert OptionExpired();
         state = State.Exercised;
+        _clearListing();
         if (optionType == OptionType.Call) {
             _transferExact(IERC20(quote), buyer, writer, strikeTotal);
             _transferExact(IERC20(underlying), address(this), buyer, underlyingAmount);
@@ -131,6 +176,7 @@ contract Option is ReentrancyGuard {
         if (state != State.Open && state != State.Active) revert InvalidState();
         if (block.timestamp < expiry) revert NotExpired();
         state = State.Expired;
+        _clearListing();
         _transferExact(IERC20(collateralToken()), address(this), writer, collateralAmount());
         emit ExpiredReclaimed();
     }

@@ -1,4 +1,14 @@
 @import "tailwindcss";
+@theme inline {
+  --color-background:var(--paper); --color-foreground:var(--ink);
+  --color-popover:var(--panel); --color-popover-foreground:var(--ink);
+  --color-primary:var(--accent); --color-primary-foreground:var(--paper);
+  --color-secondary:var(--raised); --color-secondary-foreground:var(--ink);
+  --color-muted:var(--raised); --color-muted-foreground:var(--muted);
+  --color-accent:var(--selected); --color-accent-foreground:var(--accent);
+  --color-border:var(--line); --color-input:var(--control); --color-ring:var(--accent);
+  --color-destructive:var(--error); --radius-md:6px; --radius-lg:8px;
+}
 :root { color-scheme:dark; --paper:#101418; --panel:#191f25; --raised:#242d36; --ink:#e7edf3; --muted:#a6b2bf; --line:#35414d; --control:#617180; --accent:#8dd8a8; --selected:#22382e; --warning:#edc479; --warning-bg:#332b1d; --error:#ffaaa3; --error-bg:#382421; }
 * { box-sizing:border-box; }
 body { margin:0; background:var(--paper); color:var(--ink); font-family:var(--font-geist-sans),Arial,sans-serif; font-size:16px; line-height:1.5; }
@@ -53,7 +63,7 @@ small,.fine,.eyebrow { font-size:14px; color:var(--muted); }
 .chain-controls label,.filters label { display:flex; flex-direction:column; gap:5px; font-size:14px; color:var(--muted); }
 .chain-controls select { color:var(--ink); font-size:15px; }
 .chain-controls .mobile-side-picker { display:none; }
-.chain-table-wrap { width:100%; }
+.chain-table-wrap { width:100%; min-width:0; overflow-x:auto; }
 .chain-table { width:100%; table-layout:fixed; border-collapse:collapse; }
 .chain-table thead th { font-weight:500; font-size:14px; text-align:left; padding:0; background:var(--raised); border-block:1px solid var(--line); }
 .side-title { padding:10px 14px; display:flex; gap:10px; align-items:center; }
@@ -88,6 +98,7 @@ small,.fine,.eyebrow { font-size:14px; color:var(--muted); }
 .market-connection { padding:18px; margin:0 18px 18px; background:var(--raised); border:1px solid var(--line); border-radius:5px; }
 .market-connection p { margin:5px 0 12px; color:var(--muted); }
 .trading-workspace { display:grid; gap:16px; min-width:0; }
+.chain-container { min-width:0; }
 .trade-ticket { position:sticky; bottom:12px; z-index:3; box-shadow:0 -8px 30px #0004; max-height:68vh; overflow:auto; border-top:2px solid var(--accent); margin-top:16px; }
 .ticket-heading { padding:10px 18px; border-bottom:1px solid var(--line); background:var(--raised); }
 .ticket-heading h2 { font-size:14px; }
@@ -221,9 +232,6 @@ footer { display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; 
   .writer-badge > span { display:none; }
   .chain-foot { padding:12px; }
   .trade-ticket { position:static; max-height:none; margin-top:0; }
-  .review-open .instrument-bar,.review-open .trading-workspace > .chain-container { display:none; }
-  .review-open .create-layout > form { display:none; }
-  .review-open .market { padding-top:16px; }
   .review-grid { grid-template-columns:1fr; gap:16px; }
   .detail { padding:16px; }
   .review-bottom { align-items:stretch; }
@@ -338,6 +346,83 @@ footer { display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; 
 .docs-content section { padding:0 0 28px; margin-bottom:28px; border-bottom:1px solid var(--line); }
 .docs-content h2 { scroll-margin-top:24px; margin-bottom:16px; }
 .docs-content p { line-height:1.8; }
+/* Shared shadcn / Base UI primitives, adapted to the existing trading palette. */
+[data-slot=button] { min-height:40px; padding:8px 14px; font-size:15px; border-radius:6px; }
+[data-slot=button][data-variant=default] { background:var(--accent); color:var(--paper); font-weight:650; }
+[data-slot=button][data-variant=outline] { border:1px solid var(--control); background:var(--panel); }
+[data-slot=button][data-variant=ghost]:hover { background:var(--raised); }
+[data-slot=button]:disabled { background:var(--raised); color:var(--muted); }
+.topbar { position:sticky; top:0; z-index:30; background:var(--paper); box-shadow:0 -10px 0 10px var(--paper); }
+.market-list { top:84px; }
+.trade-mode { padding:0; border:0; background:transparent; }
+.trade-mode [data-slot=tabs-list] { display:flex; height:auto; min-height:52px; width:100%; padding:4px; border:1px solid var(--line); border-radius:8px; background:var(--panel); }
+.trade-mode [data-slot=tabs-trigger] { display:flex; align-items:center; justify-content:center; height:44px; padding:10px 22px; line-height:1; }
+.trade-mode [data-active] { background:var(--selected); color:var(--accent); border:1px solid var(--accent); }
+.quote-columns,.chain-offer { grid-template-columns:minmax(0,.85fr) minmax(0,1fr) minmax(0,1.1fr) 64px; gap:8px; }
+.quote-columns { align-items:start; line-height:1.4; }
+.quote-columns small,.quote-lot small { display:block; margin-top:3px; font-size:12px; font-weight:400; color:var(--muted); }
+.quote-lot { color:var(--ink); font-weight:600; }
+.strike-toggle { display:flex; justify-content:space-between; align-items:center; width:100%; padding:12px 10px; text-align:left; font-size:15px; }
+.strike-toggle span { color:var(--muted); font-size:13px; }
+.strike-toggle:hover,.strike-cell button:hover { color:var(--accent); background:var(--raised); }
+.strike-cell button { min-height:44px; width:100%; font-weight:600; }
+.expanded-strike { background:var(--raised); }
+.chain-table .strike-lots td { padding:0; vertical-align:top; }
+.chain-table .strike-lots:not(.lots-open) td { border:0; }
+.lot-content { background:var(--paper); }
+.lot-content .quote-columns { background:var(--panel); }
+.trade-sheet { left:0!important; right:0!important; bottom:0!important; width:100%; height:54dvh!important; max-height:calc(100dvh - 150px)!important; min-height:180px; background:var(--panel); color:var(--ink); border:1px solid var(--control); border-top:2px solid var(--accent); border-radius:14px 14px 0 0; box-shadow:0 -12px 42px #0007; }
+.trade-sheet.sheet-expanded { height:78dvh!important; }
+.trade-sheet [data-slot=drawer-content] { min-height:0; height:100%; }
+.sheet-handle { width:56px; height:4px; margin:9px auto 4px; flex-shrink:0; border-radius:4px; background:var(--control); }
+.sheet-controls { display:flex; gap:8px; }
+.sheet-body { overflow:auto; overscroll-behavior:contain; min-height:0; flex:1; }
+.sheet-body [data-slot=scroll-area-viewport] { height:100%; overscroll-behavior:contain; }
+.wallet-dropdown { z-index:60; width:300px; padding:16px; border:1px solid var(--line); background:var(--panel); color:var(--ink); border-radius:8px; box-shadow:0 12px 32px #0006; }
+.wallet-dropdown [role=menuitem] { padding:10px; min-height:40px; border-radius:4px; font-size:15px; cursor:pointer; }
+.wallet-dropdown [role=menuitem]:hover,.wallet-dropdown [role=menuitem][data-highlighted] { background:var(--raised); }
+.trade-sheet .ticket-heading { flex-shrink:0; padding:10px max(18px,calc((100vw - 1500px)/2)); }
+.trade-sheet .detail,.trade-sheet .create-note { max-width:1500px; margin:auto; padding:20px; }
+.trade-sheet .review-grid { grid-template-columns:1fr 1.2fr 1fr; }
+.trade-sheet .review-grid > div { padding:16px; }
+.trade-sheet .purchase-cost strong { font-size:28px; }
+.review-open { padding-bottom:54dvh; }
+.resale-form { display:grid; grid-template-columns:1.5fr 1fr auto; gap:18px; align-items:end; border:1px solid var(--line); border-left:3px solid var(--accent); padding:18px; margin:18px 0; background:var(--paper); border-radius:6px; }
+.resale-form .detail-actions { flex-wrap:wrap; }
+.ownership-history { padding:0; list-style:none; }
+.ownership-history li { display:flex; flex-wrap:wrap; align-items:center; gap:20px; padding:10px 0; border-bottom:1px solid var(--line); }
+.docs-toc { top:88px; }
+.docs-content h2 { scroll-margin-top:100px; }
+.docs-hero { border:1px solid var(--line); border-left:3px solid var(--accent); background:linear-gradient(120deg,var(--selected),var(--panel)); padding:28px; border-radius:8px; margin-bottom:28px; }
+.docs-hero h2 { font-size:28px; margin:12px 0; }
+.docs-hero p { color:var(--muted); }
+.docs-comparison { border:1px solid var(--line); border-radius:8px; background:var(--panel); margin-bottom:28px; overflow:hidden; }
+.docs-comparison table { width:100%; table-layout:fixed; border-collapse:collapse; font-size:15px; }
+.docs-comparison th,.docs-comparison td { padding:14px; text-align:left; white-space:normal; border-bottom:1px solid var(--line); }
+.docs-comparison th { color:var(--muted); background:var(--raised); font-weight:500; }
+.docs-content section { padding:24px; border:1px solid var(--line); background:var(--panel); border-radius:8px; }
+.docs-content section:has(#manual-exercise) { border-top:3px solid var(--warning); }
+.docs-content section:has(#resale) { border-top:3px solid var(--accent); }
+@media(max-width:1200px) {
+  .quote-columns,.chain-offer { grid-template-columns:minmax(0,.85fr) minmax(0,1fr) minmax(0,1.1fr); }
+  .resale-form { grid-template-columns:1fr 1fr; }
+  .resale-form > div:first-child { grid-column:1/-1; }
+}
+@media(max-width:767px) {
+  .trade-sheet .review-grid { grid-template-columns:1fr; }
+  .trade-sheet .detail,.trade-sheet .create-note { padding:14px; }
+  .trade-sheet { height:52dvh!important; max-height:calc(100dvh - 155px)!important; }
+  .trade-sheet.sheet-expanded { height:76dvh!important; }
+  .trade-sheet .ticket-heading { flex-wrap:nowrap; align-items:center; gap:8px; padding:8px 12px; }
+  .sheet-controls { gap:4px; }
+  .sheet-controls button { padding:8px; font-size:14px; }
+  [data-slot=drawer-description] { font-size:12px; }
+  .strike-toggle { align-items:start; flex-direction:column; gap:4px; }
+  .resale-form { grid-template-columns:1fr; }
+  .resale-form > div:first-child { grid-column:auto; }
+  .docs-content h2 { scroll-margin-top:160px; }
+  .docs-content section,.docs-hero { padding:20px; }
+}
 @media(max-width:1200px) {
   .topbar { gap:18px; flex-wrap:wrap; padding-top:12px; }
   .environment-badge { margin-left:auto; }
@@ -370,7 +455,6 @@ footer { display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; 
   .chain-offer { font-size:15px; padding:10px 7px; }
   .quote-columns { font-size:14px; padding:8px 6px; }
   .side-title { align-items:start; flex-direction:column; gap:0; }
-  .review-open .market-list { display:none; }
   .review-grid,.inline-ticket .review-grid { grid-template-columns:1fr; }
   .review-grid > div { padding:16px; }
   .trade-ticket { max-height:none; }

@@ -1,14 +1,18 @@
 #!/usr/bin/env node
-// Functional browser acceptance: two isolated test wallets, actual UI actions and Anvil receipts.
+// Functional browser acceptance: three isolated test wallets, actual UI actions and Anvil receipts.
 // No screenshots, private keys, or external wallet/network access.
 import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { chromium, expect } from '@playwright/test';
 import { createPublicClient, erc20Abi, http, formatUnits, encodeFunctionData } from 'viem';
 
 const root = new URL('../', import.meta.url);
 const json = async (path) => JSON.parse(await readFile(new URL(path, root), 'utf8'));
-const deployment = await json('deployments/31337.json');
+const manifest = await json(process.env.DEMO_MANIFEST ?? 'deployments/31337.json');
+const allMarkets = [manifest, ...(manifest.markets ?? [])];
+const deployment = { ...manifest, ...allMarkets.find(m => m.marketId === 'tesla') };
 const factoryAbi = (await json('contracts/out/OptionFactory.sol/OptionFactory.json')).abi;
 const optionAbi = (await json('contracts/out/Option.sol/Option.json')).abi;
 const rpcUrl = process.env.ANVIL_RPC_URL ?? 'http://127.0.0.1:8545';
@@ -21,7 +25,9 @@ const client = createPublicClient({ transport: http(rpcUrl), cacheTime: 0, polli
 assert.equal(await client.getChainId(), 31337);
 assert.match(await client.request({ method: 'web3_clientVersion' }), /anvil/i);
 const accounts = await client.request({ method: 'eth_accounts' });
-const [writer, buyer] = accounts;
+const writer = accounts[1], buyer = accounts[8], nextBuyer = accounts[9];
+assert(![writer, buyer, nextBuyer].includes(accounts[0]), 'Account zero is excluded');
+assert(new URL(rpcUrl).port !== '8545' || process.env.ALLOW_LIVE_BROWSER_MUTATIONS === '1', 'Use an isolated Anvil RPC: browser tests advance time and toggle automine.');
 assert(writer && buyer, 'Two unlocked Anvil accounts required');
 const factory = deployment.factory;
 const underlying = deployment.underlying.address;
@@ -102,19 +108,23 @@ async function walletPage(account) {
 }
 
 async function complete(page, button, success) {
+  console.log(`UI ${button}`);
   const dismiss = page.getByRole('button', { name: 'Dismiss notification' });
   if (await dismiss.isVisible()) await dismiss.click();
-  if (button.startsWith('Get ') && await page.locator('.wallet-menu').getAttribute('open') === null) {
+  if (button.startsWith('Get ')) {
+    await page.keyboard.press('Escape');
+    await expect(page.getByLabel('Wallet menu')).toHaveAttribute('aria-expanded', 'false');
     await page.getByLabel('Wallet menu').click();
+    await expect(page.getByRole('menuitem', { name: button, exact: true })).toBeEnabled();
   }
-  await page.getByRole('button', { name: button === 'Buy option' ? /^Buy (call|put) · / : button, exact: button !== 'Buy option' }).click();
+  await page.getByRole(button.startsWith('Get ') ? 'menuitem' : 'button', { name: button === 'Buy option' ? /^Buy (call|put) · / : button, exact: button !== 'Buy option' }).click();
   await expect(page.getByRole('status').filter({ hasText: success })).toBeVisible({ timeout: 45_000 });
   await expect(page.getByRole('button', { name: 'Dismiss notification' })).toBeVisible();
 }
 
 async function balances(option) {
   const result = {};
-  for (const [name, address] of Object.entries({ writer, buyer, option })) {
+  for (const [name, address] of Object.entries({ writer, buyer, nextBuyer, option })) {
     result[name] = { underlying: await read(underlying, erc20Abi, 'balanceOf', [address]), quote: await read(quote, erc20Abi, 'balanceOf', [address]) };
   }
   return result;
@@ -136,13 +146,13 @@ async function create(page, type, usePreset = false) {
   const block = await client.getBlock();
   const expiry = new Date(Math.max(Date.now(), Number(block.timestamp) * 1000) + 86_400_000).toISOString().slice(0, 16);
   await page.getByRole('button', { name: 'Trade', exact: true }).click();
-  await page.getByRole('button', { name: 'Write Options', exact: true }).click();
+  await page.getByRole('tab', { name: 'Write Options', exact: true }).click();
   await page.getByLabel('Write option type').selectOption(String(type));
   await expect(page.getByRole('complementary', { name: 'Offer funding summary' })).toHaveCount(0);
   await page.getByLabel(/^Quantity of/).fill('999999999');
-  await page.getByLabel(/^Strike per token/).fill('1');
-  await page.getByLabel(/^Premium per token/).fill('1');
-  await expect(page.getByRole('alert').filter({ hasText: /Not enough Mock/ })).toBeVisible();
+  await page.getByLabel(/^Exercise payment — total/).fill(type === 0 ? '1' : '999999999');
+  await page.getByLabel(/^Option price — total/).fill('1');
+  await expect(page.getByRole('alert').filter({ hasText: /Not enough/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Review offer →' })).toBeDisabled();
   if (type === 0) {
     await page.getByRole('button', { name: 'Max', exact: true }).click();
@@ -151,8 +161,8 @@ async function create(page, type, usePreset = false) {
   await page.getByLabel('Lot shortcut').selectOption('0.01');
   await expect(page.getByLabel(/^Quantity of/)).toHaveValue('0.01');
   await page.getByLabel(/^Quantity of/).fill('1.25');
-  await page.getByLabel(/^Strike per token/).fill('249.876544');
-  await page.getByLabel(/^Premium per token/).fill('3.654312');
+  await page.getByLabel(/^Exercise payment — total/).fill('312.34568');
+  await page.getByLabel(/^Option price — total/).fill('4.56789');
   let expectedExpiry;
   if (usePreset) {
     const preset = await page.getByLabel('Write expiration', { exact: true }).locator('option').first().getAttribute('value');
@@ -165,7 +175,7 @@ async function create(page, type, usePreset = false) {
   }
   await page.getByRole('button', { name: 'Review offer →' }).click();
   await expect(page.getByRole('complementary', { name: 'Offer funding summary' })).toBeVisible();
-  await expect(page.locator('.funding-impact dd')).toHaveText(type === 0 ? '1.25 MockSTOCK' : '312.34568 MockUSD');
+  await expect(page.locator('.funding-impact dd')).toHaveText(type === 0 ? `1.25 ${deployment.underlying.symbol}` : '312.34568 MockUSD');
   // Reviewing must never send an approval or create a contract.
   assert.equal(await read(factory, factoryAbi, 'optionCount'), beforeCount);
   assert.equal(await read(underlying, erc20Abi, 'balanceOf', [writer]), before.underlying);
@@ -230,18 +240,18 @@ async function create(page, type, usePreset = false) {
 try {
   const writerPage = await walletPage(writer);
   const buyerPage = await walletPage(buyer);
+  const nextPage = await walletPage(nextBuyer);
   await buyerPage.evaluate(() => window.__setTestChainId('0x1'));
   await expect(buyerPage.getByRole('button', { name: 'Switch network', exact: true })).toBeVisible();
   await buyerPage.getByRole('button', { name: 'Switch network', exact: true }).click();
   await expect(buyerPage.getByRole('button', { name: 'Switch network', exact: true })).toHaveCount(0);
   console.log('PASS wrong-wallet-network explanation and local switch recovery');
-  for (const page of [writerPage, buyerPage]) {
-    await page.getByLabel('Wallet menu').click();
+  for (const page of [writerPage, buyerPage, nextPage]) {
     await complete(page, 'Get MockUSD', 'Test MockUSD received.');
-    await complete(page, 'Get MockSTOCK', 'Test MockSTOCK received.');
+    await complete(page, `Get ${deployment.underlying.symbol}`, `Test ${deployment.underlying.symbol} received.`);
   }
   for (const [type, name] of [[0, 'CALL'], [1, 'PUT']]) {
-    const entry = { label: `${name}: two wallets create, share, buy and exercise through interface`, transactions: [] };
+    const entry = { label: `${name}: three wallets create, share, buy, resell and exercise through interface`, transactions: [] };
     evidence.scenarios.push(entry); transactions = entry.transactions;
     const offer = await create(writerPage, type, type === 0);
     Object.assign(entry, offer);
@@ -251,11 +261,13 @@ try {
     await buyerPage.locator(`[data-expiration="${offer.expiry}"]`).click();
     await buyerPage.getByLabel('Strikes', { exact: true }).selectOption('all');
     const chainQuote = buyerPage.locator(`[data-offer="${offer.option}"]`);
+    const strikeButton = buyerPage.getByRole('button', { name: 'Strike 249.876544', exact: true });
+    if (await strikeButton.getAttribute('aria-expanded') !== 'true') await strikeButton.click();
     await chainQuote.click();
     await expect(buyerPage).toHaveURL(new RegExp(`option=${offer.option}`, 'i'));
-    await expect(buyerPage.getByRole('region', { name: 'Trade ticket' })).toBeVisible();
+    await expect(buyerPage.getByRole('dialog')).toBeVisible();
     await expect(buyerPage.locator('.detail-role')).toContainText('Written by');
-    await expect(buyerPage.locator('.purchase-cost')).toContainText('Cost to buy this option');
+    await expect(buyerPage.locator('.purchase-cost')).toContainText('You pay to buy this option');
     await expect(buyerPage.getByRole('button', { name: /^Buy (call|put) · / })).toBeDisabled();
     await buyerPage.getByRole('checkbox', { name: /^I understand that I must exercise before/ }).check();
     if (type === 0) {
@@ -269,21 +281,64 @@ try {
       console.log('PASS rejected signature leaves option and token balances unchanged; retry available');
     }
     await complete(buyerPage, 'Buy option', 'Transaction confirmed. Balances and position are up to date.');
-    const purchased = await balances(offer.option);
+    let purchased = await balances(offer.option);
     deltas(offer.afterCollateral, purchased, { writer: { quote: premium }, buyer: { quote: -premium } }, `${name} UI purchase`);
     assert.equal(Number(await read(offer.option, optionAbi, 'state')), 1);
     assert.equal((await read(offer.option, optionAbi, 'buyer')).toLowerCase(), buyer.toLowerCase());
-    await complete(buyerPage, 'Exercise option', 'Transaction confirmed. Balances and position are up to date.');
+    await buyerPage.getByLabel(/^Resale price — total/).fill('12');
+    await complete(buyerPage, 'List for resale', 'Resale listed.');
+    await nextPage.goto(offer.link);
+    await expect(nextPage.getByRole('dialog')).toBeVisible();
+    await expect(nextPage.locator('.purchase-cost strong')).toHaveText('12.00 MockUSD');
+    await nextPage.getByRole('checkbox', { name: /^I understand/ }).check();
+    await complete(nextPage, 'Buy option', 'Transaction confirmed.');
+    const resold = await balances(offer.option);
+    deltas(purchased, resold, { buyer: { quote: 12_000000n }, nextBuyer: { quote: -12_000000n } }, 'UI resale');
+    assert.equal((await read(offer.option, optionAbi, 'buyer')).toLowerCase(), nextBuyer.toLowerCase());
+    await buyerPage.reload();
+    await expect(buyerPage.getByRole('button', { name: 'Exercise option', exact: true })).toHaveCount(0);
+    purchased = resold;
+    await complete(nextPage, 'Exercise option', 'Transaction confirmed. Balances and position are up to date.');
     const after = await balances(offer.option);
     deltas(purchased, after, type === 0
-      ? { writer: { quote: strike }, buyer: { underlying: quantity, quote: -strike }, option: { underlying: -quantity } }
-      : { writer: { underlying: quantity }, buyer: { underlying: -quantity, quote: strike }, option: { quote: -strike } }, `${name} UI exercise`);
+      ? { writer: { quote: strike }, nextBuyer: { underlying: quantity, quote: -strike }, option: { underlying: -quantity } }
+      : { writer: { underlying: quantity }, nextBuyer: { underlying: -quantity, quote: strike }, option: { quote: -strike } }, `${name} UI exercise`);
     assert.equal(Number(await read(offer.option, optionAbi, 'state')), 2);
     assert.deepEqual(after.option, { underlying: 0n, quote: 0n });
     await expect(buyerPage.getByRole('button', { name: 'Exercise option', exact: true })).toHaveCount(0);
     Object.assign(entry, { afterPurchase: purchased, after, result: 'passed' });
     console.log(`PASS ${entry.label}`);
   }
+
+  for (const target of allMarkets.filter(m => m.version === 2 && !m.legacy)) {
+    const entry = { label: `Market selector creates in ${target.marketId} factory`, transactions: [] };
+    evidence.scenarios.push(entry); transactions = entry.transactions;
+    console.log(`UI verify factory ${target.marketId}`);
+    await writerPage.getByRole('button', { name: 'Trade', exact: true }).click();
+    await writerPage.getByRole('tab', { name: 'Write Options', exact: true }).click();
+    await writerPage.locator(`[data-market="${target.marketId}"]`).click();
+    await expect(writerPage.getByRole('heading', { level: 1 })).toContainText(target.label.split(' / ')[0]);
+    await expect(writerPage.getByRole('tab', { name: 'Write Options', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await writerPage.getByLabel('Write option type').selectOption('0');
+    await writerPage.getByLabel(/^Quantity of/).fill('0.1');
+    await writerPage.getByLabel(/^Exercise payment — total/).fill('25');
+    await writerPage.getByLabel(/^Option price — total/).fill('1');
+    const count = await read(target.factory, factoryAbi, 'optionCount');
+    const previousNotice = writerPage.getByRole('button', { name: 'Dismiss notification' });
+    if (await previousNotice.isVisible()) await previousNotice.click();
+    await writerPage.getByRole('button', { name: 'Review offer →' }).click();
+    await expect(writerPage.getByRole('dialog')).toBeVisible();
+    await complete(writerPage, 'Deposit collateral & write option', 'Option written.');
+    assert.equal(await read(target.factory, factoryAbi, 'optionCount'), count + 1n, 'Market selector changes the actual creation factory');
+    const created = await read(target.factory, factoryAbi, 'options', [count]);
+    await writerPage.locator(`[data-offer="${created}"]`).click();
+    await complete(writerPage, 'Cancel offer', 'Transaction confirmed.');
+    assert.equal(await read(created, optionAbi, 'state'), 3);
+    Object.assign(entry, { factory: target.factory, option: created, result: 'passed' });
+  }
+  console.log('PASS all five market titles, write contexts and actual creation factories');
+  await writerPage.getByRole('button', { name: 'Trade', exact: true }).click();
+  await writerPage.locator('[data-market="tesla"]').click();
 
   const cancelled = { label: 'Writer cancels unsold call through interface', transactions: [] };
   evidence.scenarios.push(cancelled); transactions = cancelled.transactions;
@@ -330,18 +385,20 @@ try {
   } finally { await client.request({ method: 'evm_setAutomine', params: [true] }); }
   // Connected visual evidence is kept local and is not human usability validation.
   await writerPage.getByRole('button', { name: 'Portfolio', exact: true }).click();
-  await expect(writerPage.locator('.balance-table tbody tr')).toHaveCount(3);
-  await expect(writerPage.getByRole('region', { name: 'Stock Tokens', exact: true }).locator('tbody tr')).toHaveCount(2);
+  const stockCount = new Set(allMarkets.map(m => m.underlying.address.toLowerCase())).size;
+  const tokenCount = new Set(allMarkets.flatMap(m => [m.underlying.address.toLowerCase(), m.quote.address.toLowerCase()])).size;
+  await expect(writerPage.locator('.balance-table tbody tr')).toHaveCount(tokenCount);
+  await expect(writerPage.getByRole('region', { name: 'Stock Tokens', exact: true }).locator('tbody tr')).toHaveCount(stockCount);
   await expect(writerPage.getByRole('region', { name: 'Stablecoins', exact: true }).locator('tbody tr')).toHaveCount(1);
-  await writerPage.screenshot({ path: '/tmp/options-portfolio-connected.png', fullPage: true });
+  await writerPage.screenshot({ path: join(tmpdir(), 'options-portfolio-connected.png'), fullPage: true });
   await writerPage.getByRole('button', { name: 'Trade', exact: true }).click();
-  await writerPage.getByRole('button', { name: 'Write Options', exact: true }).click();
+  await writerPage.getByRole('tab', { name: 'Write Options', exact: true }).click();
   await writerPage.getByLabel(/^Quantity of/).fill('0.01');
-  await writerPage.getByLabel(/^Strike per token/).fill('300');
-  await writerPage.getByLabel(/^Premium per token/).fill('8');
-  await writerPage.screenshot({ path: '/tmp/options-create-connected.png', fullPage: true });
+  await writerPage.getByLabel(/^Exercise payment — total/).fill('300');
+  await writerPage.getByLabel(/^Option price — total/).fill('8');
+  await writerPage.screenshot({ path: join(tmpdir(), 'options-create-connected.png'), fullPage: true });
   await writerPage.setViewportSize({ width: 390, height: 844 });
-  await writerPage.screenshot({ path: '/tmp/options-create-mobile.png', fullPage: true });
+  await writerPage.screenshot({ path: join(tmpdir(), 'options-create-mobile.png'), fullPage: true });
   assert.equal(await writerPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   evidence.finishedAt = new Date().toISOString();
   evidence.browserErrors = errors;
@@ -355,4 +412,4 @@ try {
   await writeFile(new URL('deployments/local-browser-smoke.json', root), `${JSON.stringify(evidence, (_, value) => typeof value === 'bigint' ? value.toString() : value, 2)}\n`);
   await browser.close();
 }
-console.log('4 browser acceptance scenarios passed. Evidence: deployments/local-browser-smoke.json');
+console.log(`${evidence.scenarios.length} browser acceptance scenarios passed. Evidence: deployments/local-browser-smoke.json`);
