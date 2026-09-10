@@ -43,12 +43,13 @@ try {
       await expect(page.getByRole('button', { name: 'Refresh options', exact: true })).toBeEnabled();
       await page.getByRole('button', { name: 'Connect wallet', exact: true }).click();
       await expect(page.getByLabel('Wallet menu')).toBeVisible();
-      await page.getByLabel('Filter by writer').selectOption(role === 'writer' ? 'mine' : 'others');
+      await expect(page.getByLabel('Filter by writer')).toHaveCount(0);
       if (width < 720 && option.optionType === 1) await page.getByLabel('Option type', { exact: true }).selectOption('puts');
       const owner = role === 'writer' ? 'you' : 'other';
       const card = page.locator(`.chain-offer[data-owner="${owner}"]:visible`).first();
       await expect(card).toBeVisible();
-      await expect(page.locator(`.chain-offer[data-owner="${role === 'writer' ? 'other' : 'you'}"]`)).toHaveCount(0);
+      await expect(card).toContainText(role === 'writer' ? 'Manage' : 'Buy');
+      if (role === 'writer') await expect(card.locator('.fa-user-pen')).toHaveCount(1);
       await page.screenshot({ path: `${output}/${name}-${role}-market.png`, fullPage: true });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
       await card.click();
@@ -57,7 +58,23 @@ try {
       if (role === 'writer') await expect(page.getByRole('button', { name: /^Buy (call|put) · / })).toHaveCount(0);
       await page.screenshot({ path: `${output}/${name}-${role}-collateral.png`, fullPage: true });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-      console.log(`PASS ${name} ${role}: ownership filter, card, collateral detail and no overflow; no transactions sent`);
+      if (role === 'writer') {
+        await page.getByRole('button', { name: 'Portfolio', exact: true }).click();
+        const row = page.locator(`.positions-table [data-offer="${option.address}"]`);
+        await row.click();
+        await expect(row).toHaveAttribute('aria-expanded', 'true');
+        await expect(page.locator('.position-toolbar')).toBeVisible();
+        await expect(page.locator('.position-detail-row')).toHaveCount(1);
+        await expect(page.locator('.inline-ticket')).toContainText('Strike ·');
+        const assetCell = page.locator('.expanded-position > td').first();
+        expect((await assetCell.boundingBox()).width).toBeGreaterThanOrEqual(240);
+        await page.screenshot({ path: `${output}/${name}-portfolio-expanded.png`, fullPage: true });
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        await page.locator('.inline-ticket').getByRole('button', { name: 'Close details', exact: true }).click();
+        await expect(row).toHaveAttribute('aria-expanded', 'false');
+        await expect(row).toBeFocused();
+      }
+      console.log(`PASS ${name} ${role}: unified ownership, inline portfolio actions, collateral detail and no overflow; no transactions sent`);
       await context.close();
     }
   }

@@ -4,6 +4,14 @@ import { listedExpirations, perToken, strikeRows } from "../lib/chain.ts";
 import type { Position } from "../lib/options.ts";
 const address = "0x1111111111111111111111111111111111111111";
 const base: Position = { address, writer: address, buyer: address, underlyingAmount: 10n ** 18n, strikeTotal: 300_000_000n, premium: 6_000_000n, expiry: 2000n, optionType: 0, state: 0 };
+test("unit prices distinguish exact lot totals, fractional quantities, and missing quantities", () => {
+  assert.equal(perToken(1000_000_000n, 10n * 10n ** 18n, 18, 6), "100");
+  assert.equal(perToken(50_000_000n, 10n * 10n ** 18n, 18, 6), "5");
+  assert.equal(perToken(25_000_000n, 250_000n, 6, 6), "100");
+  assert.equal(perToken(0n, 1n, 0, 18), "0");
+  assert.equal(perToken(10n, 0n, 18, 6), "—");
+  assert.equal(perToken(1n, 3n, 0, 6), "≈0");
+});
 test("chain includes only open unexpired offers and keeps exact timestamps distinct", () => {
   const positions = [base, { ...base, expiry: 1000n }, { ...base, state: 1, expiry: 3000n }, { ...base, expiry: 2001n }];
   assert.deepEqual(listedExpirations(positions, 1000n), [2000n, 2001n]);

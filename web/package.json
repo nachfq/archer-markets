@@ -14,12 +14,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fortawesome/fontawesome-free": "6.7.2",
+    "@stock-options-lab/sdk": "file:../packages/sdk",
     "@tanstack/react-query": "5.102.8",
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "viem": "2.56.3",
-    "wagmi": "3.7.7",
-    "@stock-options-lab/sdk": "file:../packages/sdk"
+    "wagmi": "3.7.7"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",

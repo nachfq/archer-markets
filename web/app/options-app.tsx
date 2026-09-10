@@ -3,6 +3,10 @@
 import { WorkspaceHeader, WalletMenu, TradeTicket, PortfolioTable, ActivityTable, type WorkspaceTab } from "./workspace-ui";
 import WriteOptionForm from "./write-option-form";
 import OptionsChain from "./options-chain";
+import Docs from "./docs";
+import { AssetLogo, BalanceTables, FontIcon, MarketList } from "./asset-ui";
+import { assetPresentation } from "../lib/catalog";
+import { perToken } from "../lib/chain";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   QueryClient,
@@ -67,10 +71,10 @@ const remaining = (end: bigint, now: bigint) => {
 const gasAmount = (value: bigint) => { const scale = 10n ** 12n; return value > 0n && value < scale ? "<0.000001 ETH" : `${value % scale ? "≈ " : ""}${readableNumber(units(value / scale * scale, 18))} ETH`; };
 const errorText = (error: unknown) => { const parsed = decodeProtocolError(error); return `${parsed.message} ${parsed.nextAction}`; };
 
-function App({ initialMarketId }: { initialMarketId?: string }) {
-  const [marketId, setMarketId] = useState(initialMarketId ?? "primary");
-  const net = marketRecords.find(m => m.marketId === marketId) ?? initialNet;
-  const activeMarket = asMarket(net);
+function App({ initialMarketId, initialView }: { initialMarketId?: string; initialView?: WorkspaceTab }) {
+  const [marketId, setMarketId] = useState(marketRecords.find(m => m.marketId === initialMarketId)?.marketId ?? marketRecords[0]?.marketId ?? "primary");
+  const net = marketRecords.find(m => m.marketId === marketId) ?? marketRecords[0] ?? initialNet;
+  const activeMarket = marketRecords.length ? asMarket(net) : null;
   const ready = !!activeMarket;
 
   const { address, chainId, isConnected } = useConnection();
@@ -111,12 +115,14 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
     void reconcile(); const timer = setInterval(() => void reconcile(), 5000);
     return () => clearInterval(timer);
   }, [trackingReady, cache]);
-  const [tab, setTab] = useState<WorkspaceTab>("market");
+  const [tab, setTab] = useState<WorkspaceTab>(initialView ?? "market");
+  const docsReturn = useRef<{ tab: WorkspaceTab; url: string; scroll: number; focus: HTMLElement | null } | null>(null);
   const [portfolioScope, setPortfolioScope] = useState<"current" | "history">("current");
   const [filter, setFilter] = useState<"all" | "call" | "put">("all");
   const [selected, setSelected] = useState<string | null>(null);
   const [clock, setClock] = useState(0);
   const [busy, setBusy] = useState(false);
+  const navigationLock = useRef<{ url: string; locked: boolean }>({ url: "", locked: false });
   const [noticeScope, setNoticeScope] = useState<"global" | "trade" | "create">("global");
   const lastOffer = useRef<string | null>(null);
   const previousScroll = useRef(0);
@@ -186,13 +192,17 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
 
   useEffect(() => {
     const sync = () => {
+      if (navigationLock.current.locked) {
+        window.history.pushState({}, "", navigationLock.current.url);
+        return;
+      }
       const params = new URL(window.location.href).searchParams;
       setSelected(params.get("option"));
       setAcceptedFor("");
-      setReviewedDraft(null);
-      if (params.get("option")) setTab("market");
-      const id = params.get("market") ?? "primary";
-      setMarketId(marketRecords.some(m => m.marketId === id) ? id : "primary");
+      const view = params.get("view");
+      setTab(view === "docs" ? "docs" : view === "portfolio" ? "mine" : view === "write" ? "create" : view === "activity" ? "activity" : "market");
+      const id = params.get("market");
+      setMarketId(marketRecords.find(m => m.marketId === id)?.marketId ?? marketRecords[0]?.marketId ?? "primary");
     };
     sync();
     const timer = setInterval(() => setClock(Date.now()), 1000);
@@ -202,6 +212,18 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
       window.removeEventListener("popstate", sync);
     };
   }, []);
+  useEffect(() => {
+    navigationLock.current = { url: window.location.href, locked: busy || pending.length > 0 };
+  }, [busy, pending.length, tab, selected, marketId]);
+  useEffect(() => {
+    if (tab !== "docs") return;
+    const timer = requestAnimationFrame(() => {
+      const target = document.getElementById(window.location.hash.slice(1));
+      target?.scrollIntoView({ block: "start" });
+      target?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(timer);
+  }, [tab]);
   useEffect(() => {
     if (!net.factory) return;
     return client.watchContractEvent({
@@ -219,7 +241,7 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
   }, [cache, net.factory]);
 
   const market = useQuery({
-    queryKey: ["market", chain.id, address, marketId],
+    queryKey: ["market", chain.id, address],
     enabled: ready && health.isSuccess,
     refetchInterval: 20_000,
     retry: 1,
@@ -227,7 +249,7 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
       const snapshots = await getMarkets(client, configuredMarkets);
       const selected = snapshots.find(snapshot => snapshot.market.id === marketId) ?? snapshots[0];
       const portfolio = address ? await getPortfolio(client, configuredMarkets, address, snapshots) : undefined;
-      return { ...selected, portfolio, loadedAt: Date.now() };
+      return { ...selected, snapshots, portfolio, loadedAt: Date.now() };
     },
   });
   const portfolio = market.data?.portfolio;
@@ -242,10 +264,10 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
   const effectiveExpiry = expiryMode === "custom" ? expiry : presetExpiry || expirySuggestions[0]?.value || "";
   let expiryError = "";
   if (effectiveExpiry) { try { expiration(effectiveExpiry, Number(now) * 1000); } catch { expiryError = "Choose an expiration after the current chain time."; } }
-  const positions = market.data?.positions ?? [];
+  const positions = market.data?.snapshots.find(snapshot => snapshot.market.id === marketId)?.positions ?? [];
   const detail =
     selected && isAddress(selected)
-      ? positions.find(
+      ? (tab === "mine" ? portfolio?.positions ?? [] : positions).find(
           (p) => p.address.toLowerCase() === selected.toLowerCase(),
         )
       : undefined;
@@ -262,7 +284,7 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
   );
 
   function openDetail(option: string | null, nextMarketId = marketId) {
-    if (busy) return;
+    if (busy || (option && pending.length > 0) || (nextMarketId !== marketId && pending.length > 0)) return;
     setOperationSucceeded(false);
     if (nextMarketId !== marketId) {
       setMarketId(nextMarketId);
@@ -271,7 +293,11 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
     }
     if (option) { lastOffer.current = option; previousScroll.current = window.scrollY; }
     requestAnimationFrame(() => {
-      if (option && window.matchMedia("(max-width: 767px)").matches) {
+      if (tab === "mine" && option) {
+        const table = document.querySelector(".positions-panel");
+        if (table) table.scrollLeft = 0;
+        document.getElementById("option-review-heading")?.focus({ preventScroll: true });
+      } else if (option && window.matchMedia("(max-width: 767px)").matches) {
         document.getElementById("option-review-heading")?.focus();
         window.scrollTo(0, 0);
       } else if (option) {
@@ -287,6 +313,7 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
     });
     const url = new URL(window.location.href);
     url.searchParams.set("market", nextMarketId);
+    if (tab === "mine") url.searchParams.set("view", "portfolio");
     if (option) url.searchParams.set("option", option);
     else url.searchParams.delete("option");
     window.history.pushState({}, "", url);
@@ -420,6 +447,7 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
       const e = expiration(effectiveExpiry, Number(block.timestamp) * 1000);
       await executePrepared(await prepareCreateOffer(client, activeMarket, address!, { optionType: kind as 0 | 1, ...draft, expiry: e }));
       setTab("mine"); setPortfolioScope("current"); setReviewedDraft(null); setQuantity(""); setStrike(""); setPremium(""); setExpiry(""); setPresetExpiry("");
+      const url = new URL(window.location.href); url.searchParams.set("view", "portfolio"); url.searchParams.delete("option"); window.history.pushState({}, "", url);
     }, "Option written. Collateral is deposited in its own option contract.");
   }
   async function transact(position: Position, action: string) {
@@ -492,22 +520,48 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
 
   function navigate(next: WorkspaceTab) {
     if (busy) return;
+    if (next === "docs") { openDocs(); return; }
+    if (tab === "docs" && docsReturn.current?.tab === next) { closeDocs(); return; }
     setTab(next);
     setReviewedDraft(null);
-    openDetail(null);
+    setSelected(null);
+    setAcceptedFor("");
+    const url = new URL(window.location.href);
+    url.hash = "";
+    url.searchParams.delete("option");
+    url.searchParams.set("view", next === "mine" ? "portfolio" : next === "create" ? "write" : next === "activity" ? "activity" : "trade");
+    window.history.pushState({}, "", url);
     if (next === "create" && ready) void market.refetch();
   }
+  function openDocs(anchor = "overview") {
+    if (busy) return;
+    if (tab !== "docs") docsReturn.current = { tab, url: window.location.href, scroll: window.scrollY, focus: document.activeElement as HTMLElement | null };
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", "docs");
+    url.hash = anchor;
+    window.history.pushState({}, "", url);
+    setTab("docs");
+  }
+  function closeDocs() {
+    const previous = docsReturn.current;
+    if (!previous) { navigate("market"); return; }
+    window.history.pushState({}, "", previous.url);
+    setTab(previous.tab);
+    requestAnimationFrame(() => { window.scrollTo(0, previous.scroll); if (previous.focus?.id) document.getElementById(previous.focus.id)?.focus({ preventScroll: true }); });
+  }
+  const exerciseWarning = <><FontIcon name="triangle-exclamation" /> <span>Manual exercise · No resale. An unused right expires without payout or premium refund. <a id="manual-exercise-link" href="?view=docs#manual-exercise" aria-disabled={busy} onClick={event => { event.preventDefault(); openDocs("manual-exercise"); }}>How manual exercise works</a></span></>;
+  const unitAmount = (value: bigint, quantity: bigint) => `${readableNumber(perToken(value, quantity, net.underlying.decimals, net.quote.decimals), 2)} ${net.quote.symbol} / token`;
   const detailPanel = (
-    <TradeTicket title={detail ? `${detail.optionType === 0 ? "Call" : "Put"} · ${detail.writer.toLowerCase() === address?.toLowerCase() ? "Manage written option" : detail.state === 0 ? "Review purchase" : "Review position"}` : "Review option"} busy={busy} onClose={() => openDetail(null)}>
+    <TradeTicket inline={tab === "mine"} title={detail ? `${detail.optionType === 0 ? "Call" : "Put"} · ${detail.writer.toLowerCase() === address?.toLowerCase() ? "Manage written option" : detail.state === 0 ? "Review purchase" : "Review position"}` : "Review option"} busy={busy} onClose={() => openDetail(null)}>
       <div className="detail">
       {detail ? <>
-        <div className="section-head"><div><h2 id="option-review-heading" tabIndex={-1}>{net.underlying.symbol} option</h2><small className="detail-role">{detail.writer.toLowerCase() === address?.toLowerCase() ? "You wrote this option" : detail.buyer.toLowerCase() === address?.toLowerCase() ? "You bought this option" : `Written by ${short(detail.writer)}`}</small></div><span className="pill">{status(detail, now)}</span></div>
+        <div className="section-head"><div className="asset-cell"><AssetLogo presentation={assetPresentation(net, "underlying")} /><div><h2 id="option-review-heading" tabIndex={-1}>{net.underlying.symbol} option</h2><small className="detail-role">{detail.writer.toLowerCase() === address?.toLowerCase() ? "You wrote this option" : detail.buyer.toLowerCase() === address?.toLowerCase() ? "You bought this option" : `Written by ${short(detail.writer)}`}</small></div></div><span className="pill">{status(detail, now)}</span></div>
         <div className="review-grid">
-          <div className="purchase-cost"><span className="term-label">{detail.state === 0 ? (detail.writer.toLowerCase() === address?.toLowerCase() ? "You receive if someone buys" : "Cost to buy this option") : "Agreed premium"}</span><strong>{displayAmount(detail.premium, net.quote)}</strong><small>Whole-lot premium · Exercise payment and gas separate</small></div>
-          <div className="right-summary"><span className="term-label">Buyer’s exercise right · Full lot</span><p>{detail.optionType === 0 ? "Buy" : "Sell"} <strong>{displayAmount(detail.underlyingAmount, net.underlying)}</strong><br />for <strong>{displayAmount(detail.strikeTotal, net.quote)}</strong> total</p></div>
-          <div className="deadline-summary"><span className="term-label">Exercise before</span><strong>{utcDeadline(detail.expiry)}</strong><small>{new Date(Number(detail.expiry) * 1000).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" })} · local time</small><small>{remaining(detail.expiry, now)} · estimated</small></div>
+          <div className="purchase-cost"><span className="term-label">01 · {detail.state === 0 ? (detail.writer.toLowerCase() === address?.toLowerCase() ? "You receive if someone buys" : "Cost to buy this option") : "Agreed premium"}</span><strong>{displayAmount(detail.premium, net.quote)}</strong><span className="unit-price">{unitAmount(detail.premium, detail.underlyingAmount)}</span><small>Premium for {displayAmount(detail.underlyingAmount, net.underlying)} · Whole lot</small><p className="fine">Purchase transfers the exercise right, not Stock Tokens. Exercise payment and gas are separate.</p></div>
+          <div className="right-summary"><span className="term-label">02 · Buyer’s exercise right</span><h3>{detail.optionType === 0 ? "Right to buy" : "Right to sell"}</h3><p><strong>{displayAmount(detail.underlyingAmount, net.underlying)}</strong><br />for <strong>{displayAmount(detail.strikeTotal, net.quote)}</strong> total</p><span className="unit-price">Strike · {unitAmount(detail.strikeTotal, detail.underlyingAmount)}</span><p className="fine">Only at exercise: buyer delivers {displayAmount(detail.optionType === 0 ? detail.strikeTotal : detail.underlyingAmount, detail.optionType === 0 ? net.quote : net.underlying)} and receives {displayAmount(detail.optionType === 0 ? detail.underlyingAmount : detail.strikeTotal, detail.optionType === 0 ? net.underlying : net.quote)}.</p></div>
+          <div className="deadline-summary"><span className="term-label">03 · Exercise before</span><strong>{utcDeadline(detail.expiry)}</strong><small>{new Date(Number(detail.expiry) * 1000).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" })} · local time</small><small>{remaining(detail.expiry, now)} · estimated</small></div>
         </div>
-        <div className={`deadline-notice ${detail.expiry <= now && detail.state < 2 ? "urgent" : ""}`} role="note">{detail.expiry <= now && detail.state < 2 ? "Expired: exercise is unavailable. The writer may reclaim collateral." : "Manual exercise · No resale. An unused right expires without payout or premium refund."}</div>
+        <div className={`deadline-notice ${detail.expiry <= now && detail.state < 2 ? "urgent" : ""}`} role="note">{exerciseWarning}{detail.expiry <= now && detail.state < 2 && <strong>Expired: exercise is unavailable. The writer may reclaim collateral.</strong>}</div>
         {address && actions(detail, address, now).includes("exercise") && <section className="exercise-funding" aria-label="Funds for this option"><div className="funding-inline"><span>You deliver <strong>{displayAmount(detail.optionType === 0 ? detail.strikeTotal : detail.underlyingAmount, detail.optionType === 0 ? net.quote : net.underlying)}</strong></span><span>You receive <strong>{displayAmount(detail.optionType === 0 ? detail.underlyingAmount : detail.strikeTotal, detail.optionType === 0 ? net.underlying : net.quote)}</strong></span><span>Available to deliver <strong>{balances.data ? displayAmount(detail.optionType === 0 ? balances.data.quote : balances.data.underlying, detail.optionType === 0 ? net.quote : net.underlying) : "Loading…"}</strong></span></div></section>}
         {detail.writer.toLowerCase() === address?.toLowerCase() && detail.state <= 1 && <p className="funding-inline">Collateral {displayAmount(detail.optionType === 0 ? detail.underlyingAmount : detail.strikeTotal, detail.optionType === 0 ? net.underlying : net.quote)} · {detail.state === 1 && detail.expiry > now ? "Locked until exercise or expiry; cancellation unavailable." : "Returned to your wallet when cancellation or reclaim confirms."}</p>}
         {ready && (health.isError || market.isError) && <div className="banner error" role="alert">Could not refresh this option. Trading is disabled until current data is available.<button className="button" onClick={() => { void health.refetch(); void market.refetch(); }}>Retry connection</button></div>}
@@ -528,7 +582,7 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
           <p>At exercise, the buyer delivers {displayAmount(detail.optionType === 0 ? detail.strikeTotal : detail.underlyingAmount, detail.optionType === 0 ? net.quote : net.underlying)} and receives {displayAmount(detail.optionType === 0 ? detail.underlyingAmount : detail.strikeTotal, detail.optionType === 0 ? net.underlying : net.quote)}. Gas is separate. Buying a call reduces the same payment-token balance needed to exercise.</p>
           <p>Exercise exchanges the full lot. Have the required tokens, approvals, and gas ready. A pending transaction does not reserve the right: execution must complete before the blockchain deadline.</p>
           <p>Option contract <code>{detail.address}</code></p><p>Writer <code>{detail.writer}</code></p>
-          <div className="filters"><button className="button" onClick={async () => { setNoticeScope("trade"); try { await navigator.clipboard.writeText(window.location.href); setNotice("Option link copied."); } catch { setError("Copy the link from your address bar."); } }}>Copy link</button>
+          <div className="filters"><button className="button" onClick={async () => { setNoticeScope("trade"); try { const link = new URL(window.location.href); link.searchParams.delete("view"); link.hash = ""; await navigator.clipboard.writeText(link.href); setNotice("Option link copied."); } catch { setError("Copy the link from your address bar."); } }}>Copy link</button>
         {detail.expiry > now && <button className="button calendar-button" onClick={() => {
           const stamp = (date: Date) => date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
           const start = new Date(Number(detail.expiry - 3600n) * 1000);
@@ -543,7 +597,7 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
     </TradeTicket>
   );
   return (
-    <main className={`shell ${selected || (tab === "create" && reviewingDraft) ? "review-open" : ""}`}>
+    <main className={`shell ${(tab === "market" && selected) || (tab === "create" && reviewingDraft) ? "review-open" : ""}`}>
       <WorkspaceHeader tab={tab} disabled={busy} environment={chain.id === 31337 ? "Local demo" : "Testnet"} onNavigate={navigate}
         wallet={isConnected ? <WalletMenu label={short(address!)}>
           <div className="eyebrow">WALLET &amp; TEST FUNDS</div>
@@ -554,28 +608,25 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
           </div>
         </WalletMenu> : <button className="button dark" onClick={walletConnect}>Connect wallet</button>} />
       <section className="instrument-bar" aria-label="Selected market">
-        <div className="instrument-identity"><span className="asset-icon" aria-hidden="true">{net.underlying.symbol.slice(0, 1)}</span><div><h1>{tab === "mine" ? "Portfolio" : tab === "activity" ? "Activity" : net.underlying.symbol} <span>{tab === "mine" || tab === "activity" ? "All configured markets" : `/ ${net.quote.symbol}`}</span></h1><small>{tab === "market" || tab === "create" ? net.sandbox ? "Practice stock token · Fully collateralized options" : "Stock Token options · Fully collateralized" : net.name}</small></div></div>
-        {(tab === "market" || tab === "create") && <><div className="market-selector"><label>Market<select aria-label="Market" value={marketId} disabled={busy || pending.length > 0} onChange={event => openDetail(null, event.target.value)}>{marketRecords.map(record => <option key={record.marketId} value={record.marketId}>{record.label} · {record.sandbox ? "Practice" : "Official test token"}</option>)}</select></label></div>
-        <label className="trade-mode">Action<select aria-label="Trade action" value={tab === "create" ? "write" : "buy"} disabled={busy} onChange={event => navigate(event.target.value === "write" ? "create" : "market")}><option value="buy">Buy options</option><option value="write">Write option</option></select></label></>}
+        <div className="instrument-identity">{(tab === "market" || tab === "create") && <AssetLogo presentation={assetPresentation(net, "underlying")} />}<div><h1>{tab === "docs" ? "Documentation" : tab === "mine" ? "Portfolio" : tab === "activity" ? "Activity" : net.underlying.symbol} <span>{tab === "docs" ? "Know the mechanics" : tab === "mine" || tab === "activity" ? "All curated markets" : `/ ${net.quote.symbol}`}</span></h1><small>{tab === "market" || tab === "create" ? net.sandbox ? "Practice stock token · Fully collateralized options" : "Stock Token options · Fully collateralized" : net.name}</small></div></div>
+        {(tab === "market" || tab === "create") && <div className="trade-mode" role="group" aria-label="Trade action"><button aria-pressed={tab === "market"} disabled={busy} onClick={() => navigate("market")}>Buy Options</button><button aria-pressed={tab === "create"} disabled={busy} onClick={() => navigate("create")}>Write Options</button></div>}
       </section>
       {wrongChain && <div className="banner warning"><span>Your wallet is on another network. Switch to {net.name} to trade.</span><button className="button" disabled={busy} onClick={switchNetwork}>Switch network</button></div>}
-      {!(selected && noticeScope === "trade") && !(tab === "create" && noticeScope === "create") && notification}
+      {!(selected && noticeScope === "trade" && (tab === "market" || (tab === "mine" && visible.some(p => p.address.toLowerCase() === selected.toLowerCase())))) && !(tab === "create" && noticeScope === "create") && notification}
       {pending.length > 0 && <div className="banner warning" role="status"><span>Transaction pending. New operations are paused until its receipt is known. Approvals do not deposit collateral.</span><button className="button" disabled={busy} onClick={() => navigate("activity")}>View activity</button></div>}
+      <div className={tab === "market" || tab === "create" ? "workspace-layout" : "workspace-single"}>
+      {(tab === "market" || tab === "create") && <MarketList markets={marketRecords} selected={marketId} disabled={busy || pending.length > 0} onSelect={id => openDetail(null, id)} />}
       <section className="market" id="market">
-        {tab === "activity" ? <ActivityTable transactions={transactions.filter(t => t.chainId === chain.id && t.account.toLowerCase() === address?.toLowerCase())} explorer={explorer} />
-        : tab === "mine" && selected ? detailPanel
+        {tab === "docs" ? <Docs onBack={closeDocs} />
+        : tab === "activity" ? <ActivityTable transactions={transactions.filter(t => t.chainId === chain.id && t.account.toLowerCase() === address?.toLowerCase())} explorer={explorer} />
         : tab === "mine" ? <>
-          {isConnected && ready && <details className="account-overview"><summary>Balances &amp; collateral</summary>
-            <div className="section-head"><h2>Your capital</h2><span className="fine">{portfolio ? `Block ${portfolio.blockNumber} · All configured markets` : "Reading balances…"}</span></div>
-            {portfolio && <div className="balance-grid">{portfolio.tokens.map(row => <div className="balance-card" key={row.token.address}><h3>{row.token.symbol}<span>{row.token.isMock ? "Practice token" : "Official test token"}</span></h3><p className="fine asset-provenance">{short(row.token.address)}</p><strong className="available-number">{displayAmount(row.available, row.token)}</strong><span className="term-label">Available in wallet</span><dl className="balance-breakdown"><div><dt>Open orders</dt><dd>{displayAmount(row.openCollateral, row.token)}</dd></div><div><dt>Active collateral</dt><dd>{displayAmount(row.activeCollateral, row.token)}</dd></div><div><dt>Ready to reclaim</dt><dd>{displayAmount(row.reclaimable, row.token)}</dd></div><div className="balance-total"><dt>Total tracked</dt><dd>{displayAmount(row.totalTracked, row.token)}</dd></div></dl></div>)}</div>}
-            <p className="fine">Tracked token units include collateral backing obligations. This is not net portfolio value. Purchased rights are listed separately.</p>
-          </details>}
-          <div className="position-toolbar"><h2>Positions &amp; orders</h2><div className="filters"><label>Status<select aria-label="Position status" value={portfolioScope} onChange={event => setPortfolioScope(event.target.value as typeof portfolioScope)}><option value="current">Open positions &amp; orders</option><option value="history">Closed options</option></select></label><label>Type<select aria-label="Position type" value={filter} onChange={event => setFilter(event.target.value as typeof filter)}><option value="all">Calls &amp; puts</option><option value="call">Calls</option><option value="put">Puts</option></select></label><button className="icon-button" aria-label="Refresh portfolio" disabled={!ready || market.isFetching} onClick={() => { void health.refetch(); void market.refetch(); }}>↻</button></div></div>
+          <BalanceTables markets={marketRecords} portfolio={portfolio} stale={health.isError || market.isError} />
+          <div className="position-toolbar"><h2>Positions &amp; orders</h2><div className="filters"><label>Status<select aria-label="Position status" disabled={busy || pending.length > 0} value={portfolioScope} onChange={event => { openDetail(null); setPortfolioScope(event.target.value as typeof portfolioScope); }}><option value="current">Open positions &amp; orders</option><option value="history">Closed options</option></select></label><label>Type<select aria-label="Position type" disabled={busy || pending.length > 0} value={filter} onChange={event => { openDetail(null); setFilter(event.target.value as typeof filter); }}><option value="all">Calls &amp; puts</option><option value="call">Calls</option><option value="put">Puts</option></select></label><button className="icon-button" aria-label="Refresh portfolio" disabled={!ready || market.isFetching} onClick={() => { void health.refetch(); void market.refetch(); }}>↻</button></div></div>
           {!address ? <div className="empty"><h3>Connect to see your options and collateral.</h3><p>Your positions across configured markets appear here.</p><button className="button dark" onClick={walletConnect}>Connect wallet</button></div>
           : !ready ? <div className="empty"><h3>Trading is not available on this network yet</h3><p>No contracts are configured. Positions will appear after a valid deployment is available.</p></div>
           : health.isError || market.isError ? <div className="empty" role="alert"><h3>Could not refresh your portfolio</h3><p>Balances and positions may be outdated. Reconnect before trading.</p><button className="button" onClick={() => { void health.refetch(); void market.refetch(); }}>Retry connection</button></div>
           : market.isPending ? <div className="empty" role="status">Loading positions…</div>
-          : visible.length ? <PortfolioTable positions={visible} markets={marketRecords} marketId={marketId} account={address} now={now} displayAmount={displayAmount} onSelect={openDetail} />
+          : visible.length ? <PortfolioTable positions={visible} markets={marketRecords} marketId={marketId} account={address} now={now} displayAmount={displayAmount} onSelect={openDetail} selected={selected} detail={detailPanel} disabled={busy || pending.length > 0} />
           : <div className="empty"><h3>{portfolioScope === "history" ? "No closed positions yet." : "No open positions or orders."}</h3><p>Browse available options or write a collateralized offer.</p><button className="button" onClick={() => navigate("create")}>Write option</button></div>}
           <details className="history-source"><summary>Source: onchain option contracts.</summary><p>Positions are reconstructed for your wallet across all configured markets, including activity from other devices. Closed options are exercised, canceled or reclaimed contracts; expired collateral remains open until reclaimed. This is not transaction-by-transaction history.</p></details>
         </>
@@ -604,7 +655,7 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
                 <div><dt>Total exercise payment</dt><dd>{displayAmount(draft!.strikeTotal, net.quote)}</dd></div>
               </dl>
               <p className="fine">Exercise before {deadlinePreview(effectiveExpiry)}. {portfolio ? `Balances at block ${portfolio.blockNumber}.` : ""} Gas is separate.</p>
-              <div className="deadline-notice">The buyer may exercise manually before expiry. A sold option stays collateralized until exercise or recovery after expiry.</div>
+              <div className="deadline-notice">{exerciseWarning}</div>
               {ready && (health.isError || market.isError) && <div className="banner error" role="alert">Could not refresh balances. Writing is disabled until current data is available.<button className="button" onClick={() => { void health.refetch(); void market.refetch(); }}>Retry connection</button></div>}
               {noticeScope === "create" && notification}
               <div className="review-bottom"><small>Collateral is deposited into the new option contract. Premium arrives only if purchased.</small><div className="detail-actions">{!isConnected ? <button className="button dark" onClick={walletConnect}>Connect wallet to continue</button> : <button className="button dark" disabled={!canAct || !draft || !!expiryError || insufficientCollateral || market.isError || !portfolio} onClick={create}>{busy ? "Processing…" : "Deposit collateral & write option"}</button>}</div></div>
@@ -617,22 +668,18 @@ function App({ initialMarketId }: { initialMarketId?: string }) {
             loading={ready && (market.isFetching || health.isPending)} unavailable={!ready || health.isError || market.isError} configured={ready} onSelect={openDetail} onRefresh={() => { void health.refetch(); void market.refetch(); }} onCreate={() => navigate("create")} /></div>
           {selected && detailPanel}
         </div>}
-        <details className="exercise-guide"><summary>How exercise and expiration work</summary><div className="exercise-steps">
-          <div><strong>01 · Fixed terms</strong><p>The lot, exercise payment, premium and deadline are fixed when the option is written. There is no price oracle.</p></div>
-          <div><strong>02 · Manual exercise</strong><p>The buyer exchanges tokens at the agreed terms. Execution must complete before the onchain deadline; submission alone is not enough.</p></div>
-          <div><strong>03 · Expiration</strong><p>No automatic payout, exercise or premium refund. The writer keeps the premium and manually reclaims unused collateral.</p></div>
-        </div><p className="raw-notice">Quantities refer to tokens, not a guaranteed number of shares. {net.underlying.isMock ? "This market uses a mock underlying." : "Stock Tokens represent economic exposure, not direct share ownership."}</p></details>
       </section>
+      </div>
       <footer><span>Stock Options Lab · Fully collateralized options</span><span>{net.name} · Manual exercise · Physical token delivery</span></footer>
     </main>
   );
 }
-export default function Home({ initialMarketId }: { initialMarketId?: string }) {
+export default function Home({ initialMarketId, initialView }: { initialMarketId?: string; initialView?: WorkspaceTab }) {
   const [queryClient] = useState(() => new QueryClient());
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <App initialMarketId={initialMarketId} />
+        <App initialMarketId={initialMarketId} initialView={initialView} />
       </QueryClientProvider>
     </WagmiProvider>
   );

@@ -32,7 +32,7 @@ async function inspect(page, name) {
     return { viewport: innerWidth, content: document.documentElement.scrollWidth, minimumText: Math.min(...nodes.map(e => parseFloat(getComputedStyle(e).fontSize))), minimumContrast: Math.min(...ratios.map(r=>r.ratio)), contrastFailures: ratios.filter(r=>r.ratio<4.5) };
   });
   expect(layout.content, `${name}: horizontal overflow`).toBeLessThanOrEqual(layout.viewport);
-  expect(layout.minimumText, `${name}: small text`).toBeGreaterThanOrEqual(12);
+  expect(layout.minimumText, `${name}: small text`).toBeGreaterThanOrEqual(14);
   expect(layout.contrastFailures, `${name}: text contrast`).toEqual([]);
   await page.screenshot({ path: `${output}/${name}.png`, fullPage: true });
   evidence.push({ name, ...layout });
@@ -42,6 +42,8 @@ try {
     const page = await browser.newPage({ viewport: { width, height } });
     await page.goto(base);
     await page.locator('.chain-offer:visible').first().waitFor();
+    await expect(page.getByLabel('Strikes', { exact: true })).toHaveValue('10');
+    await expect(page.locator('select[aria-label="Market"], select[aria-label="Trade action"], select[aria-label="Expiration"]')).toHaveCount(0);
     await inspect(page, name);
     if (width < 768) {
       await page.getByLabel('Option type', { exact: true }).selectOption('puts');
@@ -59,6 +61,14 @@ try {
     await expect(page.getByRole('button', { name: 'Connect wallet to continue' })).toBeVisible();
     if (width < 768) await expect(page.locator('#option-review-heading')).toBeFocused();
     await inspect(page, `${name}-ticket`);
+    await expect(page.locator('.right-summary')).toContainText('Strike ·');
+    const reviewUrl = page.url();
+    await page.getByRole('link', { name: 'How manual exercise works' }).click();
+    await expect(page.locator('#manual-exercise')).toBeFocused();
+    await inspect(page, `${name}-docs`);
+    await page.getByRole('button', { name: 'Back to workspace', exact: false }).click();
+    await expect(page).toHaveURL(reviewUrl);
+    await expect(page.locator('.purchase-cost')).toBeVisible();
     await page.getByRole('button', { name: /Back to options/ }).click();
     await expect(page.locator(`[data-offer="${selectedAddress}"]`)).toBeFocused();
     if (width === 1440) {
@@ -71,7 +81,7 @@ try {
       await inspect(zoomPage, 'zoom-200-reflow');
       await zoomContext.close();
     }
-    await page.getByLabel('Trade action').selectOption('write');
+    await page.getByRole('button', { name: 'Write Options', exact: true }).click();
     await page.getByLabel('Write expiration', { exact: true }).waitFor();
     await inspect(page, `${name}-create`);
     await page.getByLabel(/^Quantity of/).fill('0.01');
@@ -82,6 +92,9 @@ try {
     await expect(page.getByRole('button', { name: 'Connect wallet to continue' })).toBeVisible();
     if (width < 768) await expect(page.locator('.create-layout > form')).not.toBeVisible();
     await inspect(page, `${name}-write-review`);
+    await page.getByRole('link', { name: 'How manual exercise works' }).click();
+    await page.getByRole('button', { name: 'Back to workspace', exact: false }).click();
+    await expect(page.locator('#write-review-heading')).toBeVisible();
     await page.getByRole('button', { name: /Back to options/ }).click();
     await expect(page.getByRole('button', { name: 'Review offer →' })).toBeFocused();
     await expect(page.getByLabel(/^Quantity of/)).toHaveValue('0.01');
@@ -92,7 +105,7 @@ try {
       await page.getByLabel(/^Premium per token/).fill('5');
       await expect(page.locator('.trade-ticket')).toHaveCount(0);
     }
-    await page.getByLabel('Market', { exact: true }).selectOption('practice');
+    await page.locator('[data-market="practice"]').click();
     await expect(page.getByLabel(/^Quantity of/)).toHaveValue('');
     await expect(page.locator('.trade-ticket')).toHaveCount(0);
     await page.close();

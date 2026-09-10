@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import { chromium, expect } from '@playwright/test';
-import { createPublicClient, erc20Abi, http, formatUnits } from 'viem';
+import { createPublicClient, erc20Abi, http, formatUnits, encodeFunctionData } from 'viem';
 
 const root = new URL('../', import.meta.url);
 const json = async (path) => JSON.parse(await readFile(new URL(path, root), 'utf8'));
@@ -136,7 +136,7 @@ async function create(page, type, usePreset = false) {
   const block = await client.getBlock();
   const expiry = new Date(Math.max(Date.now(), Number(block.timestamp) * 1000) + 86_400_000).toISOString().slice(0, 16);
   await page.getByRole('button', { name: 'Trade', exact: true }).click();
-  await page.getByLabel('Trade action').selectOption('write');
+  await page.getByRole('button', { name: 'Write Options', exact: true }).click();
   await page.getByLabel('Write option type').selectOption(String(type));
   await expect(page.getByRole('complementary', { name: 'Offer funding summary' })).toHaveCount(0);
   await page.getByLabel(/^Quantity of/).fill('999999999');
@@ -177,6 +177,19 @@ async function create(page, type, usePreset = false) {
   assert.equal(await read(option, optionAbi, 'strikeTotal'), strike);
   assert.equal(await read(option, optionAbi, 'premium'), premium);
   assert.equal(await read(option, optionAbi, 'expiry'), expectedExpiry, 'Stored deadline matches the selected preset or custom time');
+  if (!ownershipChecked) {
+    // A second writer at the same expiry makes the mixed ownership assertion deterministic.
+    // These fixture transactions run only on the loopback Anvil and are not UI actions.
+    for (const [to, abi, functionName, args] of [
+      [underlying, erc20Abi, 'approve', [factory, quantity]],
+      [factory, factoryAbi, 'createOption', [0, quantity, strike, premium, expectedExpiry]],
+    ]) {
+      const hash = await client.request({ method: 'eth_sendTransaction', params: [{ from: buyer, to, data: encodeFunctionData({ abi, functionName, args }) }] });
+      const receipt = await client.waitForTransactionReceipt({ hash });
+      assert.equal(receipt.status, 'success');
+      evidence.setupTransactions.push({ from: buyer, to, hash, blockNumber: receipt.blockNumber, status: receipt.status, purpose: 'Mixed ownership fixture' });
+    }
+  }
   const after = await balances(option);
   for (const token of ['underlying', 'quote']) {
     const collateral = type === 0 ? token === 'underlying' ? quantity : 0n : token === 'quote' ? strike : 0n;
@@ -195,15 +208,13 @@ async function create(page, type, usePreset = false) {
   if (!ownershipChecked) {
     await page.getByRole('button', { name: 'Trade', exact: true }).click();
     await expect(page.getByRole('heading', { name: /^Option chain/ })).toBeVisible();
-    await page.getByLabel('Filter by writer').selectOption('mine');
+    await page.getByRole('button', { name: 'Refresh options', exact: true }).click();
+    await page.locator(`[data-expiration="${expectedExpiry}"]`).click();
+    await expect(page.getByLabel('Filter by writer')).toHaveCount(0);
     await expect(page.locator('.chain-offer[data-owner="you"]').first()).toBeVisible();
-    await expect(page.locator('.chain-offer[data-owner="other"]')).toHaveCount(0);
-    await expect(page.locator('.chain-offer[data-owner="you"]').first()).toContainText('Yours');
-    await page.getByLabel('Filter by writer').selectOption('others');
+    await expect(page.locator('.chain-offer[data-owner="you"]').first()).toContainText('Manage');
     await expect(page.locator('.chain-offer[data-owner="other"]').first()).toBeVisible();
-    await expect(page.locator('.chain-offer[data-owner="you"]')).toHaveCount(0);
     await expect(page.locator('.chain-offer[data-owner="other"]').first()).toContainText('Buy');
-    await page.getByLabel('Filter by writer').selectOption('all');
     await page.getByRole('button', { name: 'Portfolio', exact: true }).click();
     await page.getByLabel('Position status').selectOption('history');
     await expect(page.locator('.history-source')).toContainText('Source: onchain option contracts.');
@@ -211,7 +222,7 @@ async function create(page, type, usePreset = false) {
     await expect(page.locator('.history-source')).toContainText('Source: this browser + onchain receipts');
     await page.goto(link);
     ownershipChecked = true;
-    console.log('PASS writer filters, ownership-specific cards, onchain collateral location and distinct history sources');
+    console.log('PASS unified ownership list, onchain collateral location and distinct history sources');
   }
   return { option, link, expiry: await read(option, optionAbi, 'expiry'), afterCollateral: after };
 }
@@ -237,7 +248,7 @@ try {
     await buyerPage.goto(baseUrl);
     await expect(buyerPage.getByRole('region', { name: 'Options chain', exact: true })).toBeVisible();
     await expect(buyerPage.locator('.chain-offer').first()).toBeVisible();
-    await buyerPage.getByLabel('Expiration', { exact: true }).selectOption(offer.expiry.toString());
+    await buyerPage.locator(`[data-expiration="${offer.expiry}"]`).click();
     await buyerPage.getByLabel('Strikes', { exact: true }).selectOption('all');
     const chainQuote = buyerPage.locator(`[data-offer="${offer.option}"]`);
     await chainQuote.click();
@@ -319,11 +330,12 @@ try {
   } finally { await client.request({ method: 'evm_setAutomine', params: [true] }); }
   // Connected visual evidence is kept local and is not human usability validation.
   await writerPage.getByRole('button', { name: 'Portfolio', exact: true }).click();
-  await writerPage.locator('.account-overview summary').click();
-  await expect(writerPage.locator('.balance-card')).toHaveCount(3);
+  await expect(writerPage.locator('.balance-table tbody tr')).toHaveCount(3);
+  await expect(writerPage.getByRole('region', { name: 'Stock Tokens', exact: true }).locator('tbody tr')).toHaveCount(2);
+  await expect(writerPage.getByRole('region', { name: 'Stablecoins', exact: true }).locator('tbody tr')).toHaveCount(1);
   await writerPage.screenshot({ path: '/tmp/options-portfolio-connected.png', fullPage: true });
   await writerPage.getByRole('button', { name: 'Trade', exact: true }).click();
-  await writerPage.getByLabel('Trade action').selectOption('write');
+  await writerPage.getByRole('button', { name: 'Write Options', exact: true }).click();
   await writerPage.getByLabel(/^Quantity of/).fill('0.01');
   await writerPage.getByLabel(/^Strike per token/).fill('300');
   await writerPage.getByLabel(/^Premium per token/).fill('8');

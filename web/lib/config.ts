@@ -3,6 +3,7 @@ import { injected } from "wagmi/connectors";
 import { createPublicClient, defineChain, type Address } from "viem";
 import type { MarketConfig } from "@stock-options-lab/sdk";
 import records from "./generated/deployments.json";
+import { curatedMarkets, marketCatalog } from "./catalog";
 export type Token = {
   address: Address | null;
   symbol: string;
@@ -57,7 +58,8 @@ export const ready = !!(
   deployment.quote.address
 );
 
-export const marketRecords: Deployment[] = [deployment, ...(deployment.markets ?? []).map(m => ({ ...deployment, ...m, markets: undefined }))].map((m, i) => ({ ...m, marketId: m.marketId ?? (i === 0 ? "primary" : `market-${i}`), label: m.label ?? `${m.underlying.symbol} / ${m.quote.symbol}`, sandbox: m.sandbox ?? m.underlying.isMock }));
+const manifestMarkets: Deployment[] = [deployment, ...(deployment.markets ?? []).map(m => ({ ...deployment, ...m, markets: undefined }))].map((m, i) => ({ ...m, marketId: m.marketId ?? (i === 0 ? "primary" : `market-${i}`), label: m.label ?? `${m.underlying.symbol} / ${m.quote.symbol}`, sandbox: m.sandbox ?? m.underlying.isMock }));
+export const marketRecords = curatedMarkets(manifestMarkets, marketCatalog[deployment.chainId] ?? []);
 export function asMarket(record: Deployment): MarketConfig | null {
   if (!record.factory || !record.underlying.address || !record.quote.address || record.deploymentBlock === null) return null;
   return { id: record.marketId ?? "primary", chainId: record.chainId, factory: record.factory, deploymentBlock: BigInt(record.deploymentBlock), version: 1, sandbox: record.sandbox ?? record.underlying.isMock,

@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, type ReactNode } from "react";
+import { AssetLogo, FontIcon } from "./asset-ui";
+import { assetPresentation } from "../lib/catalog";
+import { perToken } from "../lib/chain";
 import type { Deployment } from "../lib/config";
-import { actions, status, short, type Position } from "../lib/options";
+import { actions, status, short, readableNumber, type Position } from "../lib/options";
 import type { TransactionRecord } from "../lib/transactions";
 
-export type WorkspaceTab = "market" | "create" | "mine" | "activity";
+export type WorkspaceTab = "market" | "create" | "mine" | "activity" | "docs";
 
 export function WorkspaceHeader({ tab, disabled, environment, wallet, onNavigate }: {
   tab: WorkspaceTab; disabled: boolean; environment: string; wallet: ReactNode; onNavigate: (tab: WorkspaceTab) => void;
@@ -14,7 +17,7 @@ export function WorkspaceHeader({ tab, disabled, environment, wallet, onNavigate
   return <header className="topbar">
     <Link className="wordmark" href="/">stock options<span>lab</span></Link>
     <nav className="tabs" aria-label="Sections">
-      {([["market", "Trade"], ["mine", "Portfolio"], ["activity", "Activity"]] as const).map(([key, label]) =>
+      {([["market", "Trade"], ["mine", "Portfolio"], ["activity", "Activity"], ["docs", "Docs"]] as const).map(([key, label]) =>
         <button key={key} aria-current={tab === key || (key === "market" && tab === "create") ? "page" : undefined}
           className={tab === key || (key === "market" && tab === "create") ? "active" : ""} disabled={disabled} onClick={() => onNavigate(key)}>{label}</button>)}
     </nav>
@@ -45,36 +48,42 @@ export function WalletMenu({ label, children }: { label: string; children: React
   return <details className="wallet-menu" ref={ref}><summary className="button" aria-label="Wallet menu">{label} ▾</summary><div className="wallet-popover">{children}</div></details>;
 }
 
-export function TradeTicket({ title, busy, onClose, children }: {
-  title: string; busy: boolean; onClose: () => void; children: ReactNode;
+export function TradeTicket({ title, busy, onClose, children, inline = false }: {
+  title: string; busy: boolean; onClose: () => void; children: ReactNode; inline?: boolean;
 }) {
-  return <section className="trade-ticket" aria-label="Trade ticket">
-    <div className="ticket-heading"><h2>{title}</h2><button className="text-button" disabled={busy} onClick={onClose}>← Back to options</button></div>
+  return <section className={`trade-ticket ${inline ? "inline-ticket" : ""}`} aria-label="Trade ticket">
+    <div className="ticket-heading"><h2>{title}</h2><button className="text-button" disabled={busy} onClick={onClose}>{inline ? "Close details" : "← Back to options"}</button></div>
     {children}
   </section>;
 }
 
-export function PortfolioTable({ positions, markets, marketId, account, now, displayAmount, onSelect }: {
+export function PortfolioTable({ positions, markets, marketId, account, now, displayAmount, onSelect, selected, detail, disabled }: {
   positions: Position[]; markets: Deployment[]; marketId: string; account?: string; now: bigint;
   displayAmount: (value: bigint, token: Deployment["underlying"]) => string;
-  onSelect: (address: string, marketId: string) => void;
+  onSelect: (address: string | null, marketId: string) => void; selected: string | null; detail: ReactNode; disabled: boolean;
 }) {
-  return <section className="positions-panel" aria-label="Positions"><table className="positions-table">
-    <thead><tr>{["Market / Type", "Role", "Quantity", "Total premium", "Expiration", "Status", "Action"].map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
+  // Keyboard users need to reach the horizontally scrollable table independently of row actions.
+  // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+  return <section className="positions-panel table-scroll" aria-label="Positions" tabIndex={0}><table className="positions-table">
+    <thead><tr>{["Market / Type", "Role", "Quantity", "Strike / token", "Premium / token", "Total premium", "Expiration", "Status", "Actions"].map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
     <tbody>{positions.map(position => {
       const id = "marketId" in position ? String(position.marketId) : marketId;
       const market = markets.find(m => m.marketId === id)!;
       const action = actions(position, account, now)[0];
+      const expanded = selected?.toLowerCase() === position.address.toLowerCase();
+      const unit = (value: bigint) => `${readableNumber(perToken(value, position.underlyingAmount, market.underlying.decimals, market.quote.decimals), 2)} ${market.quote.symbol}`;
       const label = action === "exercise" ? "Review exercise" : action === "cancel" ? "Review cancellation" : action === "reclaimExpired" ? "Review reclaim" : "View option";
-      return <tr key={position.address}>
-        <td data-label="Market / Type"><span>{market.underlying.symbol} <small>{position.optionType === 0 ? "CALL" : "PUT"} · {market.label}</small></span></td>
+      return <Fragment key={position.address}><tr className={expanded ? "expanded-position" : ""} onClick={() => { if (!disabled) onSelect(expanded ? null : position.address, id); }}>
+        <td data-label="Market / Type"><div className="asset-cell"><AssetLogo presentation={assetPresentation(market, "underlying")} /><span>{market.underlying.symbol} <small>{position.optionType === 0 ? "CALL" : "PUT"} · {assetPresentation(market, "underlying").name}</small></span></div></td>
         <td data-label="Role">{position.writer.toLowerCase() === account?.toLowerCase() ? "Writer" : "Buyer"}</td>
         <td data-label="Quantity">{displayAmount(position.underlyingAmount, market.underlying)}</td>
+        <td data-label="Strike / token">{unit(position.strikeTotal)}</td>
+        <td data-label="Premium / token">{unit(position.premium)}</td>
         <td data-label="Total premium">{displayAmount(position.premium, market.quote)}</td>
         <td data-label="Expiration">{new Date(Number(position.expiry) * 1000).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC", timeZoneName: "short" })}</td>
         <td data-label="Status"><span className="pill">{status(position, now)}</span></td>
-        <td data-label="Action"><button className="text-button" data-offer={position.address} onClick={() => onSelect(position.address, id)}>{label} ↗</button></td>
-      </tr>;
+        <td data-label="Actions"><button className="text-button" data-offer={position.address} disabled={disabled} aria-expanded={expanded} aria-controls={`position-${position.address}`} onClick={event => { event.stopPropagation(); onSelect(expanded ? null : position.address, id); }}>{expanded ? "Close details" : label} <FontIcon name="chevron-down" /></button></td>
+      </tr>{expanded && <tr className="position-detail-row"><td colSpan={9}><div id={`position-${position.address}`}>{detail}</div></td></tr>}</Fragment>;
     })}</tbody>
   </table></section>;
 }

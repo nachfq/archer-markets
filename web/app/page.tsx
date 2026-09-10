@@ -11,6 +11,11 @@ export async function generateMetadata({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }): Promise<Metadata> {
   const params = await searchParams;
+  if (params.view === "docs") {
+    const title = "Documentation · Stock Options Lab";
+    const description = "Understand whole-lot options, collateral, manual American exercise, token delivery and testnet limitations.";
+    return { title, description, openGraph: { title, description }, twitter: { title, description } };
+  }
   const selected = params.option;
   const deployment = marketRecords.find(m => m.marketId === params.market) ?? defaultDeployment;
   const ready = !!asMarket(deployment);
@@ -74,6 +79,7 @@ export async function generateMetadata({
 }
 
 export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const market = (await searchParams).market;
-  return <OptionsApp initialMarketId={typeof market === "string" ? market : undefined} />;
+  const { market, view } = await searchParams;
+  const initialView = view === "docs" ? "docs" : view === "portfolio" ? "mine" : view === "write" ? "create" : view === "activity" ? "activity" : "market";
+  return <OptionsApp initialMarketId={typeof market === "string" ? market : undefined} initialView={initialView} />;
 }

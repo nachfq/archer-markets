@@ -20,6 +20,11 @@ try {
   assert.equal(root.status(), 200);
   const rootHtml = await root.text();
   assert.match(rootHtml, /og-workspace\.png/);
+  const docs = await page.request.get(`${localUrl}/?view=docs&option=0x1111111111111111111111111111111111111111#manual-exercise`);
+  assert.equal(docs.status(), 200);
+  const docsHtml = await docs.text();
+  assert.match(docsHtml, /<title>Documentation · Stock Options Lab/);
+  assert.match(docsHtml, /Manual American exercise/);
   for (const kind of [0, 1]) {
     const option = snapshot.positions.find(position => position.optionType === kind);
     assert(option, 'A local call and put are required for detail metadata checks');
@@ -34,6 +39,7 @@ try {
   await page.goto(localUrl);
   await expect(page.locator('.chain-offer').first()).toBeVisible();
   await expect(page.locator('.trade-ticket')).toHaveCount(0);
+  await expect(page.getByLabel('Strikes', { exact: true })).toHaveValue('10');
   for (const count of ['10', 'all', '5']) {
     await page.getByLabel('Strikes', { exact: true }).selectOption(count);
     await expect(page.getByLabel('Strikes', { exact: true })).toHaveValue(count);
@@ -76,7 +82,7 @@ try {
     await preview.keyboard.press('Escape');
     await expect(preview.getByRole('button', { name: 'Disconnect', exact: true })).not.toBeVisible();
     await expect(preview.getByLabel('Wallet menu')).toBeFocused();
-    await preview.getByLabel('Trade action').selectOption('write');
+    await preview.getByRole('button', { name: 'Write Options', exact: true }).click();
     await preview.getByLabel(/^Quantity of/).fill('0.01');
     await preview.getByLabel(/^Strike per token/).fill('100');
     await preview.getByLabel(/^Premium per token/).fill('5');

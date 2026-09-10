@@ -361,3 +361,65 @@ preserved, and individual option URLs continue to clear the root image.
 Final built-in image-edit prompt:
 
 > Edit this social card. Keep the graphite/slate/green palette, main typography and layout. Remove all extra invented words. The only text anywhere in the entire final image must be exactly: 'Stock Options Lab', 'Trade. Write. Manage.', 'Fully collateralized Stock Token options', 'Testnet only', 'Trade', 'Portfolio', 'Activity'. Delete the entire bottom footer with its three icons and slogans. Delete the small slogan underneath the headline. In the right-hand table, delete ALL column labels, dropdown labels and all small text including Bid, Ask, Symbol, Expiration, Strategy, Calls, Puts, Strike. Leave only tasteful abstract fine grid lines and horizontal dashes, no labels and no numbers. Remove the flask icon. Do not introduce any new icons, words, claims or labels. Only the seven specified text strings may appear. This product has no bid/ask order book, so do not represent one with labels. The table must be abstract linework only. Keep it clean and spacious.
+
+## Visible trading flows and inline portfolio — September 9, 2026
+
+Implemented the coordinator's second UI iteration while retaining the graphite/slate
+palette and existing social image. Markets now use an owner-ordered right rail
+(horizontal below 1024px); Buy Options and Write Options are visible segmented
+buttons. Expirations are chronological scrollable buttons with UTC dates, remaining
+time and full-deadline tooltips. Strike count sits in the strike header and defaults
+to 10. Own and other offers share premium-unit ordering without ownership filters
+or a Yours badge; own offers use tint, a writer icon and Manage.
+
+Review separates whole-lot premium, exercise delivery/right, and expiration.
+Premium and strike comparisons reuse bigint per-token math, never share counts,
+breakeven or effective-price estimates. Totals and transactional amounts are unchanged.
+Portfolio balances are visible Stock Tokens and Stablecoins tables. Every curated
+asset has a row, including zero holdings; unknown or failed balances show a dash.
+Shared quote tokens deduplicate by chain/address, not symbol. Positions retain
+filters and rows while a single inline review expands; strike and premium per token
+are included. Financial snapshots are shared across selected markets so expanding
+another market's position does not discard the table while refetching.
+
+The frontend catalog is `web/lib/catalog.ts`. Edit the chain-specific ordered
+`marketCatalog` entries to choose visible manifest market IDs and asset names,
+classification and optional logos. Put individual logos in `web/public/` and set
+the corresponding presentation's `logo` to its public-root path. Missing or failed
+images use the generic stock/coin icon. Font Awesome Free 6.7.2 is pinned and
+self-hosted; no CDN or new generated imagery is used. Existing manifests remain the
+address/deployment source. Listing an asset does not create a factory or enable
+transactions, and unlisted markets are outside this frontend's discovery scope.
+
+Docs includes linked explanations of buying, writing, exact approvals, manual
+American exercise, physical delivery, expiration/recovery, prices, portfolio
+provenance and testnet limits. The warning has a font icon and a direct link to
+`?view=docs#manual-exercise`; returning preserves the draft or selected option.
+The former footer guide was removed. Portfolio detail URLs use `view=portfolio`;
+Copy link emits a canonical Trade option URL usable by another wallet. Existing
+option links remain supported. Navigation and row/filter guards prevent changing
+transaction context while an operation is pending.
+
+Validation: 55 tests passed (26 Solidity, 4 deployment-script, 9 SDK, 16 frontend),
+including new catalog identity/visibility and unit-price cases. Typecheck, ESLint
+and the chain-46630 production build passed. Browser acceptance covers call/put purchase and exercise, cancellation,
+expired reclaim, exact balance conservation, rejected signatures and receipt
+reconciliation. These transactions use an isolated loopback Anvil fork on port 8546,
+not the original 8545 demo. The smoke fixture creates an additional local writer
+offer to check mixed ownership deterministically; these setup transactions are
+recorded separately from UI actions.
+
+Read-only browser checks passed at 1440, 768, 390 and 720px reflow: sampled text is
+at least 14px, sampled contrast is at least 5.82:1, and pages have no horizontal
+overflow (wide tables scroll internally). Checks include Docs anchors and return,
+preserved write review, market-change reset, buyer/writer permissions, inline
+portfolio focus, empty markets and RPC recovery. Root, Docs and call/put metadata,
+browser history and the local production preview of chain 46630 were checked;
+an absent factory leaves signing disabled on desktop and mobile.
+
+Limitations: the catalog is source configuration, not an administrative UI. Logos
+currently share the generic stock fallback. Balances are token accounting, not a
+market valuation; Activity remains browser-local. These are automated agent checks,
+not an audit or human usability validation. Contracts, SDK interfaces, ABIs and
+deployment manifests are unchanged. The Sites workflow preserved the existing
+hosting setup and social asset; this iteration remains local and was not republished.
