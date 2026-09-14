@@ -24,7 +24,7 @@ async function execute(person,operation){
   return mined(await wallet(person).sendTransaction(operation.request));
 }
 async function create(kind,expiry){
-  const result=await execute(writer,await prepareCreateOffer(client,market,writer.address,{optionType:kind,quantity:10000000000000000n,strikeTotal:3000000n,premium:80000n,expiry}));
+  const result=await execute(writer,await prepareCreateOffer(client,market,writer.address,{optionType:kind,quantity:100000000000000000n,strikeTotal:3000000n,premium:80000n,expiry}));
   return parseEventLogs({abi:optionFactoryAbi,logs:result.logs,eventName:'OptionCreated'})[0].args.option;
 }
 async function totals(option){

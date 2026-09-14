@@ -23,7 +23,7 @@
     "seed:local": "node scripts/seed.mjs local",
     "demo:local": "node scripts/demo-local.mjs",
     "seed:testnet": "node --env-file-if-exists=.env scripts/seed.mjs testnet",
-    "test:e2e": "node scripts/smoke.mjs && node scripts/smoke-resale.mjs",
+    "test:e2e": "node scripts/smoke.mjs && node scripts/smoke-resale.mjs && node scripts/smoke-requests.mjs",
     "test:browser": "node scripts/browser-smoke.mjs",
     "dev": "npm --prefix web run dev",
     "dev:local": "VITE_CHAIN_ID=31337 npm --prefix web run dev",

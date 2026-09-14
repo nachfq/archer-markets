@@ -125,6 +125,6 @@ contract ResaleTest is OptionTest {
         option.cancelResale();
         vm.stopPrank();
         assertEq(option.resalePrice(), 8e6);
-        assertEq(factory.version(), 2);
+        assertEq(factory.version(), 3);
     }
 }

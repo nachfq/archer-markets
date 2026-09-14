@@ -8,7 +8,7 @@ import { mnemonicToAccount } from 'viem/accounts';
 
 const root = new URL('../', import.meta.url);
 const readJson = async (path) => JSON.parse(await readFile(new URL(path, root), 'utf8'));
-const manifest = await readJson('deployments/31337.json');
+const manifest = await readJson(process.env.DEMO_MANIFEST ?? 'deployments/31337.json');
 const rpcUrl = process.env.ANVIL_RPC_URL ?? 'http://127.0.0.1:8545';
 assert(['127.0.0.1', 'localhost', '[::1]'].includes(new URL(rpcUrl).hostname), 'Smoke checks require a loopback RPC');
 assert.equal(manifest.chainId, 31337, 'Only a local deployment is supported');
@@ -43,7 +43,7 @@ for (const [name, address] of [['underlying', underlying], ['quote', quote]]) {
   assert.equal((await client.readContract({ address: factory, abi: factoryAbi, functionName: name })).toLowerCase(), address.toLowerCase(), `Factory ${name} differs from manifest`);
 }
 
-const quantity = 1_250_000_000_000_000_000n;
+const quantity = 1_200_000_000_000_000_000n;
 const strike = 312_345_678n;
 const premium = 4_567_891n;
 const evidence = {

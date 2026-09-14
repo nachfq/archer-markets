@@ -1,4 +1,9 @@
-# Implementation record — 2026-09-09
+# Implementation record
+
+Current status: V3 whole-fill requests are repository/local development. There is no
+configured Robinhood testnet protocol deployment or public V3 acceptance run. Earlier
+sections are dated historical reports, not a claim that a local node is running today
+or that its saved addresses exist on testnet. See the latest V3 entry below.
 
 ## Human decisions
 
@@ -533,3 +538,72 @@ started while verifying it.
 These are automated agent checks, not an audit or human approval. Prices and faucet
 balances are synthetic. The V2 resale scope is local only; the hosted Robinhood
 testnet manifest still has no factory and remains incapable of funded trading.
+
+
+## Whole-fill buy requests and documentation reset — September 13, 2026
+
+The human coordinator selected the bounded hackathon scope: writer-first options plus
+premium-funded buy requests, full acceptance only, quantities in multiples of 0.1 raw
+token and one independent option per agreement. No partial fill or matching engine was
+added. The coordinating agent implemented contracts, SDK, UI, tooling and documentation;
+no additional agent review or human approval is claimed.
+
+Factory V3 escrows request premiums by ID and tracks their aggregate reserved balance.
+Acceptance creates and funds one option, assigns the requester as buyer and pays the
+premium to the writer atomically. Only the requester can cancel an unaccepted request,
+including after its acceptance deadline. The option has a later exercise expiration.
+New writes enforce the 0.1-token increment using underlying decimals; existing V1/V2
+contracts retain their original terms. V2 whole-option resale is retained in V3.
+
+The standalone SDK adds request reads, preparation and structured errors. Registry reads
+include requests at the same snapshot block. Portfolio separates available funds, writer
+collateral, active request premiums and expired refundable premiums, deduplicating shared
+tokens and repeated request records. The web adds Buy Requests, exact funding review,
+requester/writer actions, created-option links and request entries in Portfolio. Wallet
+changes invalidate request review without erasing typed terms. Operation notifications
+remain visible inside the active review panel.
+
+README, the current roadmap, local walkthrough, SDK guide and in-app docs now distinguish
+implemented source, local execution, RPC-fork simulations and public deployment. Historical
+research and earlier execution records remain preserved. Targeting Robinhood testnet is
+not described as a completed launch. Deployment scripts emit V3 manifests; existing live
+factories are never upgraded or silently overwritten.
+
+Executed validation for this change:
+
+- `npm test`: 80 Foundry test cases, 7 script tests, 15 SDK tests and 19 frontend tests
+  passed. Foundry counts include inherited lifecycle cases. The optional Robinhood TSLA
+  RPC-fork test ran locally with synthetic balances; it sent no public transaction.
+- Request tests cover call/put exercise conservation, independent reservations, cancellation,
+  deadline equality, caller permissions, competing acceptance, failed collateral and premium
+  rollback, failed refunds, hostile token callbacks and minimum lot validation.
+- Typecheck, frontend lint and production build passed; generated ABIs match V3 source.
+- `npm run test:e2e` passed on a new isolated Anvil at port 8547: nine existing lifecycle
+  scenarios/460 checks, two resale scenarios and request reservation/acceptance/exercise,
+  cancellation, expired refund and expired accepted-option recovery. An actual competing
+  acceptance receipt reverted without changing the completed request.
+- The standalone SDK lifecycle example passed against that isolated V3 deployment.
+- `scripts/browser-requests.mjs` passed call and put request creation, 0.15-token rejection,
+  premium portfolio visibility, writer acceptance, created-option navigation and requester
+  cancellation using two injected local wallets. The writer viewport was 390px; the created
+  option view had no horizontal overflow. No real browser wallet extension was automated.
+
+The browser check used an ignored copy of the web project and isolated RPC configuration.
+The coordinator's original local node and checked-in browser deployment manifest were not
+reset or replaced. Local receipts are in ignored `deployments/local-requests-smoke.json`;
+these are local transaction evidence, not public deployment evidence.
+
+Remaining limitations: full acceptance needs one writer for the entire request; registry
+refresh is linear; refunds/exercise require transactions. Request premiums share factory
+escrow with per-request accounting, while each accepted option has isolated collateral.
+Exact-transfer, non-rebasing token compatibility remains required. There is no public
+Robinhood deployment, independent security audit, human usability study or proven liquidity.
+
+The existing owner-private frontend was subsequently updated through Sites. Publication
+reported `succeeded` at 2026-09-14 01:43 UTC (September 13 in the coordinator's timezone),
+using source snapshot `1c9ead879e0ba2e487d58948d2a0682f50eff145` in a separate hosting
+checkout. The working repository was not committed by this publication. The website
+remains configured for chain 46630 without a factory or payment-token address, so no
+protocol transactions are enabled there. This is frontend publication only, not a
+Robinhood contract deployment. The temporary verification node and preview were stopped
+after the checks; their saved local manifests are historical evidence, not live services.

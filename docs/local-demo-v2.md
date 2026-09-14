@@ -1,10 +1,12 @@
-# Five-market local demo and resale
+# Five-market local fixture and resale (current contracts: V3)
 
-This is synthetic local chain-31337 evidence, not a funded Robinhood deployment,
+This guide generates synthetic local chain-31337 fixtures, not a funded Robinhood deployment,
 an audit, or human usability validation. The hosted chain-46630 frontend remains
-without a factory. No hosting publication is part of this iteration.
+without a factory. The fixture generator does not publish the frontend.
 
 ## Start or resume
+
+This filename is retained from the V2 milestone. New runs deploy V3; use fresh manifest and ledger paths rather than resuming V2 deployment records with V3 source.
 
 Keep Anvil running in a separate terminal. For a fresh node, or the existing local
 demo, run from the repository root:
@@ -22,7 +24,7 @@ npm run dev:local
 indexes 1–9. It never signs with account 0, resets the chain, changes its clock, or
 buys existing human-created offers. It requires loopback, chain 31337, Anvil and
 ten distinct unlocked accounts. Never use these development accounts publicly.
-The script deploys five named tokens and V2 factories from account 1, reusing a
+The script deploys five named tokens and V3 factories from account 1, reusing a
 valid local MockUSD or deploying one when needed. Existing deployed primary and
 practice factories remain legacy Portfolio assets and retain their option links.
 

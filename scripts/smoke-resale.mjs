@@ -11,8 +11,8 @@ const client = createPublicClient({ chain, transport: http(url, { batch: { batch
 const accounts = await client.request({ method: 'eth_accounts' });
 assertLocalDemo(url, await client.getChainId(), await client.request({ method: 'web3_clientVersion' }), accounts);
 const manifest = await readJson(process.env.DEMO_MANIFEST ?? 'deployments/31337.json');
-const record = [manifest, ...(manifest.markets ?? [])].find(m => m.version === 2);
-assert(record, 'Deploy a V2 local market before resale integration checks.');
+const record = [manifest, ...(manifest.markets ?? [])].find(m => (m.version ?? 1) >= 2);
+assert(record, 'Deploy a V2 or V3 local market before resale integration checks.');
 const market = marketFromManifest({ ...manifest, ...record });
 const actor = index => ({ publicClient: client, account: { address: accounts[index], type: 'json-rpc' }, walletClient: createWalletClient({ chain, account: accounts[index], transport: http(url) }) });
 const writer = actor(3), buyer = actor(8), next = actor(9);

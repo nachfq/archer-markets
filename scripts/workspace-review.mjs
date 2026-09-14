@@ -83,7 +83,7 @@ try {
     await expect(preview.getByRole('button', { name: 'Disconnect', exact: true })).not.toBeVisible();
     await expect(preview.getByLabel('Wallet menu')).toBeFocused();
     await preview.getByRole('button', { name: 'Write Options', exact: true }).click();
-    await preview.getByLabel(/^Quantity of/).fill('0.01');
+    await preview.getByLabel(/^Quantity of/).fill('0.1');
     await preview.getByLabel(/^Strike per token/).fill('100');
     await preview.getByLabel(/^Premium per token/).fill('5');
     await preview.getByRole('button', { name: 'Review offer →' }).click();

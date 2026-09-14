@@ -82,7 +82,7 @@ try {
   if (!args.has('--seed-only')) for (const stock of demoStocks) {
     const tokenReceipt = await deploy(`${stock.id}:token`, 'MockEquity', [stock.name, stock.symbol]);
     const factoryReceipt = await deploy(`${stock.id}:factory`, 'OptionFactory', [tokenReceipt.contractAddress, quote.address]);
-    const market = { marketId: stock.id, label: `${stock.name} / MockUSD`, sandbox: true, version: 2, legacy: false, factory: factoryReceipt.contractAddress, deploymentBlock: factoryReceipt.blockNumber.toString(), underlying: { address: tokenReceipt.contractAddress, symbol: stock.symbol, decimals: 18, isMock: true }, quote };
+    const market = { marketId: stock.id, label: `${stock.name} / MockUSD`, sandbox: true, version: 3, legacy: false, factory: factoryReceipt.contractAddress, deploymentBlock: factoryReceipt.blockNumber.toString(), underlying: { address: tokenReceipt.contractAddress, symbol: stock.symbol, decimals: 18, isMock: true }, quote };
     const index = ledger.markets.findIndex(m => m.marketId === stock.id);
     if (index < 0) ledger.markets.push(market); else ledger.markets[index] = market;
     await saveJson(ledgerFile, ledger);
@@ -90,7 +90,7 @@ try {
   }
   if (ledger.markets.length !== 5) throw new Error('Run the deployment stage first.');
   for (const market of ledger.markets) {
-    if (await client.readContract({ address: market.factory, abi: factoryAbi, functionName: 'version' }) !== 2n) throw new Error('Demo factory version mismatch.');
+    if (await client.readContract({ address: market.factory, abi: factoryAbi, functionName: 'version' }) !== 3n) throw new Error('Demo factory version mismatch.');
   }
   const legacy = [];
   for (const m of [manifest, ...(manifest.markets ?? [])]) if (!demoStocks.some(stock => stock.id === m.marketId) && m.factory && ((await client.getCode({ address: m.factory }))?.length ?? 0) > 2) legacy.push({ ...m, markets: undefined, version: m.version ?? 1, legacy: true });

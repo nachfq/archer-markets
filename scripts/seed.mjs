@@ -12,7 +12,7 @@ try {
   const wallets = [writer];
   if (mode === 'local' || process.env.BUYER_PRIVATE_KEY) wallets.push(await clients(mode, true, true));
   const evidence = [];
-  const quantity = parseAmount(process.env.SEED_QUANTITY || (mode === 'local' ? '1' : '0.01'), record.underlying.decimals);
+  const quantity = parseAmount(process.env.SEED_QUANTITY || (mode === 'local' ? '1' : '0.1'), record.underlying.decimals);
   const market = marketFromManifest(record);
   for (const actor of wallets) {
     const { publicClient, walletClient, account } = actor;

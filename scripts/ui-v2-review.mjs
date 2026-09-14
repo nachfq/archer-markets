@@ -8,7 +8,7 @@ import { readJson } from './config.mjs';
 
 const baseUrl = process.env.BROWSER_BASE_URL ?? 'http://localhost:3000';
 const manifest = await readJson('deployments/31337.json');
-const markets = [manifest, ...(manifest.markets ?? [])].filter(m => m.version === 2 && !m.legacy);
+const markets = [manifest, ...(manifest.markets ?? [])].filter(m => (m.version ?? 1) >= 2 && !m.legacy);
 assert.equal(markets.length, 5);
 assert(['localhost', '127.0.0.1'].includes(new URL(baseUrl).hostname));
 const client = createPublicClient({ transport: http('http://127.0.0.1:8545') });

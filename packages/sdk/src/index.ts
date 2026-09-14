@@ -3,12 +3,13 @@ import { optionAbi, optionFactoryAbi, erc20Abi as tokenErrorsAbi } from './abis.
 export { optionAbi, optionFactoryAbi } from './abis.js';
 export type ChainConfig = { chainId: number; name: string; rpcUrl: string; explorerUrl: string };
 export type TokenConfig = { address: Address; symbol: string; decimals: number; isMock: boolean; adapter?: 'erc20' | 'robinhood' };
-export type MarketConfig = { id: string; chainId: number; factory: Address; deploymentBlock: bigint; version?: 1 | 2; underlying: TokenConfig; quote: TokenConfig; sandbox: boolean };
+export type MarketConfig = { id: string; chainId: number; factory: Address; deploymentBlock: bigint; version?: 1 | 2 | 3; underlying: TokenConfig; quote: TokenConfig; sandbox: boolean };
 export type OptionTrade = { seller: Address; buyer: Address; price: bigint; blockNumber: bigint; transactionHash: Hash };
 export type Option = { address: Address; writer: Address; buyer: Address; underlyingAmount: bigint; strikeTotal: bigint; premium: bigint; expiry: bigint; optionType: number; state: number; resalePrice?: bigint; listingNonce?: bigint; trades?: OptionTrade[] };
-export type MarketSnapshot = { market: MarketConfig; blockNumber: bigint; blockHash: Hash; timestamp: bigint; positions: Option[]; total: bigint };
-export type TokenBalance = { token: TokenConfig; available: bigint; openCollateral: bigint; activeCollateral: bigint; reclaimable: bigint; totalTracked: bigint };
-export type Portfolio = { blockNumber: bigint; timestamp: bigint; gas: bigint; tokens: TokenBalance[]; positions: (Option & { marketId: string })[]; complete: true };
+export type BuyRequest = { id: bigint; buyer: Address; optionType: number; underlyingAmount: bigint; strikeTotal: bigint; premium: bigint; expiry: bigint; acceptUntil: bigint; state: number; option: Address };
+export type MarketSnapshot = { market: MarketConfig; blockNumber: bigint; blockHash: Hash; timestamp: bigint; positions: Option[]; requests?: BuyRequest[]; total: bigint };
+export type TokenBalance = { token: TokenConfig; available: bigint; requestPremium: bigint; refundablePremium: bigint; openCollateral: bigint; activeCollateral: bigint; reclaimable: bigint; totalTracked: bigint };
+export type Portfolio = { blockNumber: bigint; timestamp: bigint; gas: bigint; tokens: TokenBalance[]; positions: (Option & { marketId: string })[]; requests: (BuyRequest & { marketId: string })[]; complete: true };
 export type Spend = { token: TokenConfig; amount: bigint };
 export type PreparedOperation = { action: string; account: Address; chainId: number; request: { to: Address; data: `0x${string}` }; approval?: Spend & { spender: Address }; spend?: Spend };
 export type ErrorCode = 'INSUFFICIENT_BALANCE' | 'INSUFFICIENT_ALLOWANCE' | 'EXPIRED' | 'NOT_EXPIRED' | 'UNAUTHORIZED' | 'UNAVAILABLE' | 'INVALID_TERMS' | 'TOKEN_TRANSFER' | 'WALLET_REJECTED' | 'WRONG_NETWORK' | 'PENDING' | 'REVERTED' | 'RPC_ERROR';
@@ -16,6 +17,9 @@ export class ProtocolError extends Error {
   constructor(public code: ErrorCode, message: string, public nextAction: string, public details?: { token?: string; required?: string; available?: string; technical?: string; txHash?: Hash }) { super(message); this.name = 'ProtocolError'; }
 }
 const messages: Record<string, [ErrorCode, string, string]> = {
+  InvalidLotSize: ['INVALID_TERMS', 'Quantity must be a multiple of 0.1 token.', 'Use 0.1, 0.2, 0.3 or another whole number of lots.'],
+  RequestUnavailable: ['UNAVAILABLE', 'This request is no longer open.', 'Refresh requests; it may have been accepted or canceled.'],
+  RequestExpired: ['EXPIRED', 'The acceptance deadline has passed.', 'The requester can recover the reserved premium.'],
   StaleListing: ['UNAVAILABLE', 'This resale offer changed after you reviewed it.', 'Refresh and review the current seller and total price before buying.'],
   ERC20InsufficientBalance: ['INSUFFICIENT_BALANCE', 'The token balance is too low.', 'Reduce the amount or add the required tokens.'],
   ERC20InsufficientAllowance: ['INSUFFICIENT_ALLOWANCE', 'The token approval is insufficient.', 'Approve the required amount and try again.'],
@@ -78,7 +82,7 @@ export async function validateMarket(client: PublicClient, market: MarketConfig)
     client.readContract({ address: market.quote.address, abi: erc20Abi, functionName: 'decimals' }),
   ]);
   const version = market.version ?? 1;
-  if (![1, 2].includes(version) || (version === 2 && await client.readContract({ address: market.factory, abi: optionFactoryAbi, functionName: 'version' }) !== 2n) || !code || code === '0x' || underlying.toLowerCase() !== market.underlying.address.toLowerCase() || quote.toLowerCase() !== market.quote.address.toLowerCase() || ud !== market.underlying.decimals || qd !== market.quote.decimals) throw new ProtocolError('UNAVAILABLE', 'Deployment does not match the market configuration.', 'Check the network, factory, version and token metadata.');
+  if (![1, 2, 3].includes(version) || (version >= 2 && await client.readContract({ address: market.factory, abi: optionFactoryAbi, functionName: 'version' }) !== BigInt(version)) || !code || code === '0x' || underlying.toLowerCase() !== market.underlying.address.toLowerCase() || quote.toLowerCase() !== market.quote.address.toLowerCase() || ud !== market.underlying.decimals || qd !== market.quote.decimals) throw new ProtocolError('UNAVAILABLE', 'Deployment does not match the market configuration.', 'Check the network, factory, version and token metadata.');
 }
 async function parallelMap<T, R>(items: T[], fn: (item: T) => Promise<R>): Promise<R[]> {
   const results: R[] = [];
@@ -89,7 +93,7 @@ async function parallelMap<T, R>(items: T[], fn: (item: T) => Promise<R>): Promi
 const registries = new WeakMap<PublicClient, Map<string, { block: bigint; hash: Hash; addresses: Address[]; terms: Map<Address, Partial<Option>> }>>();
 async function readOption(client: PublicClient, address: Address, blockNumber: bigint, version: number, terms: Map<Address, Partial<Option>>): Promise<Option> {
   const fixed = ['writer', 'underlyingAmount', 'strikeTotal', 'premium', 'expiry', 'optionType'] as const;
-  const names = [...(terms.has(address) ? [] : fixed), 'buyer', 'state', ...(version === 2 ? ['resalePrice', 'listingNonce'] as const : [])] as const;
+  const names = [...(terms.has(address) ? [] : fixed), 'buyer', 'state', ...(version >= 2 ? ['resalePrice', 'listingNonce'] as const : [])] as const;
   const values = await Promise.all(names.map(functionName => client.readContract({ address, abi: optionAbi, functionName, blockNumber })));
   const option = { address, ...terms.get(address), ...Object.fromEntries(names.map((name, i) => [name, values[i]])) } as Option;
   terms.set(address, Object.fromEntries(fixed.map(name => [name, option[name]])));
@@ -117,7 +121,7 @@ export async function getMarkets(client: PublicClient, markets: MarketConfig[]):
     const terms = previous?.terms ?? new Map<Address, Partial<Option>>();
     cache!.set(key, { block: block.number, hash: block.hash!, addresses, terms });
     const positions = await parallelMap([...addresses].reverse(), address => readOption(client, address, block.number, market.version ?? 1, terms));
-    if (market.version === 2 && addresses.length) {
+    if ((market.version ?? 1) >= 2 && addresses.length) {
       const trades = new Map<string, OptionTrade[]>();
       for (let start = 0; start < addresses.length; start += 100) {
         const logs = await client.getLogs({ address: addresses.slice(start, start + 100), events: [parseAbiItem('event Bought(address indexed buyer, uint256 premium)'), parseAbiItem('event Resold(address indexed seller, address indexed buyer, uint256 price, uint256 nonce)')], fromBlock: market.deploymentBlock, toBlock: block.number, strict: true });
@@ -129,7 +133,15 @@ export async function getMarkets(client: PublicClient, markets: MarketConfig[]):
       }
       for (const p of positions) p.trades = trades.get(p.address.toLowerCase()) ?? [];
     }
-    return { market, total, positions, blockNumber: block.number, blockHash: block.hash!, timestamp: block.timestamp };
+    const requests: BuyRequest[] = [];
+    if (market.version === 3) {
+      const count = await client.readContract({ address: market.factory, abi: optionFactoryAbi, functionName: 'requestCount', blockNumber: block.number });
+      if (count > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('Request registry exceeds supported indexing range.');
+      for (let start = 0; start < Number(count); start += 40) {
+        requests.push(...await parallelMap(Array.from({ length: Math.min(40, Number(count) - start) }, (_, i) => BigInt(start + i)), async id => ({ id, ...await client.readContract({ address: market.factory, abi: optionFactoryAbi, functionName: 'getRequest', args: [id], blockNumber: block.number }) })));
+      }
+    }
+    return { market, total, positions, requests, blockNumber: block.number, blockHash: block.hash!, timestamp: block.timestamp };
   });
 }
 export async function getOption(client: PublicClient, market: MarketConfig, address: Address): Promise<Option> {
@@ -139,15 +151,25 @@ export async function getOption(client: PublicClient, market: MarketConfig, addr
   return option;
 }
 export function summarizePortfolio(snapshots: MarketSnapshot[], account: Address, walletBalances: Map<string, bigint>): TokenBalance[] {
-  const tokens = new Map<string, TokenBalance>(); const seenOptions = new Set<string>();
-  for (const { market, positions, timestamp } of snapshots) {
+  const tokens = new Map<string, TokenBalance>(); const seenOptions = new Set<string>(); const seenRequests = new Set<string>();
+  for (const { market, positions, timestamp, requests = [] } of snapshots) {
     for (const token of [market.underlying, market.quote]) {
       const key = `${market.chainId}:${token.address.toLowerCase()}`;
       if (!tokens.has(key)) {
         const available = walletBalances.get(key);
         if (available === undefined) throw new Error('Incomplete wallet balances.');
-        tokens.set(key, { token, available, openCollateral: 0n, activeCollateral: 0n, reclaimable: 0n, totalTracked: available });
+        tokens.set(key, { token, available, requestPremium: 0n, refundablePremium: 0n, openCollateral: 0n, activeCollateral: 0n, reclaimable: 0n, totalTracked: available });
       }
+    }
+    for (const r of requests) {
+      const key = `${market.chainId}:${market.factory.toLowerCase()}:${r.id}`;
+      if (seenRequests.has(key)) continue;
+      seenRequests.add(key);
+      if (r.state !== 0 || r.buyer.toLowerCase() !== account.toLowerCase()) continue;
+      const row = tokens.get(`${market.chainId}:${market.quote.address.toLowerCase()}`)!;
+      if (r.acceptUntil <= timestamp) row.refundablePremium += r.premium;
+      else row.requestPremium += r.premium;
+      row.totalTracked += r.premium;
     }
     for (const p of positions) {
       const optionKey = `${market.chainId}:${p.address.toLowerCase()}`;
@@ -176,7 +198,7 @@ export async function getPortfolio(client: PublicClient, markets: MarketConfig[]
   }
   const gas = await client.getBalance({ address: account, blockNumber });
   const positions = data.flatMap(s => s.positions.filter(p => [p.writer, p.buyer, ...(p.trades ?? []).flatMap(t => [t.seller, t.buyer])].some(a => a.toLowerCase() === account.toLowerCase())).map(p => ({ ...p, marketId: s.market.id })));
-  return { complete: true, blockNumber, timestamp: data[0].timestamp, gas, tokens: summarizePortfolio(data, account, balances), positions };
+  return { complete: true, blockNumber, timestamp: data[0].timestamp, gas, tokens: summarizePortfolio(data, account, balances), positions, requests: data.flatMap(s => (s.requests ?? []).filter(r => r.buyer.toLowerCase() === account.toLowerCase()).map(r => ({ ...r, marketId: s.market.id }))) };
 }
 async function prepare(client: PublicClient, market: MarketConfig, account: Address, action: string, request: PreparedOperation['request'], spend?: Spend): Promise<PreparedOperation> {
   await validateMarket(client, market);
@@ -204,6 +226,7 @@ export async function simulatePrepared(client: PublicClient, operation: Prepared
 }
 export async function prepareCreateOffer(client: PublicClient, market: MarketConfig, account: Address, terms: { optionType: 0 | 1; quantity: bigint; strikeTotal: bigint; premium: bigint; expiry: bigint }): Promise<PreparedOperation> {
   const { optionType, quantity, strikeTotal, premium, expiry } = terms;
+  if (market.version === 3) validateLotQuantity(quantity, market.underlying.decimals);
   if (![0, 1].includes(optionType) || [quantity, strikeTotal, premium].some(n => n <= 0n || n > 2n ** 256n - 1n) || expiry >= 2n ** 64n || expiry <= (await client.getBlock()).timestamp) throw new ProtocolError('INVALID_TERMS', 'Check positive amounts and a future expiration.', 'Update the offer terms before approval.');
   return prepare(client, market, account, 'create', { to: market.factory, data: encodeFunctionData({ abi: optionFactoryAbi, functionName: 'createOption', args: [optionType, quantity, strikeTotal, premium, expiry] }) }, { token: optionType === 0 ? market.underlying : market.quote, amount: optionType === 0 ? quantity : strikeTotal });
 }
@@ -223,7 +246,7 @@ export const prepareExercise = (client: PublicClient, market: MarketConfig, acco
 export const prepareCancel = (client: PublicClient, market: MarketConfig, account: Address, option: Address) => prepareAction(client, market, account, option, 'cancel');
 export const prepareReclaim = (client: PublicClient, market: MarketConfig, account: Address, option: Address) => prepareAction(client, market, account, option, 'reclaimExpired');
 function requireResale(market: MarketConfig) {
-  if (market.version !== 2) throw new ProtocolError('UNAVAILABLE', 'Resale is unavailable for this legacy contract.', 'Use a version 2 market. Existing positions are not migrated.');
+  if ((market.version ?? 1) < 2) throw new ProtocolError('UNAVAILABLE', 'Resale is unavailable for this legacy contract.', 'Use a version 2 market. Existing positions are not migrated.');
 }
 export async function prepareListResale(client: PublicClient, market: MarketConfig, account: Address, address: Address, price: bigint) {
   requireResale(market);
@@ -252,4 +275,42 @@ export async function getTokenDisplayMetadata(client: PublicClient, token: Token
     const multiplier = await client.readContract({ address: token.address, abi: [{ type: 'function', name: 'uiMultiplier', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] }], functionName: 'uiMultiplier' });
     return { multiplier, available: true };
   } catch { return { available: false }; }
+}
+
+/** One economic lot is 0.1 token. An option can contain many whole lots. */
+export function validateLotQuantity(quantity: bigint, decimals: number): void {
+  if (!Number.isInteger(decimals) || decimals < 1 || decimals > 77 || quantity <= 0n || quantity > 2n ** 256n - 1n || quantity % (10n ** BigInt(decimals - 1)) !== 0n) {
+    throw new ProtocolError('INVALID_TERMS', 'Quantity must be a positive multiple of 0.1 token.', 'Enter a whole number of lots; one option covers the complete quantity.');
+  }
+}
+function requireRequests(market: MarketConfig) {
+  if (market.version !== 3) throw new ProtocolError('UNAVAILABLE', 'Buy requests require a version 3 market.', 'Existing options remain available in their original markets.');
+}
+export async function getBuyRequest(client: PublicClient, market: MarketConfig, id: bigint): Promise<BuyRequest> {
+  requireRequests(market);
+  await validateMarket(client, market);
+  if (id < 0n || id > 2n ** 256n - 1n) throw new ProtocolError('INVALID_TERMS', 'Invalid request identifier.', 'Choose a request from this market.');
+  try { return { id, ...await client.readContract({ address: market.factory, abi: optionFactoryAbi, functionName: 'getRequest', args: [id] }) }; }
+  catch (error) { throw decodeProtocolError(error); }
+}
+export async function prepareCreateRequest(client: PublicClient, market: MarketConfig, account: Address, terms: { optionType: 0 | 1; quantity: bigint; strikeTotal: bigint; premium: bigint; expiry: bigint; acceptUntil: bigint }) {
+  requireRequests(market);
+  validateLotQuantity(terms.quantity, market.underlying.decimals);
+  const { optionType, quantity, strikeTotal, premium, expiry, acceptUntil } = terms;
+  const now = (await client.getBlock()).timestamp;
+  if (![0, 1].includes(optionType) || [strikeTotal, premium].some(n => n <= 0n || n > 2n ** 256n - 1n) || expiry >= 2n ** 64n || acceptUntil <= now || acceptUntil >= expiry) throw new ProtocolError('INVALID_TERMS', 'Check amounts and request deadlines.', 'Acceptance must end before option expiration and after the current chain time.');
+  return prepare(client, market, account, 'Request option', { to: market.factory, data: encodeFunctionData({ abi: optionFactoryAbi, functionName: 'createRequest', args: [optionType, quantity, strikeTotal, premium, expiry, acceptUntil] }) }, { token: market.quote, amount: premium });
+}
+export async function prepareAcceptRequest(client: PublicClient, market: MarketConfig, account: Address, id: bigint) {
+  const r = await getBuyRequest(client, market, id);
+  if (r.state !== 0) throw new ProtocolError('UNAVAILABLE', 'This request is no longer open.', 'Refresh requests.');
+  if (r.buyer.toLowerCase() === account.toLowerCase()) throw new ProtocolError('UNAUTHORIZED', 'You cannot write your own request.', 'Use another writer wallet.');
+  if (r.acceptUntil <= (await client.getBlock()).timestamp) throw new ProtocolError('EXPIRED', 'The acceptance deadline has passed.', 'Choose an open request.');
+  return prepare(client, market, account, 'Accept request & write option', { to: market.factory, data: encodeFunctionData({ abi: optionFactoryAbi, functionName: 'acceptRequest', args: [id] }) }, { token: r.optionType === 0 ? market.underlying : market.quote, amount: r.optionType === 0 ? r.underlyingAmount : r.strikeTotal });
+}
+export async function prepareCancelRequest(client: PublicClient, market: MarketConfig, account: Address, id: bigint) {
+  const r = await getBuyRequest(client, market, id);
+  if (r.buyer.toLowerCase() !== account.toLowerCase()) throw new ProtocolError('UNAUTHORIZED', 'Only the requester can recover this premium.', 'Connect the requester wallet.');
+  if (r.state !== 0) throw new ProtocolError('UNAVAILABLE', 'This request is no longer open.', 'Refresh requests.');
+  return prepare(client, market, account, 'Cancel request & recover premium', { to: market.factory, data: encodeFunctionData({ abi: optionFactoryAbi, functionName: 'cancelRequest', args: [id] }) });
 }

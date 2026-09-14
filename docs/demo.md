@@ -1,242 +1,63 @@
-# Reproducible demo: physical token delivery
+# Local V3 walkthrough
 
-## Choose the local demo
+This guide describes a local demonstration to run, not an already-running testnet product.
+Robinhood Chain Testnet has no configured protocol deployment. Use the root README to
+start Anvil, deploy fresh V3 factories, seed and start `npm run dev:local`.
 
-The [published private website](https://stock-options-lab.nachofq.chatgpt.site) hosts the
-frontend with Robinhood testnet configuration, chain **46630**, and `factory: null`.
-It does not currently provide a funded public options market. To test real transactions
-before funding a testnet wallet, run the local app against Anvil, chain **31337**.
+## Two wallets
 
-Anvil sessions are temporary. Start a fresh session when the local services are not
-running; saved addresses alone do not provide a running blockchain or deployed contracts.
+Use two disposable local Anvil wallets: requester and writer. Connect them in separate
+browser profiles to the same local chain 31337. Obtain MockUSD and MockSTOCK from the
+wallet menu. These tokens are fixtures with no real value. Never use public Anvil keys
+on a public network. Approval alone does not deposit funds.
 
-## Start the local blockchain and application
+## Request a put and exercise it
 
-From the repository root, install dependencies once:
+1. As requester, select the practice market and **Buy Requests → Request option**.
+2. Enter Put, quantity **0.2 token**, total exercise payment **60 MockUSD**, total premium
+   **2 MockUSD**, and a future exercise expiration. Set **Accept until** earlier than the
+   option expiration and later than the current chain time.
+3. Review the complete quantity, deadlines and premium deposit. Reserve the premium.
+   Portfolio should show 2 MockUSD in request premiums and 2 fewer MockUSD available.
+   There is no option yet and no Stock Tokens are deposited by the requester.
+4. As writer, open that request and review acceptance. The writer needs **60 MockUSD**
+   upfront for collateral. Approve the factory if necessary and select **Accept & write
+   option**. The 2 MockUSD premium cannot fund the upfront collateral deposit.
+5. Acceptance creates one option holding 60 MockUSD, assigns the requester as buyer and
+   pays 2 MockUSD to the writer. The request links to that option. Both wallets can find
+   the position in Portfolio; the requester no longer has a reserved premium.
+6. As requester, review exercise before expiration. Approve **0.2 Stock Tokens** to the
+   option and exercise. The tokens go to the writer and the requester receives 60 MockUSD
+   from the option in the same transaction. Missing funds/approvals revert the exchange.
 
-```sh
-npm ci
-npm run contracts:deps
-npm --prefix web ci
-```
+For a call with the same terms, acceptance deposits 0.2 Stock Tokens instead. Exercise
+requires the holder to deliver 60 MockUSD and receives those 0.2 tokens. The 2 MockUSD
+premium is paid separately, never deducted from exercise payment.
 
-Keep terminal A running:
+## Request cancellation and expiration
 
-```sh
-npm run anvil
-```
+Publish another request and cancel it before acceptance. The requester recovers the full
+premium. Repeat with a short acceptance deadline; after it passes, acceptance is disabled
+and **My requests** offers premium recovery. No refund happens automatically. After a
+request is accepted, request cancellation is unavailable; manage the resulting option.
 
-In terminal B:
+If a purchased option expires unexercised, the writer can reclaim its collateral. The
+buyer cannot exercise at or after the onchain deadline; already-paid premium stays paid.
 
-```sh
-npm run deploy:local
-npm run seed:local
-npm run dev:local
-```
+## Writer-first flow and resale
 
-Open the server URL, normally `http://localhost:3000`. The seed script creates one call
-and one put from each of the first two Anvil accounts, with deposited test collateral.
-After every Anvil restart, repeat deployment and seeding.
+**Write Options** still creates an unsold collateralized option. Quantity is a multiple
+of 0.1, accepted in full. A buyer pays the premium to the writer. Unsold options can be
+canceled by the writer. V2/V3 holders can list the complete right for resale; its writer,
+collateral and exercise terms remain unchanged.
 
-The default **Trade → Buy** screen contains the options chain. Choose a listed expiration, then select a
-call or put in the strike table. The bottom review ticket shows exact whole-lot terms
-and the available action for the connected wallet. Expiration and strike-count dropdowns
-start at the nearest listed timestamp and five strikes; choose 10 or all for more.
-Only funded open offers appear, with no invented bids, trade history, or volume.
-Bought options remain under **Portfolio** and cannot be resold or transferred
-in this contract version.
+## Evidence and checks
 
-## Set up two browser wallet accounts
+The onchain request/option registries populate Portfolio. Activity is browser-local
+submission history reconciled with onchain receipts. Clearing browser storage does not
+delete contract positions or requests.
 
-Use a disposable development wallet, separate from any wallet holding real assets.
-For the default Anvil configuration, import its **public local-development mnemonic**:
-
-```text
-test test test test test test test test test test test junk
-```
-
-Create or select the first two accounts derived from that mnemonic:
-
-| Role | Default Anvil address |
-|---|---|
-| Account A | `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266` |
-| Account B | `0x70997970C51812dc3A010C7d01b50e0d17dc79C8` |
-
-Add a custom network with chain ID **31337**, RPC `http://127.0.0.1:8545`, currency
-symbol **ETH**, and no explorer. Connect the local app to account A. Switch the connected
-account to B when buying or exercising; separate browser profiles are also suitable.
-The writer cannot buy their own offer.
-
-These credentials are public test fixtures, not secrets: never send real assets to them
-or use them on a public network. Anvil supplies local ETH. Open the **Wallet menu** to access the faucet buttons, which provide
-MockUSD and the selected practice market’s MockSTOCK. The seed step already funds both accounts with mocks.
-The amounts below are fictional terms, **not TSLA market quotes**.
-
-## Covered call
-
-The creation form offers suggested Friday/monthly deadlines and a separate
-**Custom expiration…** entry in the expiration dropdown. Suggested dates use 16:00 New York time, with an
-explicit UTC preview, and are not adjusted for exchange holidays. The **Lot shortcut** dropdown (0.01 or 1 token) and **Max** button help size affordable offers.
-Max uses available wallet collateral, not funds already committed to other options.
-
-1. Account A opens **Trade**, selects **Write option** in the Action dropdown, and chooses Covered call, quantity 1, strike per token
-   300 MockUSD, premium per token 8 MockUSD, and a future expiration.
-2. Select **Review offer**, check the collateral and totals, then select
-   **Deposit collateral & write option**. Approve 1 MockSTOCK to the factory, then confirm creation. The stock moves from A
-   into the option contract. Approval and creation are separate wallet transactions.
-3. Expand **Contract details**, copy the offer link, and open it with account B connected. Acknowledge the manual
-   exercise deadline. Approve the premium to
-   that option, then buy. A receives 8 MockUSD; the stock remains in escrow.
-4. B approves 300 MockUSD to the option and exercises. B receives 1 MockSTOCK and
-   A receives 300 MockUSD in the same exercise transaction.
-5. Check the Exercised state and balances. The option no longer holds its agreed collateral.
-
-To test buying first, B can instead open one of A's seeded calls and start at step 3.
-
-## Cash-secured put
-
-1. A selects **Cash-secured put** under **Trade → Write**, with quantity 1 token,
-   strike per token 250 MockUSD and premium per token 6 MockUSD, then selects **Review offer**.
-2. A approves 250 MockUSD to the factory and creates the offer. The test cash is escrowed.
-3. B acknowledges the manual exercise deadline, approves and pays the 6 MockUSD
-   premium to buy. A receives the premium.
-4. B approves 1 MockSTOCK to the option and exercises. A receives the token and
-   B receives 250 MockUSD in the same transaction.
-
-## Cancellation and expiration
-
-- The writer can cancel an open offer and recover its collateral.
-- A purchased offer cannot be cancelled. Its buyer decides whether to exercise.
-- Exercise must be included in a block before expiration. The browser countdown is
-  informational; the blockchain timestamp is authoritative.
-- At or after expiration, **Portfolio** lets the writer reclaim collateral if the
-  option was not exercised. The writer keeps any premium already paid.
-- `npm run test:e2e` checks the exact expiration boundary using controlled Anvil time;
-  no manual waiting is required for that test.
-
-## Optional automated checks
-
-```sh
-npm test
-npm run typecheck
-npm run build
-npm run test:e2e
-```
-
-The end-to-end test requires the deployed local contracts and running Anvil. It advances
-local time. For a fresh manual demo afterward, restart Anvil, then repeat `deploy:local`
-and `seed:local` so the chain clock matches the browser clock again.
-
-With Anvil and the local frontend running, test the browser workflow:
-
-```sh
-npx playwright install chromium
-npm run test:browser
-```
-
-Browser tests use local EIP-1193 wallet fixtures backed by Anvil, not real wallet
-extensions. They check UI transactions, option states, and balances. The last test
-advances Anvil time; restart Anvil and repeat deployment and seeding before a manual
-demo. Evidence files are ignored under `deployments/`.
-
-The optional `RobinhoodForkTest` command in the [README](../README.md) exercises the
-existing TSLA implementation on a local RPC fork with synthetic balances. It sends
-no public transactions and does not replace a funded testnet demo.
-
-## Move the demo to testnet later
-
-Follow `deploy:testnet`, `seed:testnet`, and `verify:testnet` in the README with funded
-testnet wallets. On that network, the underlying is the existing TSLA token obtained
-from Robinhood's faucet; the app only mints our MockUSD. Explorer transaction links
-become public evidence only after those transactions actually occur.
-
-Deploying contracts and publishing a website are separate steps. The existing hosted
-frontend remains configured without a factory until an updated frontend configuration
-is published.
-
-For visual and usability checks against a running local demo, run
-`node scripts/ux-browser-review.mjs`. The script writes screenshots and a JSON report
-to `/tmp/options-ux-review` by default; `UX_REVIEW_OUTPUT` overrides that directory.
-It checks desktop/tablet/mobile layouts, keyboard focus, displayed text contrast,
-empty/offline states, and viewport reflow equivalent to 200% desktop zoom.
-
-## Capital, activity, and fractional offers
-
-Trade → Buy lists written options awaiting buyers. Connect a wallet to filter between
-all listings, options available to buy from other writers, and your own written
-options. Your listings are labeled **Yours** and open a management ticket;
-other writers' listings show **Buy** and open a purchase review. At each strike, the cheapest option
-from each writer group stays visible and additional quotes can be expanded.
-
-Use **Trade → Write**, then **Review offer**, to deposit collateral in a newly created, separate option
-contract. Approval alone does not deposit tokens. The review panel shows the
-collateral amount, contract address, and whether it is held, recoverable, delivered,
-or returned. Portfolio's **Position status → Closed options** reads final contract states onchain;
-**Activity** records this browser's transactions and reconciles their receipts.
-
-Connect a wallet and expand **Portfolio → Balances & collateral** to see available
-tokens, open-order collateral, active collateral and expired collateral ready to reclaim. Portfolio includes every configured market
-on the selected chain and lists all owned positions. Trade reads all registered
-options, then groups open listings by expiration and strike. Total tracked is not
-net portfolio value.
-Distinct tokens with the same symbol include their market label and shortened address.
-
-Try quantity 0.01, strike 300, premium 8: the exact exercise total is 3 MockUSD and
-premium is 0.08 MockUSD. A call deposits 0.01 stock tokens; a put deposits 3 MockUSD.
-The creation summary shows the required deposit and remaining wallet balance. An
-unaffordable or unrepresentable lot disables creation and explains the reason.
-
-Activity distinguishes approval from operation and tracks pending hashes across reloads.
-Pending transactions pause new actions for that wallet/network until a receipt is known.
-A timeout is not treated as a revert. Browser history is not a complete wallet history;
-confirmed option positions are independently reconstructed from the onchain registry.
-Calendar export adds a review reminder one hour before expiration, not an automatic executor.
-
-Use the Market selector for the separate practice factory. Its MockSTOCK is a different
-contract from the primary asset; MockUSD is intentionally shared and counted once.
-The practice market starts empty and provides a faucet after connecting.
-
-## Workspace regression checks
-
-The updated browser smoke covers Buy / Write dropdowns, the separate offer-review
-step, writer ownership, exercise, cancel/reclaim, insufficient collateral, rejected
-signatures and persistent pending receipts. Reviewing an offer must leave balances
-and factory count unchanged.
-
-To isolate transaction acceptance from an existing demo, start an Anvil fork in a
-separate terminal and route only the smoke-test browser to it:
-
-```sh
-anvil --host 127.0.0.1 --port 8546 --chain-id 31337 --fork-url http://127.0.0.1:8545 --silent
-```
-
-```sh
-ANVIL_RPC_URL=http://127.0.0.1:8546 npm run test:browser
-```
-
-Do not reuse that test fork as a manual demo: the final scenario advances its clock.
-The original port-8545 demo is not changed by these forked transactions.
-
-`node scripts/ux-browser-review.mjs` additionally checks write-review focus,
-mobile form/review separation, review invalidation after editing, and market-change
-reset. `node scripts/writer-ux-review.mjs` checks connected ownership presentation
-using a wallet fixture that rejects signing.
-
-For root/detail social metadata and unconfigured-testnet acceptance, keep the local
-Anvil development frontend on port 3000, then build and serve the testnet frontend
-on port 3001 in another terminal:
-
-```sh
-VITE_CHAIN_ID=46630 npm run build
-npm --prefix web run start -- --port 3001 --hostname 127.0.0.1
-```
-
-```sh
-node scripts/workspace-review.mjs
-```
-
-This read-only check requires at least one call and one put in the original local
-registry. It checks browser back/forward, strike controls, wallet keyboard behavior,
-and disabled submissions without a configured testnet factory. Override
-`BROWSER_BASE_URL`, `TESTNET_PREVIEW_URL`, or `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`
-when the local URLs or Chromium installation differ. No public transactions are sent.
+Run `npm test`, `npm run typecheck`, `npm --prefix web run lint` and `npm run build` for
+source checks. Follow the root README's isolated Anvil instructions for `npm run test:e2e`.
+Those checks advance time, so never use the active manual-demo node. Historical browser
+review scripts are development fixtures, not public testnet acceptance evidence.

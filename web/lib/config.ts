@@ -20,7 +20,7 @@ export type Deployment = {
   marketId?: string;
   label?: string;
   sandbox?: boolean;
-  version?: 1 | 2;
+  version?: 1 | 2 | 3;
   legacy?: boolean;
   markets?: Array<Pick<Deployment, "marketId" | "label" | "sandbox" | "factory" | "deploymentBlock" | "underlying" | "quote" | "version" | "legacy">>;
   underlying: Token;

@@ -30,9 +30,9 @@ contract RobinhoodForkTest is Test {
         // forge-std edits fork storage, not public testnet balances. This does not prove faucet availability.
         deal(TSLA, writer, 1e18);
         vm.startPrank(writer);
-        stock.approve(address(factory), 0.25e18);
+        stock.approve(address(factory), 0.2e18);
         Option option =
-            Option(factory.createOption(Option.OptionType.Call, 0.25e18, 100e6, 5e6, uint64(block.timestamp + 1 days)));
+            Option(factory.createOption(Option.OptionType.Call, 0.2e18, 100e6, 5e6, uint64(block.timestamp + 1 days)));
         vm.stopPrank();
         vm.startPrank(buyer);
         usd.faucet();
@@ -40,8 +40,8 @@ contract RobinhoodForkTest is Test {
         option.buy();
         option.exercise();
         vm.stopPrank();
-        assertEq(stock.balanceOf(writer), 0.75e18);
-        assertEq(stock.balanceOf(buyer), 0.25e18);
+        assertEq(stock.balanceOf(writer), 0.8e18);
+        assertEq(stock.balanceOf(buyer), 0.2e18);
         assertEq(usd.balanceOf(writer), 105e6);
         assertEq(stock.balanceOf(address(option)), 0);
 
@@ -50,11 +50,11 @@ contract RobinhoodForkTest is Test {
         usd.faucet();
         usd.approve(address(factory), 100e6);
         Option put =
-            Option(factory.createOption(Option.OptionType.Put, 0.25e18, 100e6, 5e6, uint64(block.timestamp + 1 days)));
+            Option(factory.createOption(Option.OptionType.Put, 0.2e18, 100e6, 5e6, uint64(block.timestamp + 1 days)));
         vm.stopPrank();
         vm.startPrank(buyer);
         usd.approve(address(put), 5e6);
-        stock.approve(address(put), 0.25e18);
+        stock.approve(address(put), 0.2e18);
         put.buy();
         put.exercise();
         vm.stopPrank();

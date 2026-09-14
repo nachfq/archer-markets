@@ -18,20 +18,52 @@ export const optionFactoryAbi = [
   },
   {
     "type": "function",
+    "name": "acceptRequest",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "option",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "cancelRequest",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "createOption",
     "inputs": [
       {
-        "name": "optionType",
+        "name": "kind",
         "type": "uint8",
         "internalType": "enum Option.OptionType"
       },
       {
-        "name": "underlyingAmount",
+        "name": "quantity",
         "type": "uint256",
         "internalType": "uint256"
       },
       {
-        "name": "strikeTotal",
+        "name": "strike",
         "type": "uint256",
         "internalType": "uint256"
       },
@@ -48,12 +80,135 @@ export const optionFactoryAbi = [
     ],
     "outputs": [
       {
-        "name": "option",
+        "name": "",
         "type": "address",
         "internalType": "address"
       }
     ],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "createRequest",
+    "inputs": [
+      {
+        "name": "kind",
+        "type": "uint8",
+        "internalType": "enum Option.OptionType"
+      },
+      {
+        "name": "quantity",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "strike",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "premium",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "expiry",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "acceptUntil",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getRequest",
+    "inputs": [
+      {
+        "name": "id",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct OptionFactory.BuyRequest",
+        "components": [
+          {
+            "name": "buyer",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "optionType",
+            "type": "uint8",
+            "internalType": "enum Option.OptionType"
+          },
+          {
+            "name": "underlyingAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "strikeTotal",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "premium",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "expiry",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "acceptUntil",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "state",
+            "type": "uint8",
+            "internalType": "enum OptionFactory.RequestState"
+          },
+          {
+            "name": "option",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "lotSize",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -96,6 +251,32 @@ export const optionFactoryAbi = [
         "name": "",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "requestCount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "reservedPremium",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -152,6 +333,69 @@ export const optionFactoryAbi = [
     "anonymous": false
   },
   {
+    "type": "event",
+    "name": "RequestAccepted",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "writer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "option",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RequestCancelled",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "buyer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RequestCreated",
+    "inputs": [
+      {
+        "name": "requestId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "buyer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
     "type": "error",
     "name": "AddressEmptyCode",
     "inputs": [
@@ -180,12 +424,32 @@ export const optionFactoryAbi = [
   },
   {
     "type": "error",
+    "name": "InvalidLotSize",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidPair",
     "inputs": []
   },
   {
     "type": "error",
+    "name": "InvalidTerms",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "ReentrancyGuardReentrantCall",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "RequestExpired",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "RequestUnavailable",
     "inputs": []
   },
   {
@@ -198,6 +462,11 @@ export const optionFactoryAbi = [
         "internalType": "address"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "Unauthorized",
+    "inputs": []
   },
   {
     "type": "error",
@@ -257,6 +526,19 @@ export const optionAbi = [
     "type": "function",
     "name": "activateFunding",
     "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "activateRequestedPurchase",
+    "inputs": [
+      {
+        "name": "buyer_",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
     "outputs": [],
     "stateMutability": "nonpayable"
   },

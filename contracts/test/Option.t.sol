@@ -17,7 +17,7 @@ contract OptionTest is Test {
     address writer = makeAddr("writer");
     address buyer = makeAddr("buyer");
     address stranger = makeAddr("stranger");
-    uint256 constant LOT = 0.25e18;
+    uint256 constant LOT = 0.2e18;
     uint256 constant STRIKE = 100e6;
     uint256 constant PREMIUM = 5e6;
     uint64 expires;
@@ -99,7 +99,7 @@ contract OptionTest is Test {
         uint64 strikeSeed,
         uint64 premiumSeed
     ) public {
-        uint256 amount = bound(uint256(amountSeed), 1, 10e18);
+        uint256 amount = bound(uint256(amountSeed), 1, 100) * 0.1e18;
         uint256 strike = bound(uint256(strikeSeed), 1, 5_000e6);
         uint256 cost = bound(uint256(premiumSeed), 1, 5_000e6);
         uint256 outcome = bound(uint256(terminal), 0, 3); // cancel, expire open, expire bought, exercise
@@ -314,7 +314,7 @@ contract OptionTest is Test {
 
     function testInvalidTerms() public {
         vm.startPrank(writer);
-        vm.expectRevert(Option.InvalidTerms.selector);
+        vm.expectRevert(OptionFactory.InvalidLotSize.selector);
         factory.createOption(Option.OptionType.Call, 0, STRIKE, PREMIUM, expires);
         vm.expectRevert(Option.InvalidTerms.selector);
         factory.createOption(Option.OptionType.Call, LOT, 0, PREMIUM, expires);
@@ -369,6 +369,7 @@ contract AdversarialToken is ERC20 {
     bytes4 public callbackError;
     bool private callbackRunning;
     constructor() ERC20("Adversarial", "BAD") {}
+    function decimals() public pure override returns (uint8) { return 1; }
 
     function mint(address to, uint256 amount) external {
         _mint(to, amount);

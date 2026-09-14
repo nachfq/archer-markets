@@ -84,7 +84,7 @@ try {
     await page.getByRole('button', { name: 'Write Options', exact: true }).click();
     await page.getByLabel('Write expiration', { exact: true }).waitFor();
     await inspect(page, `${name}-create`);
-    await page.getByLabel(/^Quantity of/).fill('0.01');
+    await page.getByLabel(/^Quantity of/).fill('0.1');
     await page.getByLabel(/^Strike per token/).fill('100');
     await page.getByLabel(/^Premium per token/).fill('5');
     await page.getByRole('button', { name: 'Review offer →' }).click();
@@ -97,7 +97,7 @@ try {
     await expect(page.locator('#write-review-heading')).toBeVisible();
     await page.getByRole('button', { name: /Back to options/ }).click();
     await expect(page.getByRole('button', { name: 'Review offer →' })).toBeFocused();
-    await expect(page.getByLabel(/^Quantity of/)).toHaveValue('0.01');
+    await expect(page.getByLabel(/^Quantity of/)).toHaveValue('0.1');
     if (width >= 768) {
       await page.getByRole('button', { name: 'Review offer →' }).click();
       await page.getByLabel(/^Premium per token/).fill('6');

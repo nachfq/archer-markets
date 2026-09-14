@@ -28,7 +28,7 @@ test('Max put quantity fits collateral and produces an exactly representable tot
 test('portfolio separates writer obligations, expired collateral and purchased rights', () => {
   const positions=[option(1),option(2,{state:1}),option(3,{expiry:50n}),option(4,{state:2}),option(5,{state:3}),option(6,{state:4}),option(7,{writer:buyer,buyer:writer,state:1}),option(8,{optionType:1})];
   const rows=summarizePortfolio([snapshot(positions)],writer,new Map([[`31337:${stock.address}`,11n],[`31337:${usd.address}`,19n]]));
-  assert.deepEqual(rows[0],{token:stock,available:11n,openCollateral:2n,activeCollateral:2n,reclaimable:2n,totalTracked:17n});
+  assert.deepEqual(rows[0],{token:stock,available:11n,requestPremium:0n,refundablePremium:0n,openCollateral:2n,activeCollateral:2n,reclaimable:2n,totalTracked:17n});
   assert.equal(rows[1].openCollateral,7n); assert.equal(rows[1].totalTracked,26n);
 });
 test('shared tokens and duplicate market entries are never counted twice', () => {
@@ -124,4 +124,68 @@ test('cached terms never cache mutable ownership, state or resale quotes', async
   client.getBlock = async () => ({ number: 10n, hash: `0x${'b'.repeat(64)}`, timestamp: 50n });
   positions[0].strikeTotal = 20n;
   assert.equal((await getMarkets(client, [{ ...market, version: 2 }]))[0].positions[0].strikeTotal, 20n, 'A reorg invalidates cached immutable terms');
+});
+
+test('V3 lots reject fractional lots while preserving exact 0.1-token multiples', async () => {
+  const { validateLotQuantity } = await import('../dist/index.js');
+  for (const quantity of ['0.1', '1.2', '10']) validateLotQuantity(parseAmount(quantity, 18), 18);
+  for (const quantity of ['0.01', '0.15', '1.25']) assert.throws(() => validateLotQuantity(parseAmount(quantity, 18), 18), { code: 'INVALID_TERMS' });
+  assert.throws(() => validateLotQuantity(0n, 18));
+  assert.throws(() => validateLotQuantity(1n, 0));
+});
+
+test('request premiums are counted once across markets and never become writer collateral', () => {
+  const request = { id: 0n, buyer: writer, optionType: 0, underlyingAmount: 100n, strikeTotal: 200n, premium: 7n, expiry: 100n, acceptUntil: 75n, state: 0, option: addr(0) };
+  const first = { ...snapshot([]), requests: [request, { ...request, id: 1n, premium: 5n, acceptUntil: 50n }, { ...request, id: 2n, state: 1 }, { ...request, id: 3n, state: 2 }, { ...request, id: 4n, buyer }] };
+  const second = { ...snapshot([], { ...market, id: 'two', factory: addr(9) }), requests: [request] };
+  const rows = summarizePortfolio([first, first, second], writer, new Map([[`31337:${stock.address}`, 11n], [`31337:${usd.address}`, 19n]]));
+  const row = rows.find(r => r.token.address === usd.address);
+  assert.equal(row.requestPremium, 14n);
+  assert.equal(row.refundablePremium, 5n);
+  assert.equal(row.openCollateral, 0n);
+  assert.equal(row.totalTracked, 38n);
+});
+
+function requestClient(request, allowance = 0n) {
+  const fake = fakeClient([], undefined, allowance), original = fake.client.readContract;
+  fake.client.readContract = async args => {
+    if (args.functionName === 'version') return 3n;
+    if (args.functionName === 'requestCount') return 1n;
+    if (args.functionName === 'getRequest') { fake.reads.push({functionName: args.functionName, blockNumber: args.blockNumber}); return request; }
+    return original(args);
+  };
+  return fake;
+}
+const requestTerms = { optionType: 0, quantity: 10n ** 17n, strikeTotal: 30_000000n, premium: 1_000000n, expiry: 100n, acceptUntil: 75n };
+const requestRecord = { ...requestTerms, underlyingAmount: requestTerms.quantity, buyer, state: 0, option: addr(0) };
+
+test('V3 SDK prepares exact premium and collateral approvals with distinct requester and writer', async () => {
+  const { prepareCreateRequest, prepareAcceptRequest, prepareCancelRequest } = await import('../dist/index.js');
+  const m = { ...market, version: 3 }, {client} = requestClient(requestRecord);
+  const create = await prepareCreateRequest(client, m, buyer, requestTerms);
+  assert.equal(create.approval.token.address, usd.address);
+  assert.equal(create.approval.amount, requestTerms.premium);
+  assert.equal(create.approval.spender, m.factory);
+  const accept = await prepareAcceptRequest(client, m, writer, 0n);
+  assert.equal(accept.approval.token.address, stock.address);
+  assert.equal(accept.approval.amount, requestTerms.quantity);
+  const cancel = await prepareCancelRequest(client, m, buyer, 0n);
+  assert.equal(cancel.approval, undefined);
+  await assert.rejects(prepareAcceptRequest(client, m, buyer, 0n), {code: 'UNAUTHORIZED'});
+  await assert.rejects(prepareCancelRequest(client, m, writer, 0n), {code: 'UNAUTHORIZED'});
+  await assert.rejects(prepareCreateRequest(client, market, buyer, requestTerms), {code: 'UNAVAILABLE'});
+  await assert.rejects(prepareCreateRequest(client, m, buyer, {...requestTerms, acceptUntil: 100n}), {code: 'INVALID_TERMS'});
+});
+
+test('request registry uses the portfolio snapshot block; expired requests permit only refunds', async () => {
+  const { prepareAcceptRequest, prepareCancelRequest } = await import('../dist/index.js');
+  const m = { ...market, version: 3 }, {client, reads} = requestClient({...requestRecord, acceptUntil: 50n});
+  const snapshots = await getMarkets(client, [m]);
+  assert.equal(snapshots[0].requests.length, 1);
+  assert.equal(reads.find(r => r.functionName === 'getRequest').blockNumber, 10n);
+  const portfolio = await getPortfolio(client, [m], buyer, snapshots);
+  assert.equal(portfolio.requests.length, 1);
+  assert.equal(portfolio.tokens.find(t => t.token.address === usd.address).refundablePremium, requestTerms.premium);
+  await assert.rejects(prepareAcceptRequest(client, m, writer, 0n), {code: 'EXPIRED'});
+  await prepareCancelRequest(client, m, buyer, 0n);
 });

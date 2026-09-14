@@ -3,9 +3,9 @@
 A framework-independent TypeScript SDK for fully collateralized, physically delivered
 American options. It uses public manifests and caller-supplied viem clients. It never
 stores keys or signs on behalf of an integration. It supports legacy protocol v1 and
-protocol v2 whole-option resale. There is no automatic exercise, oracle settlement,
-or mainnet configuration. Omitted market versions default to 1; version 2 factories
-must report `version() == 2`.
+protocol v2 whole-option resale and v3 whole-fill buy requests. There is no automatic exercise, oracle settlement,
+or mainnet configuration. Omitted market versions default to 1; version 2/3 factories
+must report the matching `version()` value. V3 is source/local development, not a public testnet deployment.
 
 ## Install and build
 
@@ -47,7 +47,7 @@ Use a separate client per chain. Market factories and decimals are checked again
 Exports include `getMarkets`, `getOption`, `getPortfolio`, `prepareCreateOffer`,
 `prepareBuy`, `prepareExercise`, `prepareCancel`, `prepareReclaim`, `simulatePrepared`,
 `decodeProtocolError`, `parseAmount`, `quoteTotal`, `maximumQuantity`, and generated ABIs.
-Version 2 also exports `prepareListResale`, `prepareCancelResale`, and
+Versions 2 and 3 also support `prepareListResale`, `prepareCancelResale`, and
 `prepareBuyResale`. The last takes the reviewed `{ seller, price, nonce }` quote;
 do not silently replace it with a refreshed price before sending. The contract
 validates the quote atomically. Listing can be edited by listing again; it never
@@ -62,7 +62,7 @@ value: the writer still has obligations against active collateral. A failed regi
 or token read rejects the snapshot rather than returning a misleading complete total.
 Immutable registry addresses and terms are cached after checking the prior block hash;
 position states, holders and listings are always read again at one snapshot block.
-V2 purchase/resale events retain past holders and actual payment history. V1 reads
+V2/V3 purchase/resale events retain past holders and actual payment history. V1 reads
 never call resale getters. Initial reads and state refresh scale linearly with
 option count. This is appropriate for a small pilot, not a production indexer.
 
@@ -86,3 +86,40 @@ The example uses only SDK exports, viem, Node built-ins, and the manifest. It ex
 call, put, cancel, and recovery paths with conservation checks. It verifies loopback,
 chain 31337, and Anvil before using public development accounts. It advances local time
 by one minute. Never adapt these development accounts for a public chain.
+
+## Whole-fill requests (V3)
+
+Use a market with `version: 3`. `validateLotQuantity(quantity, decimals)` enforces positive
+multiples of 0.1 token. `prepareCreateOffer` applies that check for V3; legacy amounts are
+still readable. `maximumQuantity` is a general precision helper, not a V3 lot-floor helper;
+floor its result to `10n ** BigInt(decimals - 1)` before proposing a V3 quantity.
+
+```ts
+import { parseAmount, prepareCreateRequest, prepareAcceptRequest,
+  prepareCancelRequest, getBuyRequest } from '@stock-options-lab/sdk';
+
+const now = (await client.getBlock()).timestamp;
+const reserve = await prepareCreateRequest(client, marketConfig, buyerAddress, {
+  optionType: 1,
+  quantity: parseAmount('0.2', marketConfig.underlying.decimals),
+  strikeTotal: parseAmount('60', marketConfig.quote.decimals),
+  premium: parseAmount('2', marketConfig.quote.decimals),
+  acceptUntil: now + 86400n,
+  expiry: now + 604800n,
+});
+// Process reserve.approval if present, simulate again, sign, then await the receipt.
+// Extract requestId from the confirmed RequestCreated event; IDs are factory-scoped.
+const accept = await prepareAcceptRequest(client, marketConfig, writerAddress, requestId);
+// The writer approves full collateral to the factory, then submits acceptance.
+const request = await getBuyRequest(client, marketConfig, requestId);
+// Once accepted, request.option is the independent active option address.
+// Alternatively, while still open, only the requester can prepare a refund:
+const refund = await prepareCancelRequest(client, marketConfig, buyerAddress, requestId);
+```
+
+The last call is an alternative to acceptance, not a step after successful acceptance.
+All preparation is read-only; callers own signing and successful-receipt handling.
+`getMarkets` includes requests at the snapshot block. `getPortfolio` includes requester-owned
+requests and separate `requestPremium` / `refundablePremium` balances. Both count toward
+`totalTracked` but never toward writer collateral. Request reads are linear in registry size.
+Neither expiry nor cancellation changes an already-created option.

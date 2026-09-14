@@ -34,7 +34,7 @@ const underlying = deployment.underlying.address;
 const quote = deployment.quote.address;
 assert((await client.getCode({ address: factory }))?.length > 2, 'Local factory is missing');
 
-const quantity = 1_250_000_000_000_000_000n;
+const quantity = 1_200_000_000_000_000_000n;
 const strike = 312_345_680n;
 const premium = 4_567_890n;
 const evidence = { chainId: 31337, baseUrl, factory, writer, buyer, startedAt: new Date().toISOString(), setupTransactions: [], scenarios: [] };
@@ -158,9 +158,9 @@ async function create(page, type, usePreset = false) {
     await page.getByRole('button', { name: 'Max', exact: true }).click();
     await expect(page.getByLabel(/^Quantity of/)).toHaveValue(formatUnits(before.underlying,18));
   }
-  await page.getByLabel('Lot shortcut').selectOption('0.01');
-  await expect(page.getByLabel(/^Quantity of/)).toHaveValue('0.01');
-  await page.getByLabel(/^Quantity of/).fill('1.25');
+  await page.getByLabel('Lot shortcut').selectOption('0.1');
+  await expect(page.getByLabel(/^Quantity of/)).toHaveValue('0.1');
+  await page.getByLabel(/^Quantity of/).fill('1.2');
   await page.getByLabel(/^Exercise payment — total/).fill('312.34568');
   await page.getByLabel(/^Option price — total/).fill('4.56789');
   let expectedExpiry;
@@ -175,7 +175,7 @@ async function create(page, type, usePreset = false) {
   }
   await page.getByRole('button', { name: 'Review offer →' }).click();
   await expect(page.getByRole('complementary', { name: 'Offer funding summary' })).toBeVisible();
-  await expect(page.locator('.funding-impact dd')).toHaveText(type === 0 ? `1.25 ${deployment.underlying.symbol}` : '312.34568 MockUSD');
+  await expect(page.locator('.funding-impact dd')).toHaveText(type === 0 ? `1.2 ${deployment.underlying.symbol}` : '312.34568 MockUSD');
   // Reviewing must never send an approval or create a contract.
   assert.equal(await read(factory, factoryAbi, 'optionCount'), beforeCount);
   assert.equal(await read(underlying, erc20Abi, 'balanceOf', [writer]), before.underlying);
@@ -310,7 +310,7 @@ try {
     console.log(`PASS ${entry.label}`);
   }
 
-  for (const target of allMarkets.filter(m => m.version === 2 && !m.legacy)) {
+  for (const target of allMarkets.filter(m => (m.version ?? 1) >= 2 && !m.legacy)) {
     const entry = { label: `Market selector creates in ${target.marketId} factory`, transactions: [] };
     evidence.scenarios.push(entry); transactions = entry.transactions;
     console.log(`UI verify factory ${target.marketId}`);
@@ -393,7 +393,7 @@ try {
   await writerPage.screenshot({ path: join(tmpdir(), 'options-portfolio-connected.png'), fullPage: true });
   await writerPage.getByRole('button', { name: 'Trade', exact: true }).click();
   await writerPage.getByRole('tab', { name: 'Write Options', exact: true }).click();
-  await writerPage.getByLabel(/^Quantity of/).fill('0.01');
+  await writerPage.getByLabel(/^Quantity of/).fill('0.1');
   await writerPage.getByLabel(/^Exercise payment — total/).fill('300');
   await writerPage.getByLabel(/^Option price — total/).fill('8');
   await writerPage.screenshot({ path: join(tmpdir(), 'options-create-connected.png'), fullPage: true });

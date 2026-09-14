@@ -12,7 +12,7 @@ import type { Deployment } from "../lib/config";
 import { actions, status, short, optionPayments, type Position } from "../lib/options";
 import type { TransactionRecord } from "../lib/transactions";
 
-export type WorkspaceTab = "market" | "create" | "mine" | "activity" | "docs";
+export type WorkspaceTab = "market" | "create" | "mine" | "activity" | "docs" | "requests";
 
 export function WorkspaceHeader({ tab, disabled, environment, wallet, onNavigate }: {
   tab: WorkspaceTab; disabled: boolean; environment: string; wallet: ReactNode; onNavigate: (tab: WorkspaceTab) => void;
@@ -21,8 +21,8 @@ export function WorkspaceHeader({ tab, disabled, environment, wallet, onNavigate
     <Link className="wordmark" href="/">stock options<span>lab</span></Link>
     <nav className="tabs" aria-label="Sections">
       {([["market", "Trade"], ["mine", "Portfolio"], ["activity", "Activity"], ["docs", "Docs"]] as const).map(([key, label]) =>
-        <button key={key} aria-current={tab === key || (key === "market" && tab === "create") ? "page" : undefined}
-          className={tab === key || (key === "market" && tab === "create") ? "active" : ""} disabled={disabled} onClick={() => onNavigate(key)}>{label}</button>)}
+        <button key={key} aria-current={tab === key || (key === "market" && (tab === "create" || tab === "requests")) ? "page" : undefined}
+          className={tab === key || (key === "market" && (tab === "create" || tab === "requests")) ? "active" : ""} disabled={disabled} onClick={() => onNavigate(key)}>{label}</button>)}
     </nav>
     <span className="environment-badge">{environment} · Test funds only</span>
     {wallet}

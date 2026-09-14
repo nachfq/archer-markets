@@ -107,6 +107,17 @@ contract Option is ReentrancyGuard {
         emit Bought(msg.sender, premium);
     }
 
+    /// @dev Factory-only activation after funding; the factory atomically pays the escrowed premium.
+    function activateRequestedPurchase(address buyer_) external nonReentrant {
+        if (msg.sender != factory || buyer_ == address(0) || buyer_ == writer) revert Unauthorized();
+        if (!funded) revert NotFunded();
+        if (state != State.Open) revert InvalidState();
+        if (block.timestamp >= expiry) revert OptionExpired();
+        buyer = buyer_;
+        state = State.Active;
+        emit Bought(buyer_, premium);
+    }
+
     /// @notice Listing transfers no collateral and never prevents manual exercise.
     function listForResale(uint256 totalPrice) external nonReentrant {
         if (msg.sender != buyer) revert Unauthorized();
