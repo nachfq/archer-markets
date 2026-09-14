@@ -41,12 +41,19 @@ EVM portability remains a separate roadmap item. The [standalone SDK](packages/s
 and seed scripts; it exports reads, portfolio snapshots, transaction preparation and
 structured errors without React. Package it with `npm pack --workspace @stock-options-lab/sdk`.
 
-## Run locally before using testnet
+## Run the complete five-market demo locally
 
-Requirements: Node.js 22.13+ (developed with Node 24), npm, and Foundry (`forge`, `anvil`).
-Solidity dependencies are pinned to OpenZeppelin 5.0.2 and forge-std 1.9.7.
+The commands in this section install and compile the contracts, start a temporary
+Anvil blockchain, deploy five V2 markets, seed 390 options, and start the frontend.
+Run every command from the repository root. Nothing in this workflow sends a public
+transaction.
 
-Install once from the repository root:
+### 1. Install the toolchain and dependencies once
+
+Requirements: Node.js 22.13+ (developed with Node 24), npm, and
+[Foundry](https://book.getfoundry.sh/getting-started/installation) with `forge` and
+`anvil` available on `PATH`. Solidity dependencies are pinned to OpenZeppelin 5.0.2
+and forge-std 1.9.7.
 
 ```sh
 npm ci
@@ -54,35 +61,88 @@ npm run contracts:deps
 npm --prefix web ci
 ```
 
-In terminal A, start and keep the local blockchain running:
+`npm run contracts:deps` installs the pinned Solidity libraries under `contracts/lib`.
+It only needs to be repeated after deleting that directory or changing a pinned
+contract dependency.
+
+### 2. Terminal A: start the local blockchain
 
 ```sh
 npm run anvil
 ```
 
-In terminal B, deploy contracts, create funded demo offers, and start the local frontend:
+Keep this terminal running. Anvil listens at `http://127.0.0.1:8545` with chain ID
+**31337**. Stopping Anvil destroys the deployed contracts and balances for that session.
+
+### 3. Terminal B: compile, deploy, and seed 390 options
+
+Open a second terminal in the repository root. First compile the contracts, export
+their ABIs, and build the SDK used by the deployment script:
 
 ```sh
 npm run contracts:build
 npm run abi
 npm run sdk:build
+```
+
+Create unique local evidence files for this Anvil session, inspect the write-free plan,
+then deploy and seed it:
+
+```sh
+export DEMO_RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
+export DEMO_MANIFEST="deployments/31337-${DEMO_RUN_ID}.json"
+export DEMO_LEDGER="deployments/local-demo-v2-${DEMO_RUN_ID}.json"
+
 npm run demo:local -- --dry-run
 npm run demo:local
+```
+
+Keep the three exported values in the same terminal until seeding finishes. The first
+command reports the planned 390 options and performs no writes. The second command:
+
+- deploys MockUSD, five Mock Equity tokens, and five V2 option factories;
+- creates 78 options each for Mock Tesla, NVIDIA, Apple, Amazon, and Microsoft;
+- records 360 open primary offers, 10 purchased rights, 10 resale listings, and
+  10 canceled options; and
+- updates the local browser manifest used by the frontend.
+
+It only sends transactions from Anvil accounts 1–9. Account 0 is deliberately reserved
+for the person testing through their wallet. Wait for `Complete: 390 recorded options`
+before starting the frontend.
+
+Do not run `npm run deploy:local` or `npm run seed:local` for this workflow.
+`demo:local` already performs the required V2 deployments. `seed:local` is the older
+four-offer V1 fixture and uses account 0.
+
+### 4. Terminal C: start the frontend
+
+After seeding completes, open a third terminal in the repository root:
+
+```sh
 npm run dev:local
 ```
 
-Open the URL printed by the server, normally `http://localhost:3000`.
-Use two disposable Anvil development accounts in an EVM browser wallet with chain
-**31337** and RPC `http://127.0.0.1:8545`. The demo creates 390 options across five named
-mock equities using accounts 1–9; account 0 is reserved for your wallet. The older
-`seed:local` is a separate four-offer legacy fixture and does use account 0, so do not
-use it to populate this demo. [Wallet setup and buy/exercise steps](docs/demo.md)
-cover the manual test. Anvil credentials are public and must only be used locally;
+Open the URL printed by the server, normally <http://localhost:3000>. Configure an EVM
+browser wallet with chain ID **31337** and RPC `http://127.0.0.1:8545`, then import only
+a disposable local Anvil account. [Wallet setup and buy/exercise steps](docs/demo.md)
+cover the manual workflow. Anvil credentials are public and must only be used locally;
 the application does not embed them in its browser bundle.
 
-Deployment scripts export compiled ABIs, addresses, and the initial block to the app.
-After restarting Anvil, follow the fresh-ledger instructions in the V2 demo guide;
-do not assume a previous manifest represents contracts on a new node.
+### Restart and resume rules
+
+- If `demo:local` is interrupted while the same Anvil process is still running, keep
+  Terminal A alive and rerun `npm run demo:local` from the same Terminal B. The saved
+  ledger resumes completed transactions instead of duplicating them.
+- If Anvil stops or the computer restarts, start again at step 2 and generate a new
+  `DEMO_RUN_ID`, manifest, and ledger in step 3. A new Anvil process is an empty chain,
+  even though its default account addresses look identical.
+- Do not delete a ledger and reseed while its original Anvil session is still active;
+  that would create a second set of fixtures.
+- Stop the frontend and Anvil with `Ctrl+C` in terminals C and A when finished.
+
+The local manifest and ledger are ignored evidence files. They distinguish this
+synthetic chain-31337 run from the hosted chain-46630 frontend, which still has no
+factory address. See the [detailed V2 demo and resale guide](docs/local-demo-v2.md).
 
 ## Verification
 

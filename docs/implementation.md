@@ -521,6 +521,15 @@ runs. Task-specific temporary directories on the repository disk allowed validat
 to continue without deleting user files or stopping their services. Failed attempts
 were rerun after correcting the environment and the UI issues they exposed.
 
+The root README now contains a copyable three-terminal local runbook. It separates
+one-time dependency installation, contract/ABI/SDK compilation, Anvil lifetime,
+the write-free seed plan, the 390-option V2 deployment/seed, and frontend startup.
+Each fresh Anvil session uses unique ignored manifest and ledger paths; interrupted
+runs reuse the same paths to resume. The runbook also distinguishes `demo:local`
+from the account-zero legacy `deploy:local`/`seed:local` workflow. This was a
+documentation-only clarification: no contracts were deployed and no services were
+started while verifying it.
+
 These are automated agent checks, not an audit or human approval. Prices and faucet
 balances are synthetic. The V2 resale scope is local only; the hosted Robinhood
 testnet manifest still has no factory and remains incapable of funded trading.

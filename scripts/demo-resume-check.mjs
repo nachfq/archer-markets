@@ -1,0 +1,33 @@
+// Reproduce a crash between broadcast and ledger persistence on an isolated local node.
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { createPublicClient, http } from 'viem';
+import { readJson, saveJson } from './config.mjs';
+
+const rpc = process.env.ANVIL_RPC_URL;
+assert(rpc && ['localhost', '127.0.0.1'].includes(new URL(rpc).hostname) && new URL(rpc).port !== '8545', 'Use an isolated node, not the live demo.');
+const source = process.env.DEMO_LEDGER;
+assert(source, 'Provide the isolated completed DEMO_LEDGER.');
+const ledger = await readJson(source);
+const client = createPublicClient({ transport: http(rpc), cacheTime: 0 });
+const before = await client.getBlockNumber();
+const first = Object.keys(ledger.offers)[0];
+const expectedAddress = ledger.offers[first].address;
+delete ledger.offers[first];
+delete ledger.transactions[`${first}:create`].hash;
+const recoveryFile = 'deployments/demo-resume-check.json';
+await saveJson(recoveryFile, ledger);
+const execute = extra => spawnSync(process.execPath, ['scripts/demo-local.mjs', '--no-export', ...extra], { env: { ...process.env, DEMO_LEDGER: recoveryFile }, encoding: 'utf8' });
+const dry = execute(['--dry-run']);
+assert.equal(dry.status, 0, dry.stderr);
+assert.equal(await client.getBlockNumber(), before);
+const resumed = execute([]);
+assert.equal(resumed.status, 0, resumed.stderr);
+const recovered = await readJson(recoveryFile);
+assert.equal(recovered.offers[first].address, expectedAddress);
+assert.equal(Object.keys(recovered.offers).length, 390);
+assert.equal(await client.getBlockNumber(), before, 'Recovery reuses receipts and sends no duplicate transactions.');
+const repeated = execute([]);
+assert.equal(repeated.status, 0, repeated.stderr);
+assert.equal(await client.getBlockNumber(), before);
+console.log('PASS dry-run, interrupted-broadcast recovery and repeated seed: 390 same addresses, zero extra transactions.');
