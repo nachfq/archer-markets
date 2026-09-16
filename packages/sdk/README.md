@@ -1,4 +1,4 @@
-# Stock Options Lab SDK
+# Archer Markets SDK
 
 A framework-independent TypeScript SDK for fully collateralized, physically delivered
 American options. It uses public manifests and caller-supplied viem clients. It never

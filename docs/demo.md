@@ -1,63 +1,107 @@
-# Local V3 walkthrough
+# Try Archer Markets locally
 
-This guide describes a local demonstration to run, not an already-running testnet product.
-Robinhood Chain Testnet has no configured protocol deployment. Use the root README to
-start Anvil, deploy fresh V3 factories, seed and start `npm run dev:local`.
+Use two disposable wallets in separate browser profiles. Start with **maker = writer**
+and **taker = buyer**. All assets below are local mocks with no real value.
 
-## Two wallets
+## 1. Start the app
 
-Use two disposable local Anvil wallets: requester and writer. Connect them in separate
-browser profiles to the same local chain 31337. Obtain MockUSD and MockSTOCK from the
-wallet menu. These tokens are fixtures with no real value. Never use public Anvil keys
-on a public network. Approval alone does not deposit funds.
+Install Node.js 22.13+ and Foundry (`forge`, `anvil`, `cast` on your PATH).
+From the repository root:
 
-## Request a put and exercise it
+```sh
+npm ci
+npm --prefix web ci
+npm run contracts:deps
+```
 
-1. As requester, select the practice market and **Buy Requests → Request option**.
-2. Enter Put, quantity **0.2 token**, total exercise payment **60 MockUSD**, total premium
-   **2 MockUSD**, and a future exercise expiration. Set **Accept until** earlier than the
-   option expiration and later than the current chain time.
-3. Review the complete quantity, deadlines and premium deposit. Reserve the premium.
-   Portfolio should show 2 MockUSD in request premiums and 2 fewer MockUSD available.
-   There is no option yet and no Stock Tokens are deposited by the requester.
-4. As writer, open that request and review acceptance. The writer needs **60 MockUSD**
-   upfront for collateral. Approve the factory if necessary and select **Accept & write
-   option**. The 2 MockUSD premium cannot fund the upfront collateral deposit.
-5. Acceptance creates one option holding 60 MockUSD, assigns the requester as buyer and
-   pays 2 MockUSD to the writer. The request links to that option. Both wallets can find
-   the position in Portfolio; the requester no longer has a reserved premium.
-6. As requester, review exercise before expiration. Approve **0.2 Stock Tokens** to the
-   option and exercise. The tokens go to the writer and the requester receives 60 MockUSD
-   from the option in the same transaction. Missing funds/approvals revert the exchange.
+Terminal A — keep the local chain running:
 
-For a call with the same terms, acceptance deposits 0.2 Stock Tokens instead. Exercise
-requires the holder to deliver 60 MockUSD and receives those 0.2 tokens. The 2 MockUSD
-premium is paid separately, never deducted from exercise payment.
+```sh
+npm run anvil
+```
 
-## Request cancellation and expiration
+Terminal B — deploy the contracts and start the frontend:
 
-Publish another request and cancel it before acceptance. The requester recovers the full
-premium. Repeat with a short acceptance deadline; after it passes, acceptance is disabled
-and **My requests** offers premium recovery. No refund happens automatically. After a
-request is accepted, request cancellation is unavailable; manage the resulting option.
+```sh
+npm run deploy:local
+npm run dev:local
+```
 
-If a purchased option expires unexercised, the writer can reclaim its collateral. The
-buyer cannot exercise at or after the onchain deadline; already-paid premium stays paid.
+Open the printed URL, normally <http://localhost:3000>, in both profiles.
+Select **Mock Stock** in both. The empty market is expected: you will create its first offer.
 
-## Writer-first flow and resale
+## 2. Prepare both wallets
 
-**Write Options** still creates an unsold collateralized option. Quantity is a multiple
-of 0.1, accepted in full. A buyer pays the premium to the writer. Unsold options can be
-canceled by the writer. V2/V3 holders can list the complete right for resale; its writer,
-collateral and exercise terms remain unchanged.
+Add the network to each wallet: **Local Anvil**, RPC **http://127.0.0.1:8545**,
+chain ID **31337**, currency **ETH**, no explorer. Connect each wallet to the app.
 
-## Evidence and checks
+Give each address 2 local ETH for gas, replacing the placeholders with its public address:
 
-The onchain request/option registries populate Portfolio. Activity is browser-local
-submission history reconciled with onchain receipts. Clearing browser storage does not
-delete contract positions or requests.
+```sh
+cast rpc --rpc-url http://127.0.0.1:8545 anvil_setBalance YOUR_MAKER_ADDRESS 0x1bc16d674ec80000
+cast rpc --rpc-url http://127.0.0.1:8545 anvil_setBalance YOUR_TAKER_ADDRESS 0x1bc16d674ec80000
+```
 
-Run `npm test`, `npm run typecheck`, `npm --prefix web run lint` and `npm run build` for
-source checks. Follow the root README's isolated Anvil instructions for `npm run test:e2e`.
-Those checks advance time, so never use the active manual-demo node. Historical browser
-review scripts are development fixtures, not public testnet acceptance evidence.
+In **Wallet menu**, choose **Get MockUSD** and **Get MockSTOCK** for each wallet.
+Confirm the faucet transactions. **Portfolio → Available** should show the tokens.
+You need at least 0.2 MockSTOCK for the writer and 62 MockUSD for the buyer.
+
+## 3. Maker: write a call
+
+Go to **Trade → Write Options**. Choose **Call**, enter **0.2** tokens,
+**60** total exercise payment, **2** total option price, and **Custom expiration…** set to tomorrow.
+Review, approve the collateral if prompted, then confirm creation.
+
+The writer's available stock decreases by **0.2**. That amount is now locked in the
+option; no premium has arrived yet. Find the offer in **Portfolio** and **Buy Options**.
+
+## 4. Taker: buy and exercise
+
+In the other profile, open **Trade → Buy Options**, select the expiration and expand
+the **300** strike row (60 ÷ 0.2). Select the maker's offer, review it and acknowledge
+manual exercise. Approve the **2 MockUSD** premium if needed, then confirm purchase.
+
+The buyer now holds the option. The writer receives **2 MockUSD** and cannot cancel it.
+In the buyer's **Portfolio**, expand the position and choose **Review exercise**.
+Approve **60 MockUSD** if needed, then exercise before expiration.
+
+| Wallet | Final stock change | Final MockUSD change |
+| --- | --- | --- |
+| Maker / writer | −0.2 | +62 |
+| Taker / buyer | +0.2 | −62 |
+
+Compare against balances after the faucets. Gas affects ETH separately. The option
+should show **Exercised** under **Portfolio → Closed & resold options**, with no
+remaining collateral. Buying alone does not deliver stock.
+
+## 5. Reverse the roles: request a put
+
+The buyer is now the **maker**. In **Trade → Buy Requests → Request option**, choose
+**Put**, quantity **0.2**, exercise payment **60**, premium **2**, expiration tomorrow,
+and **Accept until** earlier than expiration. Approve and reserve the premium.
+Portfolio now shows **2 MockUSD in request premiums**; there is no option yet.
+
+The writer is now the **taker**. Open the request, review and **Accept & write option**.
+The writer must have **60 MockUSD upfront**: the 2 premium cannot fund the deposit.
+Acceptance locks 60, pays the writer 2 and gives the buyer one option.
+
+The buyer exercises from Portfolio, delivering **0.2 MockSTOCK** to receive **60 MockUSD**.
+Net for this put alone: buyer −0.2 stock / +58 MockUSD; writer +0.2 stock / −58 MockUSD.
+
+## Where to check / retry
+
+- **Portfolio:** available balances, locked collateral, reserved premiums and positions.
+  Expand a position for **Contract details & exercise funding**, including its address.
+- **Activity:** submitted transactions and confirmation status in this browser.
+- **Cancellation:** publish a second offer or request, leave it unaccepted, then cancel.
+  Its collateral or reserved premium should return in full.
+- **After expiration:** exercise is unavailable. Writers reclaim unused collateral;
+  requesters recover unaccepted premiums. Neither recovery happens automatically.
+
+Anvil state disappears when stopped. After restarting it, redeploy and repeat funding;
+if your wallet reports a stale nonce, clear its local activity for this network.
+If the app shows Robinhood Chain Testnet, restart with `npm run dev:local`.
+If the first page load fails while Vite prepares dependencies, stop and restart
+`npm run dev:local`, then reload. Never run time-advancing E2E tests against this node.
+
+[How it works](how-it-works.md) · [Automated checks and evidence](research/security-review.md)

@@ -609,7 +609,7 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
         {detail.expiry > now && <button className="button calendar-button" onClick={() => {
           const stamp = (date: Date) => date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
           const start = new Date(Number(detail.expiry - 3600n) * 1000);
-          const body = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Stock Options Lab//Exercise reminder//EN", "BEGIN:VEVENT", `UID:${detail.address}@stock-options-lab`, `DTSTAMP:${stamp(new Date())}`, `DTSTART:${stamp(start)}`, `DTEND:${stamp(new Date(Number(detail.expiry) * 1000))}`, "SUMMARY:Review your option before expiration", "DESCRIPTION:Manual exercise requires a confirmed transaction before the contract deadline. This reminder does not exercise your option.", `URL:${window.location.href}`, "END:VEVENT", "END:VCALENDAR", ""].join("\r\n");
+          const body = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Archer Markets//Exercise reminder//EN", "BEGIN:VEVENT", `UID:${detail.address}@stock-options-lab`, `DTSTAMP:${stamp(new Date())}`, `DTSTART:${stamp(start)}`, `DTEND:${stamp(new Date(Number(detail.expiry) * 1000))}`, "SUMMARY:Review your option before expiration", "DESCRIPTION:Manual exercise requires a confirmed transaction before the contract deadline. This reminder does not exercise your option.", `URL:${window.location.href}`, "END:VEVENT", "END:VCALENDAR", ""].join("\r\n");
           const url = URL.createObjectURL(new Blob([body], { type: "text/calendar" })); const link = document.createElement("a"); link.href = url; link.download = "option-exercise-reminder.ics"; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
         }}>Add exercise reminder</button>}
 
@@ -695,7 +695,7 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
         </div>}
       </section>
       </div>
-      <footer><span>Stock Options Lab · Fully collateralized options</span><span>{net.name} · Manual exercise · Physical token delivery</span></footer>
+      <footer><span>Archer Markets · Fully collateralized options</span><span>{net.name} · Manual exercise · Physical token delivery</span></footer>
     </main>
   );
 }

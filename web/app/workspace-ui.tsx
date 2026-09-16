@@ -18,7 +18,7 @@ export function WorkspaceHeader({ tab, disabled, environment, wallet, onNavigate
   tab: WorkspaceTab; disabled: boolean; environment: string; wallet: ReactNode; onNavigate: (tab: WorkspaceTab) => void;
 }) {
   return <header className="topbar">
-    <Link className="wordmark" href="/">stock options<span>lab</span></Link>
+    <Link className="wordmark" href="/" aria-label="Archer Markets">Archer<span>Markets</span></Link>
     <nav className="tabs" aria-label="Sections">
       {([["market", "Trade"], ["mine", "Portfolio"], ["activity", "Activity"], ["docs", "Docs"]] as const).map(([key, label]) =>
         <button key={key} aria-current={tab === key || (key === "market" && (tab === "create" || tab === "requests")) ? "page" : undefined}

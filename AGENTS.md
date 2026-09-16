@@ -23,7 +23,9 @@ settlement, an AMM, or a different product vertical without a new product decisi
   rollback tests. Run `npm test`, `npm run typecheck`, and the build for implementation
   changes. Contract changes also require ABI regeneration and `npm run test:e2e` on
   Anvil. Documentation-only edits require checks for factual and command accuracy.
-- Record contributions and limitations in `docs/implementation.md`. Review by another
+- Record contributions and limitations in `docs/research/implementation.md`. Review by another
   agent is neither an audit nor human approval.
 - Pin dependencies and preserve explicit network configuration. Do not enable
   transactions when the manifest lacks a valid deployment.
+- Keep platform documentation short and practical. Put development history, research,
+  and planning in `docs/research/`; ask before deleting existing documents.

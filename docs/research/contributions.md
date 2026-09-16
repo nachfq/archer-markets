@@ -20,7 +20,7 @@ Cross-review highlighted differences between tests with mocks and actual executi
 Later on September 9, after this research, the human coordinator
 chose to explore a put/call factory on Robinhood Chain Stock Tokens,
 confirmed settlement through token delivery, and requested implementation of the first PoC.
-The [implementation log](../implementation.md) documents that stage
+The [implementation log](implementation.md) documents that stage
 separately; statements in this report describe the research stage.
 
 ## Limits of the work performed

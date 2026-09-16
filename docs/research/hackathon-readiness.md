@@ -5,7 +5,7 @@ public deployment, human approval, demand, or a competition result.
 
 ## Positioning
 
-**Stock Options Lab lets a buyer request a fully collateralized Stock Token option
+**Archer Markets lets a buyer request a fully collateralized Stock Token option
 by reserving its premium; one writer accepts the complete agreement, and the buyer
 can manually exercise for physical token delivery.** The first audience to validate
 is a Stock Token holder who wants to define protection terms and a counterparty

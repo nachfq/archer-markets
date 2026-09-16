@@ -187,7 +187,7 @@ locally and is stored only in ignored `.env`; obtain its public address with
 `npm run check:testnet`.
 
 Do not present a web build, mock-token test, or RPC fork as a Robinhood contract
-deployment. [The local walkthrough](demo.md) provides the complete manual test before
+deployment. [The local walkthrough](../demo.md) provides the complete manual test before
 funding testnet accounts. Website publication and contract deployment are separate actions.
 
 ## Frontend publication
@@ -208,7 +208,7 @@ inspected before inclusion.
 
 The coordinating agent implemented the human-approved chain + portfolio direction,
 with per-token creation inputs, explicit whole-lot totals, and resale deferred to v2.
-The English product specification is in `docs/product-roadmap.md`. Its screen examples
+The English product specification is in `docs/research/product-roadmap.md`. Its screen examples
 are illustrative, not market quotes or evidence of human validation.
 
 A new `@stock-options-lab/sdk` package owns generated ABIs, complete registry snapshots,
@@ -485,7 +485,7 @@ practice deployments remain legacy Portfolio assets. The main 8545 node was not
 reset or time-warped. It now has exactly 390 seeded V2 contracts: 360 primary offers,
 10 held rights, 10 resale listings and 10 canceled options (370 available offers).
 Reference prices, synthetic premium formula, dates and reproduction commands are
-in `docs/local-demo-v2.md` and `scripts/demo-config.mjs`.
+in `docs/research/local-demo-v2.md` and `scripts/demo-config.mjs`.
 
 The ignored per-transaction ledger records intents before broadcast and recovers
 known nonces/receipts on interruption. Dry-run performs no writes; deploy/seed
@@ -680,3 +680,20 @@ Details and residual risks: [security review](security-review.md). Proposed publ
 acceptance, user validation, demo script and event eligibility work are in
 [the Open House Singapore submission path](hackathon-readiness.md). Solidity remains
 the implementation; no Stylus integration or performance gain is claimed.
+
+## September 16, 2026 — Archer Markets documentation
+
+Renamed GitHub to `nachfq/archer-markets`, updated origin and application branding;
+kept the SDK package identifier stable. Replaced the long README with a short entry point,
+added the product overview and rewrote the two-wallet local guide. Moved development,
+planning and design records into research with coordinator approval; preserved their
+history and repaired links. Shortened in-app help. Social metadata no longer uses the
+old-brand image; the original image files remain available.
+
+Validation: 124 tests, typecheck, lint and build passed; local Markdown targets resolve.
+Orca CLI ran the documented call through faucets, writing, buying and exercise on Anvil:
+writer −0.2 stock / +62 MockUSD, buyer +0.2 / −62, zero remaining option collateral.
+This used an injected local-only wallet provider, not a wallet extension. The put-request
+flow retains the previously recorded acceptance evidence; it was not repeated in this pass.
+Orca screenshots timed out even after the coordinator made the tab visible, so no new
+screenshots are claimed. Stopped the temporary services and restored the browser manifest.

@@ -2,16 +2,81 @@
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 export const documentation = [
-  { id: "overview", title: "How the platform works", paragraphs: ["Stock Options Lab is a development proof of concept targeting Robinhood Chain Testnet, with no public protocol deployment for fully collateralized calls and puts. Writers post individual offers with fixed terms; buyers purchase an entire lot. There is no AMM, price oracle, automatic settlement, or partial exercise. Version 2 and 3 markets also support whole-option resale; legacy contracts do not.", "A call gives its buyer the right to buy the agreed Stock Token lot for the fixed exercise payment. A put gives its buyer the right to sell that lot for the fixed payment. The writer takes the other side if the buyer exercises."] },
-  { id: "buying", title: "Buying an option", paragraphs: ["Choose a market, expiration and strike, then select an offer. Expand a strike to compare the available token quantities. Each row is a separate, indivisible option. Option price is what you pay now for the entire right, not the exercise payment. New and resale listings appear together.", "Review the lot, exact total premium, exercise terms and deadline. Acknowledge manual exercise, approve the required premium when needed, then confirm the purchase. Buying delivers an exercise right, not the underlying tokens. Gas is separate. The premium is not refunded if the right goes unused."] },
-  { id: "writing", title: "Writing and collateral", paragraphs: ["Choose Write Options, enter a quantity in multiples of 0.1 token, total exercise payment, total option price and expiration. All amounts are independent: changing quantity never silently changes either payment. A covered call deposits the complete Stock Token lot; a cash-secured put deposits the complete exercise payment in the quote token.", "Writing creates a separate option contract that holds the collateral. An approval only authorizes spending; collateral moves only when the creation transaction confirms. Premium arrives only when someone buys. A purchased option cannot be canceled by its writer."] },
-  { id: "requests", title: "Requesting an option", paragraphs: ["In a version 3 market, choose Buy Requests to ask for a call or put. Enter a quantity in multiples of 0.1 token, total exercise payment, total premium and expiration. Set a separate acceptance deadline earlier than expiration. You reserve only the premium in the factory; you do not own an option yet.", "A writer accepts the complete quantity and deposits all collateral. The factory creates one independent option for you and pays your reserved premium to the writer in the same transaction. Ten tokens can be 100 lots in one option contract. No partial fills or automatic matching are supported.", "Until acceptance, only the requester can cancel to recover the entire premium. After the acceptance deadline, the premium still needs a refund transaction. After acceptance, manage the option in Portfolio; its paid premium is not refundable. Exercise requires the full payment or tokens before expiration."] },
-  { id: "resale", title: "Reselling your option", paragraphs: ["In a version 2 or 3 market, expand a purchased position and enter a total resale price. The current holder may list, update or remove their listing before expiration. Buying a resale pays that price to the current holder and transfers the entire exercise right atomically. The writer, collateral, token quantity, exercise payment and deadline stay unchanged.", "A listing does not lock the right: its holder can still exercise before someone buys. Purchases verify the reviewed seller, price and listing nonce; changed or withdrawn quotes fail instead of charging a different price. The previous holder loses exercise permission when the sale confirms. Self-purchases and original-writer buybacks are not supported.", "Reselling is not writing a new option: no second collateral deposit or new contract is created. There are no platform fees, partial sales, free transfers or guaranteed liquidity. Legacy version 1 options cannot be resold and are not migrated."] },
-  { id: "manual-exercise", title: "Manual American exercise", paragraphs: ["The buyer must manually exercise a purchased option before its onchain expiration. American exercise means it can be exercised at any time after purchase and before that deadline, not only on the expiration date.", "For a call, the buyer delivers the full quote-token exercise payment and receives the full Stock Token lot. For a put, the buyer delivers the full Stock Token lot and receives the quote-token exercise payment. These are physical token transfers, not cash settlement based on a market price.", "Keep the required tokens, allowance and gas available. Buying a call spends the same quote-token balance you will later need to exercise. Submit early enough for the transaction to execute before the blockchain deadline: a pending transaction does not reserve the right. Countdown and calendar reminders are aids, not guarantees or automatic exercise."] },
-  { id: "expiration", title: "Expiration, cancellation and recovery", paragraphs: ["There is no automatic exercise, payout or premium refund. At or after expiration the buyer can no longer exercise; the writer must reclaim unused collateral manually. The writer retains any premium already paid.", "Before expiration, a writer may cancel an unsold offer and recover its collateral. After expiration, the writer may reclaim collateral from an unsold or purchased, unexercised option. Exercised, canceled and reclaimed contracts are closed. Expired collateral remains in open positions until recovery confirms."] },
-  { id: "prices", title: "Prices, token quantities and approvals", paragraphs: ["Strike per token equals total exercise payment divided by the underlying token quantity. It is used only to group offers, not as the amount you pay. The strike reference may be rounded: ≈ identifies approximations. Transactions use the exact agreed totals, never the rounded display.", "Quantities refer to token units, not a guaranteed number of shares. A Stock Token is not direct share ownership. The five named local mock markets use rounded September 9, 2026 reference prices and synthetic premiums for UI testing, not a live feed, fair value, portfolio valuation or profitability estimate.", "Approvals authorize the required token amount to the intended spender. Confirm spender, network and amount in your wallet. An approval is not a purchase, exercise or collateral deposit. Rejected signatures do not complete an operation; a pending or reverted operation is not success."] },
-  { id: "portfolio", title: "Portfolio and activity", paragraphs: ["Stock Tokens and stablecoins are shown separately. Available is the wallet balance; open orders and active collateral are held in option contracts. Reclaimable is expired collateral awaiting manual recovery. Request premiums are separately reserved in the factory; refundable premiums belong to unaccepted requests whose acceptance deadline passed. Both require a cancellation transaction to return to the wallet. Total tracked includes these amounts and is not net portfolio value because collateral backs obligations.", "Positions are reconstructed from the configured onchain markets for your wallet, including past holders through version 2 purchase and resale events. Payments show what your wallet actually paid or received; resale proceeds go to the selling holder, not the original writer. Expand a row to review its terms and available actions. Activity tracks transaction submissions locally in this browser; it is not a complete blockchain transaction history. Unknown balances show a dash, not zero."] },
-  { id: "markets", title: "Curated markets and testnet limits", paragraphs: ["The website owner selects the markets shown here. Listing an asset does not deploy a factory or enable trading: each market needs a valid configured deployment for its token pair. Assets outside this catalog are not discoverable or tradable through this frontend.", "Local mock tokens have no real value. Robinhood testnet deployment and public acceptance testing remain pending. The Robinhood Chain Testnet frontend currently has no configured factory and is not a funded contract demo. Local Anvil transactions and synthetic-balance RPC forks are separate kinds of development evidence, not public deployments, audits or human validation."] },
+  {
+    "id": "overview",
+    "title": "How it works",
+    "paragraphs": [
+      "Archer Markets offers fully collateralized calls and puts on Stock Tokens. Each agreement is one whole option with fixed terms. A call gives its holder the right to buy tokens; a put gives the right to sell tokens.",
+      "The maker publishes terms and the taker accepts. For an offer, the maker is the writer. For a buy request, the maker is the buyer."
+    ]
+  },
+  {
+    "id": "buying",
+    "title": "Buying an option",
+    "paragraphs": [
+      "Choose a market and offer in Buy Options. Review the full quantity, total premium and expiration, acknowledge manual exercise, then approve and buy. You receive an exercise right; the tokens move only if you exercise. The premium is not refundable."
+    ]
+  },
+  {
+    "id": "writing",
+    "title": "Writing and collateral",
+    "paragraphs": [
+      "In Write Options, enter a quantity in multiples of 0.1 token, total exercise payment, total premium and expiration. A call locks all the tokens; a put locks the full exercise payment. The premium arrives when someone buys. A sold option cannot be canceled."
+    ]
+  },
+  {
+    "id": "requests",
+    "title": "Requesting an option",
+    "paragraphs": [
+      "In Buy Requests, publish the terms you want and reserve the premium. Set Accept until earlier than the option expiration. You do not own an option yet.",
+      "A writer accepts the full request and deposits all collateral upfront. You receive one option and the writer receives your premium in the same transaction. Until acceptance, you can cancel for a full refund. After the acceptance deadline, recovery still requires a transaction."
+    ]
+  },
+  {
+    "id": "resale",
+    "title": "Reselling your option",
+    "paragraphs": [
+      "Expand a purchased position in Portfolio to list the whole right at a total resale price. The payment goes to you; collateral and exercise terms stay unchanged. You can withdraw the listing or exercise until it sells. The previous holder loses the right after sale. Original-writer buybacks are not supported."
+    ]
+  },
+  {
+    "id": "manual-exercise",
+    "title": "Manual American exercise",
+    "paragraphs": [
+      "American exercise means the holder may exercise any time before expiration. A call delivers the total payment to receive the tokens; a put delivers the tokens to receive the payment. Both transfers happen together.",
+      "Keep the required funds, allowance and gas available. The transaction must execute before the onchain deadline. A reminder or pending transaction does not extend the right."
+    ]
+  },
+  {
+    "id": "expiration",
+    "title": "Cancellation and expiration",
+    "paragraphs": [
+      "Writers can cancel unsold offers to recover collateral. After expiration, they must reclaim unused collateral manually and keep any paid premium. There is no automatic exercise, refund or payout."
+    ]
+  },
+  {
+    "id": "prices",
+    "title": "Amounts and approvals",
+    "paragraphs": [
+      "Example: 0.2 tokens, 60 MockUSD exercise payment, 2 MockUSD premium. The strike is 300 per token, but exercising a call costs 60 in total, separately from the 2 paid to buy it. Rounded strike displays never change the agreed totals.",
+      "An approval permits spending; the following transaction moves funds. Check the amount, spender and network in your wallet. Stock Tokens are token units, not direct shares; local mock assets have no real value."
+    ]
+  },
+  {
+    "id": "portfolio",
+    "title": "Portfolio and Activity",
+    "paragraphs": [
+      "Portfolio shows available wallet balances, locked collateral, reserved request premiums and amounts awaiting recovery. Expand a position for its terms, actions and contract details. Total tracked is not a portfolio valuation.",
+      "Positions come from the configured onchain markets. Activity tracks submissions from this browser only. Unknown balances display a dash."
+    ]
+  },
+  {
+    "id": "markets",
+    "title": "Markets and availability",
+    "paragraphs": [
+      "Markets are selected by the platform and need a valid configured deployment to enable trading. Local Anvil uses mock assets. Robinhood Chain Testnet has no configured protocol deployment; the hosted frontend is not a funded contract demo. There are no partial fills, automatic matching or oracle settlement."
+    ]
+  }
 ];
 
 export default function Docs({ onBack }: { onBack: () => void }) {

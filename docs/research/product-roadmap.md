@@ -49,6 +49,6 @@ V3 factories introduce requests and minimum lot validation; existing V1/V2 deplo
 are not upgraded. Generated ABIs and deployment manifests form the integration boundary.
 The standalone SDK prepares transactions without custody, React or embedded keys.
 
-See [buy requests](buy-requests.md), [demo](demo.md), [SDK](../packages/sdk/README.md) and
+See [buy requests](buy-requests.md), [demo](../demo.md), [SDK](../../packages/sdk/README.md) and
 [implementation record](implementation.md). Preserve historical research as hypotheses
 and source material, not proof of product adoption.

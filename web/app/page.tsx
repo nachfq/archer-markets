@@ -12,7 +12,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const params = await searchParams;
   if (params.view === "docs") {
-    const title = "Documentation · Stock Options Lab";
+    const title = "Documentation · Archer Markets";
     const description = "Understand whole-lot options, collateral, manual American exercise, token delivery and testnet limitations.";
     return { title, description, openGraph: { title, description }, twitter: { title, description } };
   }
@@ -20,7 +20,7 @@ export async function generateMetadata({
   const deployment = marketRecords.find(m => m.marketId === params.market) ?? defaultDeployment;
   const ready = !!asMarket(deployment);
   if (!selected) return {};
-  let title = "Option unavailable · Stock Options Lab";
+  let title = "Option unavailable · Archer Markets";
   let description =
     "This option could not be verified in the configured factory. Check its status in the application.";
   if (
@@ -69,7 +69,7 @@ export async function generateMetadata({
           }),
         ]);
         const resale = (deployment.version ?? 1) >= 2 ? await client.readContract({ address: selected, abi: optionAbi, functionName: "resalePrice" }) : 0n;
-        title = `${type === 0 ? "Call" : "Put"} · ${units(quantity, deployment.underlying.decimals)} ${deployment.underlying.symbol} · Stock Options Lab`;
+        title = `${type === 0 ? "Call" : "Put"} · ${units(quantity, deployment.underlying.decimals)} ${deployment.underlying.symbol} · Archer Markets`;
         description = `${resale > 0n ? "Resale asking price" : "Original option price"} — total ${units(resale > 0n ? resale : premium, deployment.quote.decimals)} ${deployment.quote.symbol}; exercise payment — total ${units(strike, deployment.quote.decimals)} ${deployment.quote.symbol}. Verify current availability in the app. Token delivery, manual exercise. Testnet only.`;
       }
     } catch {

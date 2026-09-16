@@ -23,7 +23,7 @@ try {
   const docs = await page.request.get(`${localUrl}/?view=docs&option=0x1111111111111111111111111111111111111111#manual-exercise`);
   assert.equal(docs.status(), 200);
   const docsHtml = await docs.text();
-  assert.match(docsHtml, /<title>Documentation · Stock Options Lab/);
+  assert.match(docsHtml, /<title>Documentation · Archer Markets/);
   assert.match(docsHtml, /Manual American exercise/);
   for (const kind of [0, 1]) {
     const option = snapshot.positions.find(position => position.optionType === kind);
