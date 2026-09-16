@@ -51,8 +51,14 @@ async function ready(url, child, rpc = false) {
   }
   throw new Error(`Service did not become ready: ${url}`);
 }
-process.once('SIGTERM', () => { for (const child of children) child.kill(); process.exit(143); });
-process.once('SIGINT', () => { for (const child of children) child.kill(); process.exit(130); });
+async function stopChildren() {
+  for (const child of children) if (child.exitCode === null && !child.signalCode) child.kill('SIGTERM');
+  // Give Docker wrappers time to remove their owned containers before exiting.
+  const timeout = setTimeout(15_000, undefined, { ref: false });
+  await Promise.race([Promise.allSettled(children.map(child => child.completion)), timeout]);
+}
+process.once('SIGTERM', async () => { await stopChildren(); process.exit(143); });
+process.once('SIGINT', async () => { await stopChildren(); process.exit(130); });
 console.log(`Isolated acceptance evidence: ${directory}`);
 try {
   const rpcPort = await port();
@@ -60,7 +66,7 @@ try {
   env.DEMO_MANIFEST = join(directory, 'manifest.json');
   env.DEMO_LEDGER = join(directory, 'ledger.json');
   evidence.rpcUrl = env.ANVIL_RPC_URL;
-  const anvil = start('anvil', ['--host', '127.0.0.1', '--port', String(rpcPort), '--chain-id', '31337', '--silent'], 'anvil');
+  const anvil = start(process.execPath, ['scripts/foundry.mjs', 'anvil', String(rpcPort)], 'anvil');
   await ready(env.ANVIL_RPC_URL, anvil, true);
   await run('node', ['scripts/demo-local.mjs', '--deploy-only', '--no-export'], 'deploy');
   const client = createPublicClient({ transport: http(env.ANVIL_RPC_URL), cacheTime: 0, pollingInterval: 25 });
@@ -72,6 +78,8 @@ try {
   assert.equal(await client.request({ method: 'evm_revert', params: [cleanDeployment] }), true);
   const manifest = JSON.parse(await readFile(env.DEMO_MANIFEST, 'utf8'));
   const accounts = await client.request({ method: 'eth_accounts' });
+  await run('node', ['scripts/fund-local-wallets.mjs', accounts[8], accounts[9]], 'fund-wallets');
+  for (const address of [accounts[8], accounts[9]]) assert.equal(await client.getBalance({ address }), 2n * 10n ** 18n);
   const faucet = parseAbi(['function faucet()']);
   const tokens = new Set([manifest.quote.address, manifest.underlying.address, ...manifest.markets.map(m => m.underlying.address)]);
   for (const from of [accounts[1], accounts[6], accounts[7], accounts[8], accounts[9]]) for (const to of tokens) {
@@ -102,7 +110,7 @@ try {
   evidence.result = 'failed'; evidence.error = error.message;
   console.error(error.message); process.exitCode = 1;
 } finally {
-  for (const child of children) if (child.exitCode === null && !child.signalCode) child.kill('SIGTERM');
+  await stopChildren();
   evidence.finishedAt = new Date().toISOString();
   await mkdir(directory, { recursive: true });
   await writeFile(join(directory, 'summary.json'), serialize(evidence));

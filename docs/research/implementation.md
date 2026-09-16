@@ -697,3 +697,18 @@ This used an injected local-only wallet provider, not a wallet extension. The pu
 flow retains the previously recorded acceptance evidence; it was not repeated in this pass.
 Orca screenshots timed out even after the coordinator made the tab visible, so no new
 screenshots are claimed. Stopped the temporary services and restored the browser manifest.
+
+## September 16, 2026 — Docker-only Foundry
+
+Moved contract builds, tests, dependency installation, explorer verification and Anvil
+acceptance nodes to the official Foundry v1.3.1 Docker image, pinned by multi-platform
+digest. Containers are disposable; Anvil publishes only to loopback, while Forge mounts
+only contract files and preserves the host UID. CI uses the same runner. Added local ETH
+funding without Cast and updated the walkthrough. Removed the four native audit binaries.
+
+Validation: fresh dependency installation, 126 tests passed (one optional RPC-fork test
+skipped), typecheck, lint, full build and isolated protocol/SDK/browser acceptance passed.
+All 13 browser scenarios passed on Docker Anvil; wallet funding and SIGINT cleanup were
+also verified. No task containers remained. Evidence: `.qa-tmp-e2e-T3WH4z/summary.json`
+and `.qa-tmp-audit/docker-*.log`. Explorer verification was adapted but not submitted;
+no public deployment or transaction is claimed.

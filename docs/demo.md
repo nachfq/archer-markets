@@ -5,10 +5,13 @@ and **taker = buyer**. All assets below are local mocks with no real value.
 
 ## 1. Start the app
 
-Install Node.js 22.13+ and Foundry (`forge`, `anvil`, `cast` on your PATH).
+Requirements: Node.js 22.13+ and a running Docker engine accessible to your user
+([Linux permissions setup](https://docs.docker.com/engine/install/linux-postinstall/)).
+Foundry runs in Docker; no native `forge`, `anvil` or `cast` installation is needed.
 From the repository root:
 
 ```sh
+docker version
 npm ci
 npm --prefix web ci
 npm run contracts:deps
@@ -38,8 +41,7 @@ chain ID **31337**, currency **ETH**, no explorer. Connect each wallet to the ap
 Give each address 2 local ETH for gas, replacing the placeholders with its public address:
 
 ```sh
-cast rpc --rpc-url http://127.0.0.1:8545 anvil_setBalance YOUR_MAKER_ADDRESS 0x1bc16d674ec80000
-cast rpc --rpc-url http://127.0.0.1:8545 anvil_setBalance YOUR_TAKER_ADDRESS 0x1bc16d674ec80000
+npm run wallet:fund:local -- YOUR_MAKER_ADDRESS YOUR_TAKER_ADDRESS
 ```
 
 In **Wallet menu**, choose **Get MockUSD** and **Get MockSTOCK** for each wallet.
@@ -98,7 +100,8 @@ Net for this put alone: buyer âˆ’0.2 stock / +58 MockUSD; writer +0.2 stock / âˆ
 - **After expiration:** exercise is unavailable. Writers reclaim unused collateral;
   requesters recover unaccepted premiums. Neither recovery happens automatically.
 
-Anvil state disappears when stopped. After restarting it, redeploy and repeat funding;
+Ctrl+C stops Anvil and removes its container and state. After restarting it, redeploy
+and repeat funding;
 if your wallet reports a stale nonce, clear its local activity for this network.
 If the app shows Robinhood Chain Testnet, restart with `npm run dev:local`.
 If the first page load fails while Vite prepares dependencies, stop and restart

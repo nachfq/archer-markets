@@ -18,9 +18,7 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             web/package-lock.json
-      - uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: v1.3.1
+      - run: docker version
       - run: npm ci
       - run: npm run contracts:deps
       - run: npm --prefix web ci

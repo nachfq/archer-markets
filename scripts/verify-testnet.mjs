@@ -1,6 +1,6 @@
-import { spawnSync } from 'node:child_process';
+import { runFoundry } from './foundry.mjs';
 import { encodeAbiParameters, parseAbiParameters } from 'viem';
-import { clients, artifact, atRoot, readJson, saveJson, reportError } from './config.mjs';
+import { clients, artifact, readJson, saveJson, reportError } from './config.mjs';
 
 try {
   const { publicClient } = await clients('testnet', false);
@@ -29,10 +29,10 @@ try {
   }
   const verified = [];
   for (const [address, contract, constructor] of jobs) {
-    const args = ['verify-contract', '--root', atRoot('contracts'), address, contract, '--chain-id', '46630', '--verifier', 'blockscout', '--verifier-url', 'https://explorer.testnet.chain.robinhood.com/api/', '--watch'];
+    const args = ['verify-contract', address, contract, '--chain-id', '46630', '--verifier', 'blockscout', '--verifier-url', 'https://explorer.testnet.chain.robinhood.com/api/', '--watch'];
     if (constructor) args.push('--constructor-args', constructor);
-    const result = spawnSync('forge', args, { cwd: atRoot('contracts'), stdio: 'inherit' });
-    if (result.status !== 0) throw new Error(`Explorer verification failed for ${contract}; deployment itself is preserved.`);
+    const code = await runFoundry('forge', args);
+    if (code !== 0) throw new Error(`Explorer verification failed for ${contract}; deployment itself is preserved.`);
     verified.push({ address, contract });
   }
   await saveJson('deployments/46630.verification.json', { verifiedAt: new Date().toISOString(), verified });
