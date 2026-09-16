@@ -16,7 +16,9 @@ Quantities are multiples of **0.1 token**.
 
 A request becomes an option only when a writer accepts and deposits all collateral.
 At acceptance, the buyer receives the right and the writer receives the premium.
-There are no partial fills or automatic matching.
+There are no partial fills or automatic matching. A bid above an ask leaves both
+orders open until someone explicitly accepts one. Accepting a bid creates a new option;
+it does not sell an already-written ask or reuse its collateral.
 
 ## What moves?
 
@@ -48,7 +50,9 @@ exchanges both assets in one transaction. There is no market-price oracle or aut
 
 **Trade** shows Calls / Strike / Puts, with Bid and Ask prices per token. Click an Ask
 to buy or a Bid to sell a new option; Buy / Sell posts your own price. Expand a strike
-for all orders and their full quantities. **Portfolio** shows wallet balances,
+for all orders and their full quantities. All four entry points use the same ticket:
+quantity, expiration, strike and premium per token. Totals are calculated automatically.
+Editing a selected quote posts a new order instead of accepting the original. **Portfolio** shows wallet balances,
 locked collateral, reserved premiums and positions; expand a position for its actions
 and contract details. **Activity** shows transactions submitted in that browser.
 Balances are token amounts, not a portfolio valuation. Stock Tokens are not direct shares.

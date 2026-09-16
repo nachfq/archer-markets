@@ -525,3 +525,25 @@ footer { display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; 
   .book-quote strong { font-size:13px; }
   .trade-sheet .create-layout { padding:12px; }
 }
+
+.unified-order { padding:18px max(18px,calc((100vw - 1460px)/2)); border-left:5px solid var(--accent); }
+.unified-order.sell { border-left-color:#e99e87; }
+.order-fields { display:grid; grid-template-columns:auto .8fr 1.6fr 1fr .6fr 1fr; gap:12px; align-items:end; border:0; padding:0; margin:0 0 16px; }
+.order-fields label,.order-validity label { display:flex; flex-direction:column; gap:5px; font-size:12px; color:var(--muted); min-width:0; }
+.order-fields input,.order-fields select,.order-validity input { width:100%; min-width:0; padding:8px; min-height:40px; border:1px solid var(--control); border-radius:5px; background:var(--paper); color:var(--ink); }
+.order-side { display:flex; border:1px solid var(--control); padding:3px; border-radius:6px; }
+.order-side button { padding:7px 12px; }
+.order-side button[aria-pressed=true] { background:var(--selected); color:var(--accent); border-radius:4px; }
+.sell .order-side button[aria-pressed=true] { background:#3c2922; color:#f4b19a; }
+.order-execution,.order-footer { display:flex; flex-wrap:wrap; align-items:center; gap:14px; padding:12px 0; }
+.order-execution span { color:var(--muted); font-size:13px; }
+.order-totals { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; padding:14px 0; border-block:1px solid var(--line); }
+.order-totals dt { font-size:12px; color:var(--muted); }
+.order-totals dd { margin:5px 0 0; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.order-footer { justify-content:space-between; border-top:1px solid var(--line); margin-top:12px; font-size:13px; }
+.order-ack { display:flex; gap:10px; align-items:start; padding-block:12px; font-size:13px; }
+.order-ack input { width:18px; height:18px; flex-shrink:0; }
+.order-validity { padding-block:8px; font-size:13px; }
+.order-validity label { max-width:300px; margin-top:12px; }
+@media(max-width:850px) { .order-fields { grid-template-columns:repeat(3,minmax(0,1fr)); } .order-totals { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:500px) { .order-fields { grid-template-columns:repeat(2,minmax(0,1fr)); } .unified-order { padding:12px; } .order-footer .button { width:100%; } }

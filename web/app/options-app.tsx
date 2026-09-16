@@ -2,7 +2,8 @@
 
 import { WorkspaceHeader, WalletMenu, TradeTicket, PortfolioTable, ActivityTable, type WorkspaceTab } from "./workspace-ui";
 import BuyRequests from "./buy-requests";
-import WriteOptionForm from "./write-option-form";
+import OrderTicket from "./order-ticket";
+import type { OrderSeed } from "../lib/order-ticket";
 import OptionsChain from "./options-chain";
 import Docs from "./docs";
 import { AssetLogo, BalanceTables, FontIcon, MarketList } from "./asset-ui";
@@ -11,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Alert } from "@/components/ui/alert";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   QueryClient,
   QueryClientProvider,
@@ -47,15 +48,14 @@ import {
   optionPrice, optionSeller, isListed,
   readableNumber,
   amount,
-  expiration,
   short,
   status,
   units,
   type Position,
 } from "../lib/options";
-import { getMarkets, getPortfolio, getTokenDisplayMetadata, decodeProtocolError, prepareCreateOffer, prepareBuy, prepareExercise, prepareCancel, prepareReclaim, prepareBuyResale, prepareListResale, prepareCancelResale, simulatePrepared, validateLotQuantity, ProtocolError, type PreparedOperation } from "@stock-options-lab/sdk";
+import { getMarkets, getPortfolio, decodeProtocolError, prepareBuy, prepareExercise, prepareCancel, prepareReclaim, prepareBuyResale, prepareListResale, prepareCancelResale, simulatePrepared, ProtocolError, type PreparedOperation } from "@stock-options-lab/sdk";
 import { readTransactions, writeTransactions, type TransactionRecord } from "../lib/transactions";
-import { deadlinePreview, suggestedExpirations, utcDeadline } from "../lib/expirations";
+import { utcDeadline } from "../lib/expirations";
 
 const actionNames: Record<string, string> = {
   buy: "Buy option",
@@ -135,19 +135,13 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [txHash, setTxHash] = useState<Hash | null>(null);
-  const [kind, setKind] = useState(0);
-  const [quantity, setQuantity] = useState("");
-  const [strike, setStrike] = useState("");
-  const [premium, setPremium] = useState("");
-  const [expiry, setExpiry] = useState("");
-  const [expiryMode, setExpiryMode] = useState<"suggested" | "custom">("suggested");
-  const [presetExpiry, setPresetExpiry] = useState("");
+  const [orderSeed, setOrderSeed] = useState<OrderSeed>({ side: "buy" });
+  const rememberSeries = useCallback((context: Omit<OrderSeed, "side">) => setOrderSeed(previous => ({ ...previous, ...context })), [setOrderSeed]);
   const [acceptedFor, setAcceptedFor] = useState("");
   const [resaleTotal, setResaleTotal] = useState("");
   const [bidTicket, setBidTicket] = useState<{ id?: bigint; revision: number }>({ revision: 0 });
   const selectedBid = bidTicket.id;
   const setSelectedBid = (id?: bigint) => setBidTicket(previous => ({ id, revision: previous.revision + 1 }));
-  const [reviewedDraft, setReviewedDraft] = useState<string | null>(null);
   const [operationSucceeded, setOperationSucceeded] = useState(false);
   const wrongChain = isConnected && chainId !== chain.id;
   const health = useQuery({
@@ -266,15 +260,10 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
   const portfolio = market.data?.portfolio;
   const rowFor = (token: Token) => portfolio?.tokens.find(row => row.token.address.toLowerCase() === token.address?.toLowerCase());
   const balances = { data: portfolio ? { underlying: rowFor(net.underlying)?.available ?? 0n, quote: rowFor(net.quote)?.available ?? 0n, gas: portfolio.gas } : undefined, isError: market.isError };
-  const displayMetadata = useQuery({ queryKey: ["token-display", chain.id, net.underlying.address], enabled: !!activeMarket, queryFn: () => getTokenDisplayMetadata(client, activeMarket!.underlying), refetchInterval: 60_000 });
   const now = market.data
     ? market.data.timestamp +
       BigInt(Math.max(0, Math.floor((clock - market.data.loadedAt) / 1000)))
     : BigInt(Math.floor(clock / 1000));
-  const expirySuggestions = suggestedExpirations(Number(now) * 1000);
-  const effectiveExpiry = expiryMode === "custom" ? expiry : presetExpiry || expirySuggestions[0]?.value || "";
-  let expiryError = "";
-  if (effectiveExpiry) { try { expiration(effectiveExpiry, Number(now) * 1000); } catch { expiryError = "Choose an expiration after the current chain time."; } }
   const positions = market.data?.snapshots.find(snapshot => snapshot.market.id === marketId)?.positions ?? [];
   const detail =
     selected && isAddress(selected)
@@ -302,8 +291,7 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
       setMarketId(nextMarketId);
       setSelectedBid(undefined);
       if (tab === "requests") setTab("market");
-      setQuantity(""); setStrike(""); setPremium(""); setExpiry(""); setPresetExpiry(""); setExpiryMode("suggested");
-      setReviewedDraft(null);
+      setOrderSeed({ side: "buy" });
     }
     if (option) { lastOffer.current = option; previousScroll.current = window.scrollY; }
     requestAnimationFrame(() => {
@@ -419,50 +407,12 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
       setBusy(false);
     }
   }
-  let draft: { quantity: bigint; strikeTotal: bigint; premium: bigint } | undefined;
-  let draftError = "";
-  if (quantity && strike && premium) {
-    try {
-      const q = amount(quantity, net.underlying.decimals);
-      validateLotQuantity(q, net.underlying.decimals);
-      draft = { quantity: q, strikeTotal: amount(strike, net.quote.decimals), premium: amount(premium, net.quote.decimals) };
-    } catch (err) { draftError = decodeProtocolError(err).message; }
-  }
-  const collateralToken = kind === 0 ? net.underlying : net.quote;
-  const collateralRow = rowFor(collateralToken);
-  const requiredCollateral = draft ? kind === 0 ? draft.quantity : draft.strikeTotal : undefined;
-  const insufficientCollateral = requiredCollateral !== undefined && collateralRow !== undefined && requiredCollateral > collateralRow.available;
   async function executePrepared(operation: PreparedOperation) {
     if (operation.approval) await approve(operation.approval.token, operation.approval.spender, operation.approval.amount);
     setEstimatedGas(await simulatePrepared(client, operation));
     await checkWallet();
     setNotice("Confirm the transaction in your wallet.");
     await receipt(await sendTransactionAsync({ ...operation.request, account: operation.account, chainId: chain.id }), operation.action);
-  }
-  const draftKey = JSON.stringify([marketId, address, chainId, kind, quantity, strike, premium, effectiveExpiry]);
-  const reviewingDraft = reviewedDraft === draftKey;
-  function changeTerm<T,>(setter: (value: T) => void, value: T) {
-    setReviewedDraft(null);
-    setter(value);
-  }
-  function reviewOffer(event: FormEvent) {
-    event.preventDefault();
-    if (!draft || expiryError || insufficientCollateral) return;
-    setReviewedDraft(draftKey);
-    setOperationSucceeded(false);
-    requestAnimationFrame(() => document.getElementById("write-review-heading")?.focus({ preventScroll: true }));
-  }
-  async function create() {
-    if (!reviewingDraft) return;
-    setNoticeScope("create");
-    await run(async () => {
-      if (!draft || !activeMarket || net.legacy) throw new ProtocolError("INVALID_TERMS", draftError || "Choose a current market and complete the offer terms.", "Review quantity, exercise payment and option price.");
-      const block = await client.getBlock();
-      const e = expiration(effectiveExpiry, Number(block.timestamp) * 1000);
-      await executePrepared(await prepareCreateOffer(client, activeMarket, address!, { optionType: kind as 0 | 1, ...draft, expiry: e }));
-      setTab("mine"); setPortfolioScope("current"); setReviewedDraft(null); setQuantity(""); setStrike(""); setPremium(""); setExpiry(""); setPresetExpiry(""); setExpiryMode("suggested");
-      const url = new URL(window.location.href); url.searchParams.set("view", "portfolio"); url.searchParams.delete("option"); window.history.pushState({}, "", url);
-    }, "Option written. Collateral is deposited in its own option contract.");
   }
   async function transact(position: Position, action: string) {
     setNoticeScope("trade");
@@ -546,10 +496,9 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
     if (busy) return;
     if (next === "docs") { openDocs(); return; }
     if (tab === "docs" && docsReturn.current?.tab === next) { closeDocs(); return; }
-    if ((next === "market" || next === "create") && net.legacy && tradeMarkets[0]) { setMarketId(tradeMarkets[0].marketId!); setQuantity(""); setStrike(""); setPremium(""); }
+    if ((next === "market" || next === "create") && net.legacy && tradeMarkets[0]) { setMarketId(tradeMarkets[0].marketId!); setOrderSeed({ side: "buy" }); }
     setTab(next);
     setSelectedBid(undefined);
-    setReviewedDraft(null);
     setSelected(null);
     setAcceptedFor("");
     const url = new URL(window.location.href);
@@ -625,6 +574,18 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
       </div>
     </TradeTicket>
   );
+  const requestRows = market.data?.snapshots.find(s => s.market.id === marketId)?.requests ?? [];
+  const selectedRequest = requestRows.find(r => r.id === selectedBid);
+  const buyingAsk = tab === "market" && detail && isListed(detail, now) && optionSeller(detail).toLowerCase() !== address?.toLowerCase();
+  const showOrder = tab === "create" || (tab === "requests" && (!selectedRequest || selectedRequest.buyer.toLowerCase() !== address?.toLowerCase())) || !!buyingAsk;
+  const orderPanel = showOrder && <OrderTicket key={`${marketId}:${bidTicket.revision}:${buyingAsk ? detail?.address : "draft"}`} net={net}
+    seed={{ ...orderSeed, side: buyingAsk || tab === "requests" && !selectedRequest ? "buy" : "sell" }}
+    quote={buyingAsk && detail ? { ask: detail } : selectedRequest ? { bid: selectedRequest } : undefined}
+    positions={positions} requests={requestRows} account={address} walletChainId={chainId} now={now} portfolio={portfolio}
+    canAct={canAct} busy={busy || pending.length > 0} unavailable={health.isError || market.isError} notification={notification}
+    onClose={() => navigate("market")} onConnect={walletConnect} onRefresh={() => { void health.refetch(); void market.refetch(); }}
+    onDone={() => { navigate("mine"); setPortfolioScope("current"); }}
+    onRun={async (prepare, success) => { setNoticeScope("trade"); return run(async () => executePrepared(await prepare()), success); }} />;
   return (
     <main className={`shell ${(tab === "market" && selected) || (tab === "create" || tab === "requests") ? "review-open" : ""}`}>
       <WorkspaceHeader tab={tab} disabled={busy} environment={chain.id === 31337 ? "Local demo" : "Testnet"} onNavigate={navigate}
@@ -641,7 +602,7 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
         {(tab === "market" || tab === "create" || tab === "requests") && <div className="order-actions" role="group" aria-label="Post a new order"><span>Your own price</span><button className="button buy-order" disabled={busy || pending.length > 0 || !!net.legacy} onClick={() => navigate("requests")}>Buy</button><button className="button sell-order" disabled={busy || pending.length > 0 || !!net.legacy} onClick={() => navigate("create")}>Sell</button></div>}
       </section>
       {wrongChain && <div className="banner warning"><span>Your wallet is on another network. Switch to {net.name} to trade.</span><button className="button" disabled={busy} onClick={switchNetwork}>Switch network</button></div>}
-      {tab !== "requests" && !(selected && noticeScope === "trade" && (tab === "market" || (tab === "mine" && visible.some(p => p.address.toLowerCase() === selected.toLowerCase())))) && !(tab === "create" && noticeScope === "create") && notification}
+      {!showOrder && tab !== "requests" && !(selected && noticeScope === "trade" && (tab === "market" || (tab === "mine" && visible.some(p => p.address.toLowerCase() === selected.toLowerCase())))) && notification}
       {pending.length > 0 && <div className="banner warning" role="status"><span>Transaction pending. New operations are paused until its receipt is known. Approvals do not deposit collateral.</span><button className="button" disabled={busy} onClick={() => navigate("activity")}>View activity</button></div>}
       <div className={tab === "market" || tab === "create" || tab === "requests" ? "workspace-layout" : "workspace-single"}>
       {(tab === "market" || tab === "create" || tab === "requests") && <MarketList markets={tradeMarkets} selected={marketId} disabled={busy || pending.length > 0} onSelect={id => openDetail(null, id)} />}
@@ -649,9 +610,9 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
         {(tab === "market" || tab === "create" || tab === "requests") && <OptionsChain key={marketId} account={address} positions={positions} requests={market.data?.snapshots.find(s => s.market.id === marketId)?.requests ?? []} now={now} selected={detail} symbol={net.underlying.symbol} quoteSymbol={net.quote.symbol} underlyingDecimals={net.underlying.decimals} quoteDecimals={net.quote.decimals}
           loading={ready && (market.isFetching || health.isPending)} unavailable={!ready || health.isError || market.isError} configured={ready} disabled={busy || pending.length > 0}
           onSelect={option => { if (tab !== "market") navigate("market"); openDetail(option); }} onBid={id => { navigate("requests"); setSelectedBid(id); }}
-          onRefresh={() => { void health.refetch(); void market.refetch(); }} onCreate={side => navigate(side === "buy" ? "requests" : "create")} />}
+          onRefresh={() => { void health.refetch(); void market.refetch(); }} onContext={rememberSeries} onCreate={(side, context) => { if (context) setOrderSeed({ side, ...context }); navigate(side === "buy" ? "requests" : "create"); }} />}
         {tab === "docs" ? <Docs onBack={closeDocs} />
-        : tab === "requests" ? <BuyRequests key={`${marketId}:${bidTicket.revision}`} selectedId={selectedBid} onClose={() => navigate("market")} notification={notification} net={net} account={address} walletChainId={chainId} now={now} requests={market.data?.snapshots.find(s => s.market.id === marketId)?.requests ?? []} portfolio={portfolio} canAct={canAct} busy={busy || pending.length > 0} unavailable={health.isError || market.isError} loading={ready && market.isPending} onConnect={walletConnect} onRefresh={() => { void health.refetch(); void market.refetch(); }} onOption={option => { navigate("market"); openDetail(option); }} onRun={async (prepare, success) => { setNoticeScope("global"); return run(async () => executePrepared(await prepare()), success); }} />
+        : tab === "requests" && !showOrder ? <BuyRequests key={`${marketId}:${bidTicket.revision}`} selectedId={selectedBid} onClose={() => navigate("market")} notification={notification} net={net} account={address} now={now} requests={market.data?.snapshots.find(s => s.market.id === marketId)?.requests ?? []} canAct={canAct} busy={busy || pending.length > 0} unavailable={health.isError || market.isError} onRefresh={() => { void health.refetch(); void market.refetch(); }} onOption={option => { navigate("market"); openDetail(option); }} onRun={async (prepare, success) => { setNoticeScope("global"); return run(async () => executePrepared(await prepare()), success); }} />
         : tab === "activity" ? <ActivityTable transactions={transactions.filter(t => t.chainId === chain.id && t.account.toLowerCase() === address?.toLowerCase())} explorer={explorer} />
         : tab === "mine" ? <>
           <BalanceTables markets={marketRecords} portfolio={portfolio} stale={health.isError || market.isError} />
@@ -665,40 +626,8 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
           : <div className="empty"><h3>{portfolioScope === "history" ? "No closed positions yet." : "No open positions or orders."}</h3><p>Buy or sell from the option chain, or post your own price.</p><button className="button" onClick={() => navigate("market")}>Open option chain</button></div>}
           <details className="history-source"><summary>Source: onchain option contracts.</summary><p>Positions are reconstructed for your wallet across all configured markets, including activity from other devices. Closed options are exercised, canceled or reclaimed contracts; expired collateral remains open until reclaimed. This is not transaction-by-transaction history.</p></details>
         </>
-        : tab === "create" ? <div className="create-layout">
-          {!reviewingDraft && <TradeTicket title="Sell · Post an ask" busy={busy} onClose={() => navigate("market")}><WriteOptionForm values={{ kind, quantity, strike, premium, expiry, expiryMode, presetExpiry }} onChange={{ kind: value => changeTerm(setKind, value), quantity: value => changeTerm(setQuantity, value), strike: value => changeTerm(setStrike, value), premium: value => changeTerm(setPremium, value), expiry: value => changeTerm(setExpiry, value), expiryMode: value => changeTerm(setExpiryMode, value), presetExpiry: value => changeTerm(setPresetExpiry, value) }}
-            underlying={net.underlying} quote={net.quote} busy={busy} effectiveExpiry={effectiveExpiry} suggestions={expirySuggestions}
-            canMax={!!collateralRow && !market.isError}
-            onMax={async () => { try { const refreshed = await market.refetch(); const row = refreshed.data?.portfolio?.tokens.find(r => r.token.address.toLowerCase() === collateralToken.address?.toLowerCase()); if (refreshed.isError || !row) throw new Error("Could not refresh available collateral."); setReviewedDraft(null); if (kind === 0) setQuantity(units(row.available / (10n ** BigInt(net.underlying.decimals - 1)) * (10n ** BigInt(net.underlying.decimals - 1)), net.underlying.decimals)); else setStrike(units(row.available, net.quote.decimals)); } catch (err) { setNoticeScope("create"); setError(errorText(err)); } }}
-            canReview={!net.legacy && !!draft && !!effectiveExpiry && !expiryError && !insufficientCollateral} onReview={reviewOffer}>
-            {!ready && <div className="banner warning" role="status">Preview offer terms. Writing requires a configured contract deployment.</div>}
-            {expiryError && <div className="banner error" role="alert">{expiryError}</div>}
-            {draftError && <div className="banner error" role="alert">{draftError}</div>}
-            {insufficientCollateral && <div className="banner error" role="alert">Not enough {collateralToken.symbol}. Required: {displayAmount(requiredCollateral!, collateralToken)}. Available: {displayAmount(collateralRow!.available, collateralToken)}. Reduce the amount or reclaim eligible collateral.</div>}
-            {health.isError || market.isError ? <div className="banner error" role="alert">Could not refresh balances or validate this deployment.<button type="button" className="button" onClick={() => { void health.refetch(); void market.refetch(); }}>Retry connection</button></div> : null}
-            {noticeScope === "create" && !reviewingDraft && notification}
-          </WriteOptionForm></TradeTicket>}
-          {reviewingDraft && <TradeTicket title="Review sell order · Deposit collateral" busy={busy} onClose={() => { setReviewedDraft(null); requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('button[type="submit"]')?.focus()); }}>
-            <aside className="create-note" aria-label="Offer funding summary"><div className="section-head"><h2 id="write-review-heading" tabIndex={-1}>{kind === 0 ? "Covered call" : "Cash-secured put"} · {net.underlying.symbol}</h2><span className="pill">Review</span></div>
-              {!ready && <div className="banner warning" role="status">Preview only. No contract deployment is configured; writing is disabled.</div>}
-              <dl className="balance-breakdown">
-                <div><dt>Available in wallet</dt><dd>{collateralRow ? displayAmount(collateralRow.available, collateralToken) : "Connect to view"}</dd></div>
-                <div className="funding-impact"><dt>Deposit for this offer</dt><dd>{displayAmount(requiredCollateral!, collateralToken)}</dd></div>
-                <div><dt>Available after deposit</dt><dd>{collateralRow ? insufficientCollateral ? "Insufficient balance" : displayAmount(collateralRow.available - requiredCollateral!, collateralToken) : "Connect to view"}</dd></div>
-                <div><dt>Full lot</dt><dd>{displayAmount(draft!.quantity, net.underlying)}</dd></div>
-                <div><dt>Premium if purchased</dt><dd>{displayAmount(draft!.premium, net.quote)}</dd></div>
-                <div><dt>Total exercise payment</dt><dd>{displayAmount(draft!.strikeTotal, net.quote)}</dd></div>
-              </dl>
-              <p className="fine">Exercise before {deadlinePreview(effectiveExpiry)}. {portfolio ? `Balances at block ${portfolio.blockNumber}.` : ""} Gas is separate.</p>
-              <div className="deadline-notice">{exerciseWarning}</div>
-              {ready && (health.isError || market.isError) && <div className="banner error" role="alert">Could not refresh balances. Writing is disabled until current data is available.<button className="button" onClick={() => { void health.refetch(); void market.refetch(); }}>Retry connection</button></div>}
-              {noticeScope === "create" && notification}
-              <div className="review-bottom"><small>Collateral is deposited into the new option contract. Premium arrives only if purchased.</small><div className="detail-actions">{!isConnected ? <button className="button dark" onClick={walletConnect}>Connect wallet to continue</button> : <button className="button dark" disabled={!!net.legacy || !canAct || !draft || !!expiryError || insufficientCollateral || market.isError || !portfolio} onClick={create}>{busy ? "Processing…" : "Post ask & deposit collateral"}</button>}</div></div>
-              <details className="contract-details"><summary>Collateral and token details</summary><p>Writing deploys a separate option contract. Approval authorizes spending; only the creation transaction deposits collateral.</p><p>Gas available: {balances.data ? gasAmount(balances.data.gas) : "Connect to view"}.</p>{!net.underlying.isMock && <p>Stock Token display multiplier: {displayMetadata.data?.multiplier !== undefined ? units(displayMetadata.data.multiplier, 18) : "Unavailable"}. Quantities remain fixed token units.</p>}</details>
-            </aside>
-          </TradeTicket>}
-        </div>
-        : <>{selected && detailPanel}</>}
+        : <>{selected && !showOrder && detailPanel}</>}
+        {orderPanel}
       </section>
       </div>
       <footer><span>Archer Markets · Fully collateralized options</span><span>{net.name} · Manual exercise · Physical token delivery</span></footer>

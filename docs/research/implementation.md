@@ -749,3 +749,18 @@ passed in `.qa-tmp-e2e-SI6YDE/`. Checks cover exact balances, rejected signature
 wallet/network changes, RPC outage, cancellation and expired premium recovery.
 The runner supports `--requests-only` for focused retries and suppresses development
 credentials in automated Anvil logs. No public transactions or live-demo writes.
+
+## September 16, 2026 — One order ticket
+
+Buy, Sell, Bid and Ask now use the same editable ticket and inline review. Enter strike
+and premium per token; exact integer arithmetic calculates totals and collateral.
+Editing a quote switches to a new order and clears approval of the previous terms.
+Portfolio retains management of existing positions and bids. Updated the local guide
+with an Orca screenshot; contracts and manual full-lot acceptance are unchanged.
+
+Validation: 135 tests passed, one optional RPC-fork test skipped; typecheck, lint and
+build passed. Isolated Docker protocol/SDK acceptance and all 13 browser scenarios
+passed (`.qa-tmp-e2e-OPGisZ/summary.json`), including crossed orders staying open,
+separate collateral on bid acceptance, exact balances and signature rollback. Orca
+verified all four entry paths, strike presets and automatic totals. No public
+transactions, live-demo writes or private keys embedded in the frontend.

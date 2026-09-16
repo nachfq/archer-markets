@@ -14,21 +14,21 @@ export const documentation = [
     "id": "buying",
     "title": "Buying an option",
     "paragraphs": [
-      "Choose a market and click an Ask price. Review the full quantity, total premium and expiration, acknowledge manual exercise, then approve and buy. You receive an exercise right; the tokens move only if you exercise. The premium is not refundable."
+      "Choose a market and click an Ask price. Buy, Sell, Bid and Ask all open the same ticket, preset from the selected quote. Editing its terms switches to posting a new order; it never automatically matches. Review the full quantity, total premium and expiration, acknowledge manual exercise, then approve and buy. You receive an exercise right; the tokens move only if you exercise. The premium is not refundable."
     ]
   },
   {
     "id": "writing",
     "title": "Writing and collateral",
     "paragraphs": [
-      "Choose Sell to post an ask. Enter a quantity in multiples of 0.1 token, total exercise payment, total premium and expiration. A call locks all the tokens; a put locks the full exercise payment. The premium arrives when someone buys. A sold option cannot be canceled."
+      "Choose Sell to post an ask. Enter quantity, strike and premium per token, and expiration. The ticket calculates both totals. Quantities are multiples of 0.1 token. A call locks all the tokens; a put locks the full exercise payment. The premium arrives when someone buys. A sold option cannot be canceled."
     ]
   },
   {
     "id": "requests",
     "title": "Posting a bid",
     "paragraphs": [
-      "Choose Buy to post a bid with your terms and reserve the premium. Set Accept until earlier than the option expiration. You do not own an option yet.",
+      "Choose Buy to post a bid with your terms and reserve the premium. The bid deadline defaults to one hour before expiration and can be customized. You do not own an option yet.",
       "A writer accepts the full request and deposits all collateral upfront. You receive one option and the writer receives your premium in the same transaction. Until acceptance, you can cancel for a full refund. After the acceptance deadline, recovery still requires a transaction."
     ]
   },

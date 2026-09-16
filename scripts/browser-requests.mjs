@@ -1,7 +1,7 @@
 // Functional local-browser acceptance. Only unlocked Anvil accounts; no private keys.
 import assert from 'node:assert/strict';
 import { chromium, expect } from '@playwright/test';
-import { createPublicClient, http, erc20Abi } from 'viem';
+import { createPublicClient, http, erc20Abi, encodeFunctionData } from 'viem';
 import { optionFactoryAbi, optionAbi } from '@stock-options-lab/sdk';
 import { readJson, saveJson } from './config.mjs';
 const rpc = process.env.ANVIL_RPC_URL ?? 'http://127.0.0.1:8547';
@@ -83,43 +83,68 @@ try {
   for (const scenario of [0,1,2,3]) {
     const kind = scenario === 0 ? 0 : 1;
     const id = await count(), now = (await client.getBlock()).timestamp;
+    let restingAsk;
+    if (scenario === 0) {
+      const optionIndex = await read(m.factory, optionFactoryAbi, 'optionCount');
+      for (const [to, abi, functionName, args] of [
+        [m.underlying.address, erc20Abi, 'approve', [m.factory, 200_000_000_000_000_000n]],
+        [m.factory, optionFactoryAbi, 'createOption', [0, 200_000_000_000_000_000n, 60_000_000n, 1_000_000n, (now + 604800n) / 60n * 60n]],
+      ]) {
+        const hash = await client.request({method:'eth_sendTransaction', params:[{from:accounts[6], to, data:encodeFunctionData({abi,functionName,args})}]});
+        const receipt = await client.waitForTransactionReceipt({hash});
+        assert.equal(receipt.status, 'success');
+        evidence.transactions.push({hash, from:accounts[6], to, status:receipt.status, purpose:'Resting ask below the new bid'});
+      }
+      restingAsk = await read(m.factory, optionFactoryAbi, 'options', [optionIndex]);
+    }
+    const optionCountBeforeBid = await read(m.factory, optionFactoryAbi, 'optionCount');
     const before = await balances();
     const reservedBefore = await read(m.factory, optionFactoryAbi, 'reservedPremium');
     await buyer.getByRole('button', {name:'Trade',exact:true}).click();
     await buyer.getByRole('group', {name:'Post a new order'}).getByRole('button',{name:'Buy',exact:true}).click();
-    await buyer.getByLabel('Write option type').selectOption(String(kind));
-    await buyer.getByLabel(/^Quantity of/).fill('0.15');
-    await buyer.getByLabel(/Exercise payment — total/).fill('60');
-    await buyer.getByLabel(/Premium — total/).fill('2');
-    await buyer.getByLabel('Write expiration').selectOption('custom');
-    await buyer.getByLabel('Expiration · your local time', {exact:true}).fill(date(now+604800n));
-    await buyer.getByLabel('Request acceptance deadline').fill(date(now+86400n));
-    await expect(buyer.getByRole('button',{name:'Review buy order →'})).toBeDisabled();
-    await buyer.getByLabel(/^Quantity of/).fill('0.2');
-    await buyer.getByRole('button',{name:'Review buy order →'}).click();
-    await expect(buyer.getByText('Deposit now · premium')).toBeVisible();
+    await buyer.getByLabel('Order option type').selectOption(String(kind));
+    await buyer.getByLabel('Order quantity').fill('0.15');
+    await buyer.getByLabel('Order strike').fill('300');
+    await buyer.getByLabel('Order premium').fill('10');
+    await buyer.getByLabel('Order expiration').selectOption('custom');
+    await buyer.getByLabel('Custom order expiration', {exact:true}).fill(date(now+604800n));
+    await buyer.locator('.order-validity summary').click();
+    await buyer.getByLabel('Bid deadline').fill(date(now+86400n));
+    await expect(buyer.getByRole('button',{name:'Review order'})).toBeDisabled();
+    await buyer.getByLabel('Order quantity').fill('0.2');
+    await buyer.getByRole('button',{name:'Review order'}).click();
+    await expect(buyer.getByText('Reserve now')).toBeVisible();
     if (scenario === 0) {
       await buyer.evaluate(account => window.__changeAccount(account), accounts[8]);
-      await expect(buyer.getByRole('button', {name:'Post bid & reserve premium'})).toHaveCount(0);
-      await expect(buyer.getByLabel(/^Quantity of/)).toHaveValue('0.2');
+      await expect(buyer.getByRole('button', {name:'Confirm buy'})).toHaveCount(0);
+      await expect(buyer.getByLabel('Order quantity')).toHaveValue('0.2');
       await buyer.evaluate(account => window.__changeAccount(account), accounts[7]);
-      await buyer.getByRole('button',{name:'Review buy order →'}).click();
+      await buyer.getByRole('button',{name:'Review order'}).click();
       await buyer.evaluate(() => window.__changeChain('0x1'));
-      await expect(buyer.getByRole('button', {name:'Post bid & reserve premium'})).toHaveCount(0);
+      await expect(buyer.getByRole('button', {name:'Confirm buy'})).toHaveCount(0);
       await buyer.evaluate(() => window.__changeChain('0x7a69'));
-      await buyer.getByRole('button',{name:'Review buy order →'}).click();
+      await buyer.getByRole('button',{name:'Review order'}).click();
+      await buyer.getByRole('checkbox', {name:/I understand: full quantity/}).check();
       await buyer.evaluate(() => { window.__rejectNextSignature = true; });
-      await buyer.getByRole('button',{name:'Post bid & reserve premium'}).click();
+      await buyer.getByRole('checkbox', {name:/I understand: full quantity/}).check();
+    await buyer.getByRole('button',{name:'Confirm buy'}).click();
       await expect(buyer.getByRole('alert').filter({hasText:/rejected/i})).toBeVisible();
       assert.equal(await count(), id);
       assert.deepEqual(await balances(), before);
     }
-    await buyer.getByRole('button',{name:'Post bid & reserve premium'}).click();
+    await buyer.getByRole('checkbox', {name:/I understand: full quantity/}).check();
+    await buyer.getByRole('button',{name:'Confirm buy'}).click();
     await expect(buyer.getByRole('status').filter({hasText:'Bid posted.'})).toBeVisible();
     await buyer.getByRole('button',{name:'Portfolio',exact:true}).click();
     await expect(buyer.locator(`[data-request="${id}"]`)).toContainText('Awaiting writer');
     const funded = await request(id);
     assert.equal(funded.state, 0);
+    assert.equal(await read(m.factory, optionFactoryAbi, 'optionCount'), optionCountBeforeBid, 'Posting a bid must not auto-match or create an option.');
+    if (restingAsk) {
+      assert(funded.premium > await read(restingAsk, optionAbi, 'premium'));
+      assert.equal(await read(restingAsk, optionAbi, 'state'), 0, 'The lower ask stays open even when crossed by the new bid.');
+      assert.equal(await balance(m.underlying, restingAsk), funded.underlyingAmount, 'The resting ask collateral is not reused.');
+    }
     assert.equal(funded.underlyingAmount, 200_000_000_000_000_000n);
     assert.equal(funded.strikeTotal, 60_000_000n);
     assert.equal(funded.premium, 2_000_000n);
@@ -153,20 +178,28 @@ try {
     const card = writer.locator(`[data-request="${id}"]`).first();
     await expect(card).toBeVisible();
     await card.click();
-    await expect(writer.getByText('You receive upon acceptance')).toBeVisible();
+    await expect(writer.getByLabel('Order strike')).toHaveValue('300');
+    await expect(writer.getByLabel('Order premium')).toHaveValue('10');
+    await writer.getByRole('button', {name:'Review order'}).click();
+    await writer.getByRole('checkbox', {name:/I understand: full quantity/}).check();
     if (scenario === 0) {
       await writer.context().route(`${rpc}/**`, route => route.abort());
       // Let the periodic query detect the outage while the order ticket stays open.
       await expect(writer.getByRole('alert').filter({hasText:'Could not refresh this market.'})).toBeVisible({timeout:45000});
-      await expect(writer.getByRole('button',{name:'Sell & deposit collateral',exact:true})).toBeDisabled();
+      await expect(writer.getByRole('button',{name:'Confirm sell',exact:true})).toBeDisabled();
       await writer.context().unroute(`${rpc}/**`);
       await writer.getByRole('button',{name:'Retry connection',exact:true}).click();
-      await expect(writer.getByRole('button',{name:'Sell & deposit collateral',exact:true})).toBeEnabled();
+      await expect(writer.getByRole('button',{name:'Confirm sell',exact:true})).toBeEnabled();
     }
-    await writer.getByRole('button',{name:'Sell & deposit collateral',exact:true}).click();
+    await writer.getByRole('button',{name:'Confirm sell',exact:true}).click();
     await expect(writer.getByRole('status').filter({hasText:'Option sold.'})).toBeVisible();
     const accepted = await request(id);
     assert.equal(accepted.state, 1);
+    if (restingAsk) {
+      assert.notEqual(accepted.option.toLowerCase(), restingAsk.toLowerCase());
+      assert.equal(await read(restingAsk, optionAbi, 'state'), 0);
+      assert.equal(await balance(m.underlying, restingAsk), funded.underlyingAmount);
+    }
     assert.equal(await read(m.factory, optionFactoryAbi, 'reservedPremium'), reservedBefore);
     assert.equal((await read(accepted.option, optionAbi, 'buyer')).toLowerCase(), accounts[7].toLowerCase());
     const active = await balances(accepted.option);
@@ -174,7 +207,7 @@ try {
     assert.equal(active[accounts[7]][1], before[accounts[7]][1] - funded.premium);
     assert.equal(active[accounts[6]][1], before[accounts[6]][1] + funded.premium - (kind === 1 ? funded.strikeTotal : 0n));
     assert.deepEqual(active[accepted.option], kind === 0 ? [funded.underlyingAmount, 0n] : [0n, funded.strikeTotal]);
-    await writer.getByRole('button',{name:'View created option',exact:true}).click();
+    await writer.locator(`[data-offer="${accepted.option}"]`).click();
     await expect(writer.locator('#option-review-heading')).toBeVisible();
     assert.equal(await writer.evaluate(()=>document.documentElement.scrollWidth <= window.innerWidth),true);
     await buyer.goto(`${base}/?market=${m.marketId}&option=${accepted.option}`);

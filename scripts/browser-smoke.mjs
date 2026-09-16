@@ -35,7 +35,7 @@ const quote = deployment.quote.address;
 assert((await client.getCode({ address: factory }))?.length > 2, 'Local factory is missing');
 
 const quantity = 1_200_000_000_000_000_000n;
-const strike = 312_345_680n;
+const strike = 312_345_678n;
 const premium = 4_567_890n;
 const evidence = { chainId: 31337, baseUrl, factory, writer, buyer, startedAt: new Date().toISOString(), setupTransactions: [], scenarios: [] };
 let transactions = evidence.setupTransactions;
@@ -117,7 +117,13 @@ async function complete(page, button, success) {
     await page.getByLabel('Wallet menu').click();
     await expect(page.getByRole('menuitem', { name: button, exact: true })).toBeEnabled();
   }
-  await page.getByRole(button.startsWith('Get ') ? 'menuitem' : 'button', { name: button === 'Buy option' ? /^Buy (call|put) · / : button, exact: button !== 'Buy option' }).click();
+  if (button === 'Buy option' || button === 'Confirm sell') {
+    const review = page.getByRole('button', {name:'Review order',exact:true});
+    if (await review.isVisible()) await review.click();
+    await page.getByRole('checkbox', {name:/I understand: full quantity/}).check();
+  }
+  await page.getByRole(button.startsWith('Get ') ? 'menuitem' : 'button', { name: button === 'Buy option' ? 'Confirm buy' : button, exact: true }).click();
+  if (button === 'Buy option') success = 'Option purchased.';
   await expect(page.getByRole('status').filter({ hasText: success })).toBeVisible({ timeout: 45_000 });
   await expect(page.getByRole('button', { name: 'Dismiss notification' })).toBeVisible();
 }
@@ -147,40 +153,34 @@ async function create(page, type, usePreset = false) {
   const expiry = new Date(Math.max(Date.now(), Number(block.timestamp) * 1000) + 86_400_000).toISOString().slice(0, 16);
   await page.getByRole('button', { name: 'Trade', exact: true }).click();
   await page.getByRole('button', { name: 'Sell', exact: true }).first().click();
-  await page.getByLabel('Write option type').selectOption(String(type));
-  await expect(page.getByRole('complementary', { name: 'Offer funding summary' })).toHaveCount(0);
-  await page.getByLabel(/^Quantity of/).fill('999999999');
-  await page.getByLabel(/^Exercise payment — total/).fill(type === 0 ? '1' : '999999999');
-  await page.getByLabel(/^Premium — total/).fill('1');
+  await page.getByLabel('Order option type').selectOption(String(type));
+  await expect(page.getByRole('dialog', {name:'Order ticket'})).toBeVisible();
+  await page.getByLabel('Order quantity').fill('999999999');
+  await page.getByLabel('Order strike').fill(type === 0 ? '1' : '999999999');
+  await page.getByLabel('Order premium').fill('1');
   await expect(page.getByRole('alert').filter({ hasText: /Not enough/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Review sell order →' })).toBeDisabled();
-  if (type === 0) {
-    await page.getByRole('button', { name: 'Max', exact: true }).click();
-    await expect(page.getByLabel(/^Quantity of/)).toHaveValue(formatUnits(before.underlying,18));
-  }
-  await page.getByLabel('Lot shortcut').selectOption('0.1');
-  await expect(page.getByLabel(/^Quantity of/)).toHaveValue('0.1');
-  await page.getByLabel(/^Quantity of/).fill('1.2');
-  await page.getByLabel(/^Exercise payment — total/).fill('312.34568');
-  await page.getByLabel(/^Premium — total/).fill('4.56789');
+  await expect(page.getByRole('button', { name: 'Review order' })).toBeDisabled();
+  await page.getByLabel('Order quantity').fill('1.2');
+  await page.getByLabel('Order strike').fill('260.288065');
+  await page.getByLabel('Order premium').fill('3.806575');
   let expectedExpiry;
   if (usePreset) {
-    const preset = await page.getByLabel('Write expiration', { exact: true }).locator('option').first().getAttribute('value');
-    await page.getByLabel('Write expiration', { exact: true }).selectOption(preset);
+    const preset = await page.getByLabel('Order expiration', { exact: true }).locator('option').first().getAttribute('value');
+    await page.getByLabel('Order expiration', { exact: true }).selectOption(preset);
     expectedExpiry = BigInt(Date.parse(preset) / 1000);
   } else {
-    await page.getByLabel('Write expiration', { exact: true }).selectOption('custom');
-    await page.getByLabel(/^Expiration · your local time/).fill(expiry);
+    await page.getByLabel('Order expiration', { exact: true }).selectOption('custom');
+    await page.getByLabel('Custom order expiration').fill(expiry);
     expectedExpiry = BigInt(Date.parse(`${expiry}:00Z`) / 1000);
   }
-  await page.getByRole('button', { name: 'Review sell order →' }).click();
-  await expect(page.getByRole('complementary', { name: 'Offer funding summary' })).toBeVisible();
-  await expect(page.locator('.funding-impact dd')).toHaveText(type === 0 ? `1.2 ${deployment.underlying.symbol}` : '312.34568 MockUSD');
+  await page.getByRole('button', { name: 'Review order' }).click();
+  await expect(page.getByRole('button', {name:'Confirm sell'})).toBeDisabled();
+  await expect(page.locator('.order-totals')).toContainText(type === 0 ? `1.2 ${deployment.underlying.symbol}` : '312.345678 MockUSD');
   // Reviewing must never send an approval or create a contract.
   assert.equal(await read(factory, factoryAbi, 'optionCount'), beforeCount);
   assert.equal(await read(underlying, erc20Abi, 'balanceOf', [writer]), before.underlying);
   assert.equal(await read(quote, erc20Abi, 'balanceOf', [writer]), before.quote);
-  await complete(page, 'Post ask & deposit collateral', 'Option written. Collateral is deposited in its own option contract.');
+  await complete(page, 'Confirm sell', 'Ask posted.');
   assert.equal(await read(factory, factoryAbi, 'optionCount'), beforeCount + 1n);
   const option = await read(factory, factoryAbi, 'options', [beforeCount]);
   assert.equal(await read(option, optionAbi, 'underlyingAmount'), quantity);
@@ -274,23 +274,36 @@ try {
     await expect(buyerPage.locator('.book-quote').first()).toBeVisible();
     await buyerPage.locator(`[data-expiration="${offer.expiry}"]`).click();
     const chainQuote = buyerPage.locator(`[data-offer="${offer.option}"]`);
-    const strikeButton = buyerPage.getByRole('button', { name: 'Strike ≈260.288066', exact: true });
+    const strikeButton = buyerPage.getByRole('button', { name: 'Strike 260.288065', exact: true });
     if (await strikeButton.getAttribute('aria-expanded') !== 'true') await strikeButton.click();
     await chainQuote.last().click();
     await expect(buyerPage).toHaveURL(new RegExp(`option=${offer.option}`, 'i'));
     await expect(buyerPage.getByRole('dialog')).toBeVisible();
-    await expect(buyerPage.locator('.detail-role')).toContainText('Written by');
-    await expect(buyerPage.locator('.purchase-cost')).toContainText('You pay to buy this option');
-    await expect(buyerPage.getByRole('button', { name: /^Buy (call|put) · / })).toBeDisabled();
-    await buyerPage.getByRole('checkbox', { name: /^I understand that I must exercise before/ }).check();
+    await expect(buyerPage.getByRole('dialog', {name:'Order ticket'})).toBeVisible();
+    await expect(buyerPage.getByLabel('Order quantity')).toHaveValue('1.2');
+    await expect(buyerPage.getByLabel('Order strike')).toHaveValue('260.288065');
+    await buyerPage.getByLabel('Order quantity').fill('0.6');
+    await expect(buyerPage.getByText('Post new bid', {exact:true})).toBeVisible();
+    assert.equal(Number(await read(offer.option, optionAbi, 'state')), 0);
+    await buyerPage.getByRole('button', {name:'Restore selected quote'}).click();
+    await buyerPage.getByRole('button', {name:'Review order'}).click();
+    await expect(buyerPage.getByRole('button', {name:'Confirm buy'})).toBeDisabled();
+    await buyerPage.getByRole('checkbox', {name:/I understand: full quantity/}).check();
+    await buyerPage.getByLabel('Order premium').fill('4');
+    await expect(buyerPage.getByRole('button', {name:'Confirm buy'})).toHaveCount(0);
+    await expect(buyerPage.getByText('Post new bid', {exact:true})).toBeVisible();
+    await buyerPage.getByRole('button', {name:'Restore selected quote'}).click();
+    await buyerPage.getByRole('button', {name:'Review order'}).click();
+    await expect(buyerPage.getByRole('checkbox', {name:/I understand: full quantity/})).not.toBeChecked();
+    await buyerPage.getByRole('checkbox', {name:/I understand: full quantity/}).check();
     if (type === 0) {
       const beforeReject = await balances(offer.option);
       await buyerPage.evaluate(() => { window.__rejectNextSignature = true; });
-      await buyerPage.getByRole('button', { name: /^Buy call · / }).click();
+      await buyerPage.getByRole('button', { name: 'Confirm buy' }).click();
       await expect(buyerPage.getByRole('alert').filter({ hasText: /rejected/i })).toBeVisible();
       assert.equal(Number(await read(offer.option, optionAbi, 'state')), 0);
       assert.deepEqual(await balances(offer.option), beforeReject);
-      await expect(buyerPage.getByRole('button', { name: /^Buy call · / })).toBeEnabled();
+      await expect(buyerPage.getByRole('button', { name: 'Confirm buy' })).toBeEnabled();
       console.log('PASS rejected signature leaves option and token balances unchanged; retry available');
     }
     await complete(buyerPage, 'Buy option', 'Transaction confirmed. Balances and position are up to date.');
@@ -298,12 +311,12 @@ try {
     deltas(offer.afterCollateral, purchased, { writer: { quote: premium }, buyer: { quote: -premium } }, `${name} UI purchase`);
     assert.equal(Number(await read(offer.option, optionAbi, 'state')), 1);
     assert.equal((await read(offer.option, optionAbi, 'buyer')).toLowerCase(), buyer.toLowerCase());
+    await buyerPage.locator(`[data-offer="${offer.option}"]`).click();
     await buyerPage.getByLabel(/^Resale price — total/).fill('12');
     await complete(buyerPage, 'List for resale', 'Resale listed.');
     await nextPage.goto(offer.link);
     await expect(nextPage.getByRole('dialog')).toBeVisible();
-    await expect(nextPage.locator('.purchase-cost strong')).toHaveText('12.00 MockUSD');
-    await nextPage.getByRole('checkbox', { name: /^I understand/ }).check();
+    await expect(nextPage.locator('.order-totals')).toContainText('12 MockUSD');
     await complete(nextPage, 'Buy option', 'Transaction confirmed.');
     const resold = await balances(offer.option);
     deltas(purchased, resold, { buyer: { quote: 12_000000n }, nextBuyer: { quote: -12_000000n } }, 'UI resale');
@@ -311,6 +324,7 @@ try {
     await buyerPage.reload();
     await expect(buyerPage.getByRole('button', { name: 'Exercise option', exact: true })).toHaveCount(0);
     purchased = resold;
+    await nextPage.locator(`[data-offer="${offer.option}"]`).click();
     await complete(nextPage, 'Exercise option', 'Transaction confirmed. Balances and position are up to date.');
     const after = await balances(offer.option);
     deltas(purchased, after, type === 0
@@ -331,17 +345,17 @@ try {
     await writerPage.locator(`[data-market="${target.marketId}"]`).click();
     await writerPage.getByRole('button', { name: 'Sell', exact: true }).first().click();
     await expect(writerPage.getByRole('heading', { level: 1 })).toContainText(target.label.split(' / ')[0]);
-    await expect(writerPage.getByRole('dialog', { name: 'Sell · Post an ask' })).toBeVisible();
-    await writerPage.getByLabel('Write option type').selectOption('0');
-    await writerPage.getByLabel(/^Quantity of/).fill('0.1');
-    await writerPage.getByLabel(/^Exercise payment — total/).fill('25');
-    await writerPage.getByLabel(/^Premium — total/).fill('1');
+    await expect(writerPage.getByRole('dialog', { name: 'Order ticket' })).toBeVisible();
+    await writerPage.getByLabel('Order option type').selectOption('0');
+    await writerPage.getByLabel('Order quantity').fill('0.1');
+    await writerPage.getByLabel('Order strike').fill('250');
+    await writerPage.getByLabel('Order premium').fill('10');
     const count = await read(target.factory, factoryAbi, 'optionCount');
     const previousNotice = writerPage.getByRole('button', { name: 'Dismiss notification' });
     if (await previousNotice.isVisible()) await previousNotice.click();
-    await writerPage.getByRole('button', { name: 'Review sell order →' }).click();
+    await writerPage.getByRole('button', { name: 'Review order' }).click();
     await expect(writerPage.getByRole('dialog')).toBeVisible();
-    await complete(writerPage, 'Post ask & deposit collateral', 'Option written.');
+    await complete(writerPage, 'Confirm sell', 'Ask posted.');
     assert.equal(await read(target.factory, factoryAbi, 'optionCount'), count + 1n, 'Market selector changes the actual creation factory');
     const created = await read(target.factory, factoryAbi, 'options', [count]);
     await writerPage.locator(`[data-offer="${created}"]`).click();
@@ -406,9 +420,9 @@ try {
   await writerPage.screenshot({ path: join(process.env.EVIDENCE_DIR ?? tmpdir(), 'options-portfolio-connected.png'), fullPage: true });
   await writerPage.getByRole('button', { name: 'Trade', exact: true }).click();
   await writerPage.getByRole('button', { name: 'Sell', exact: true }).first().click();
-  await writerPage.getByLabel(/^Quantity of/).fill('0.1');
-  await writerPage.getByLabel(/^Exercise payment — total/).fill('300');
-  await writerPage.getByLabel(/^Premium — total/).fill('8');
+  await writerPage.getByLabel('Order quantity').fill('0.1');
+  await writerPage.getByLabel('Order strike').fill('300');
+  await writerPage.getByLabel('Order premium').fill('8');
   await writerPage.screenshot({ path: join(process.env.EVIDENCE_DIR ?? tmpdir(), 'options-create-connected.png'), fullPage: true });
   await writerPage.setViewportSize({ width: 390, height: 844 });
   await writerPage.screenshot({ path: join(process.env.EVIDENCE_DIR ?? tmpdir(), 'options-create-mobile.png'), fullPage: true });

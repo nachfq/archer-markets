@@ -59,8 +59,11 @@ The following walkthrough makes a new agreement between your two wallets.
 ## 3. Maker: sell a new call
 
 As **anvil0**, go to **Trade → Sell** to post an ask. Choose **Call**, enter **0.2** tokens,
-**60** total exercise payment, **2** total option price, and **Custom expiration…** set to tomorrow.
-Review, approve the collateral if prompted, then choose **Post ask & deposit collateral**.
+**300** strike per token, **10** premium per token, and **Custom…** expiration set to tomorrow.
+The ticket calculates **60 MockUSD** exercise payment and **2 MockUSD** premium.
+
+![The same ticket, with per-token prices and calculated totals](images/order-ticket.png)
+Choose **Review order**, acknowledge the terms, then **Confirm sell**. Approve collateral if prompted.
 
 The writer's available stock decreases by **0.2**. That amount is now locked in the
 option; no premium has arrived yet. Find the offer in **Portfolio** and **Trade**.
@@ -68,8 +71,9 @@ option; no premium has arrived yet. Find the offer in **Portfolio** and **Trade*
 ## 4. Taker: buy and exercise
 
 As **anvil1**, open **Trade**, select the expiration and expand
-the **300** strike row (60 ÷ 0.2). Click the Ask for anvil0's 0.2-token offer, review it and acknowledge
-manual exercise. Approve the **2 MockUSD** premium if needed, then confirm purchase.
+the **300** strike row (60 ÷ 0.2). Click the Ask for anvil0's 0.2-token offer. The same ticket opens with its terms already filled.
+Choose **Review order**, acknowledge manual exercise, then **Confirm buy**. Approve the
+**2 MockUSD** premium if prompted.
 
 The buyer now holds the option. The writer receives **2 MockUSD** and cannot cancel it.
 In the buyer's **Portfolio**, expand the position and choose **Review exercise**.
@@ -87,16 +91,21 @@ remaining collateral. Buying alone does not deliver stock.
 ## 5. Reverse the roles: post a bid for a put
 
 The buyer is now the **maker**. In **Trade → Buy**, choose
-**Put**, quantity **0.2**, exercise payment **60**, premium **2**, expiration tomorrow,
-and **Accept until** earlier than expiration. Choose **Post bid & reserve premium**.
+**Put**, quantity **0.2**, strike **300** and premium **10** per token, expiration tomorrow.
+The bid deadline defaults to one hour before expiration; expand it to customize.
+Review and **Confirm buy** to reserve the calculated **2 MockUSD** premium.
 Portfolio now shows **2 MockUSD in request premiums**; there is no option yet.
 
-The writer is now the **taker**. Click the Bid in the option chain, review and **Sell & deposit collateral**.
+The writer is now the **taker**. Click the Bid in the option chain. Review the same prefilled ticket and **Confirm sell**.
 The writer must have **60 MockUSD upfront**: the 2 premium cannot fund the deposit.
 Acceptance locks 60, pays the writer 2 and gives the buyer one option.
 
 The buyer exercises from Portfolio, delivering **0.2 mTSLA** to receive **60 MockUSD**.
 Net for this put alone: buyer −0.2 stock / +58 MockUSD; writer +0.2 stock / −58 MockUSD.
+
+The ticket keeps the selected quote while you review. Editing any term switches to
+**Post new bid/ask**; it does not modify or accept the original. Use **Restore selected quote**
+to return. Orders never match automatically and cannot be partially filled.
 
 ## Where to check / retry
 
