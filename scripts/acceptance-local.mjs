@@ -1,6 +1,7 @@
 // Own disposable nodes, manifests and browser source. Never reuse a live demo.
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { dockerInvocation } from './foundry.mjs';
 import { createServer } from 'node:net';
 import { cp, mkdir, mkdtemp, readFile, readdir, symlink, writeFile } from 'node:fs/promises';
 import { createWriteStream } from 'node:fs';
@@ -11,6 +12,8 @@ import { root, publicDeployment } from './config.mjs';
 
 const directory = await mkdtemp(join(root, '.qa-tmp-e2e-'));
 const children = [];
+const requestsOnly = process.argv.includes('--requests-only');
+let anvilContainer;
 const evidence = { startedAt: new Date().toISOString(), publicTransactions: false, directory, steps: [], result: 'running' };
 const serialize = value => JSON.stringify(value, (_, v) => typeof v === 'bigint' ? v.toString() : v, 2) + '\n';
 const env = { ...process.env, EVIDENCE_DIR: directory };
@@ -52,6 +55,7 @@ async function ready(url, child, rpc = false) {
   throw new Error(`Service did not become ready: ${url}`);
 }
 async function stopChildren() {
+  if (anvilContainer) spawnSync("docker", ["rm", "-f", anvilContainer], { stdio: "ignore", timeout: 10_000 });
   for (const child of children) if (child.exitCode === null && !child.signalCode) child.kill('SIGTERM');
   // Give Docker wrappers time to remove their owned containers before exiting.
   const timeout = setTimeout(15_000, undefined, { ref: false });
@@ -66,13 +70,19 @@ try {
   env.DEMO_MANIFEST = join(directory, 'manifest.json');
   env.DEMO_LEDGER = join(directory, 'ledger.json');
   evidence.rpcUrl = env.ANVIL_RPC_URL;
-  const anvil = start(process.execPath, ['scripts/foundry.mjs', 'anvil', String(rpcPort)], 'anvil');
+  const invocation = dockerInvocation('anvil', [String(rpcPort)]);
+  invocation.args.splice(invocation.args.indexOf('--entrypoint'), 0, '--log-driver', 'none');
+  invocation.args.push('--silent'); // Keep development credentials out of automated evidence.
+  anvilContainer = invocation.name;
+  const anvil = start(invocation.command, invocation.args, 'anvil');
   await ready(env.ANVIL_RPC_URL, anvil, true);
   await run('node', ['scripts/demo-local.mjs', '--deploy-only', '--no-export'], 'deploy');
   const client = createPublicClient({ transport: http(env.ANVIL_RPC_URL), cacheTime: 0, pollingInterval: 25 });
   const cleanDeployment = await client.request({ method: 'evm_snapshot' });
-  await run('npm', ['run', 'test:e2e'], 'protocol-e2e');
-  await run('node', ['packages/sdk/examples/lifecycle.mjs', env.DEMO_MANIFEST], 'sdk-e2e');
+  if (!requestsOnly) {
+    await run('npm', ['run', 'test:e2e'], 'protocol-e2e');
+    await run('node', ['packages/sdk/examples/lifecycle.mjs', env.DEMO_MANIFEST], 'sdk-e2e');
+  }
   // Remove test time travel and historical fixtures before browser acceptance.
   // This node belongs exclusively to this runner; no reset is sent to a supplied RPC.
   assert.equal(await client.request({ method: 'evm_revert', params: [cleanDeployment] }), true);
@@ -103,7 +113,7 @@ try {
   evidence.browserUrl = env.BROWSER_BASE_URL;
   const preview = start('node', [join(root, 'web/node_modules/vinext/dist/cli.js'), 'dev', '--hostname', '127.0.0.1', '--port', String(webPort)], 'web', web);
   await ready(env.BROWSER_BASE_URL, preview);
-  await run('npm', ['run', 'test:browser'], 'browser-options');
+  if (!requestsOnly) await run('npm', ['run', 'test:browser'], 'browser-options');
   await run('npm', ['run', 'test:browser:requests'], 'browser-requests');
   evidence.result = 'passed';
 } catch (error) {

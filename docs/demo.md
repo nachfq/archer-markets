@@ -37,6 +37,8 @@ Open the printed URL, normally <http://localhost:3000>, in both profiles.
 Select **Mock Tesla** in both. You should see **390 seeded options** across five markets
 (370 initially listed, including resales) and **150 open buy requests**. Prices are synthetic.
 
+![Local bid/ask option chain with synthetic Tesla quotes](images/option-chain.png)
+
 ## 2. Prepare both wallets
 
 Add the network to each wallet: **Local Anvil**, RPC **http://127.0.0.1:8545**,
@@ -51,22 +53,22 @@ After seeding, **Portfolio → Available** should show, for each account:
 The seed funds these wallets once; rerunning it preserves your trades and does not refill
 spent balances. For more tokens later, use **Wallet menu → Get [token]** in the selected market.
 
-To start immediately, buy an existing NPC offer or accept one of its buy requests.
+To start immediately, click an Ask to buy, or a Bid to sell a new option to an NPC.
 The following walkthrough makes a new agreement between your two wallets.
 
-## 3. Maker: write a call
+## 3. Maker: sell a new call
 
-As **anvil0**, go to **Trade → Write Options**. Choose **Call**, enter **0.2** tokens,
+As **anvil0**, go to **Trade → Sell** to post an ask. Choose **Call**, enter **0.2** tokens,
 **60** total exercise payment, **2** total option price, and **Custom expiration…** set to tomorrow.
-Review, approve the collateral if prompted, then confirm creation.
+Review, approve the collateral if prompted, then choose **Post ask & deposit collateral**.
 
 The writer's available stock decreases by **0.2**. That amount is now locked in the
-option; no premium has arrived yet. Find the offer in **Portfolio** and **Buy Options**.
+option; no premium has arrived yet. Find the offer in **Portfolio** and **Trade**.
 
 ## 4. Taker: buy and exercise
 
-As **anvil1**, open **Trade → Buy Options**, select the expiration and expand
-the **300** strike row (60 ÷ 0.2). Select anvil0's 0.2-token offer, review it and acknowledge
+As **anvil1**, open **Trade**, select the expiration and expand
+the **300** strike row (60 ÷ 0.2). Click the Ask for anvil0's 0.2-token offer, review it and acknowledge
 manual exercise. Approve the **2 MockUSD** premium if needed, then confirm purchase.
 
 The buyer now holds the option. The writer receives **2 MockUSD** and cannot cancel it.
@@ -82,14 +84,14 @@ Compare against the initial seeded balances. Gas affects ETH separately. The opt
 should show **Exercised** under **Portfolio → Closed & resold options**, with no
 remaining collateral. Buying alone does not deliver stock.
 
-## 5. Reverse the roles: request a put
+## 5. Reverse the roles: post a bid for a put
 
-The buyer is now the **maker**. In **Trade → Buy Requests → Request option**, choose
+The buyer is now the **maker**. In **Trade → Buy**, choose
 **Put**, quantity **0.2**, exercise payment **60**, premium **2**, expiration tomorrow,
-and **Accept until** earlier than expiration. Approve and reserve the premium.
+and **Accept until** earlier than expiration. Choose **Post bid & reserve premium**.
 Portfolio now shows **2 MockUSD in request premiums**; there is no option yet.
 
-The writer is now the **taker**. Open the request, review and **Accept & write option**.
+The writer is now the **taker**. Click the Bid in the option chain, review and **Sell & deposit collateral**.
 The writer must have **60 MockUSD upfront**: the 2 premium cannot fund the deposit.
 Acceptance locks 60, pays the writer 2 and gives the buyer one option.
 

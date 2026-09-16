@@ -731,3 +731,21 @@ after manual acceptance/cancellation (`.qa-tmp-demo-jQfo9m/summary.json`). Seede
 existing local chain without resetting it; verified both player balances and zero positions
 onchain, and Tesla's 30 requests through Orca CLI. Local evidence:
 `.qa-tmp-audit/demo-players-live-evidence.json`. No public transactions were submitted.
+
+## September 16, 2026 — Unified bid/ask trading
+
+Replaced the three trading panels with one Calls / Strike / Puts chain. Buy posts a
+funded bid; Sell posts a collateralized ask. Clicking a quote reviews its complete
+lot. Bids and asks rank by exact per-token premium; requests-only series and resale
+asks remain visible. Portfolio manages positions, resales and bid refunds. Contract
+terms and manual acceptance are unchanged. Updated the practical guide with an Orca
+screenshot. A fresh ticket is required after wallet changes; Orca verified reopening
+with a temporary read-only provider, removed after the check.
+
+Validation: 130 tests passed, one optional fork test skipped; typecheck, lint and build
+passed. Protocol/SDK acceptance and nine option browser scenarios passed in
+`.qa-tmp-e2e-X4Vz9E/`; after fixing an obsolete closing selector, all four bid scenarios
+passed in `.qa-tmp-e2e-SI6YDE/`. Checks cover exact balances, rejected signatures,
+wallet/network changes, RPC outage, cancellation and expired premium recovery.
+The runner supports `--requests-only` for focused retries and suppresses development
+credentials in automated Anvil logs. No public transactions or live-demo writes.

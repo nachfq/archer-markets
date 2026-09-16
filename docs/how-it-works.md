@@ -11,8 +11,8 @@ Quantities are multiples of **0.1 token**.
 
 | Flow | Maker | Taker | Funds deposited when published |
 | --- | --- | --- | --- |
-| Write Options | Writer (seller) | Buyer | Writer's full collateral |
-| Buy Requests | Buyer (requester) | Writer | Buyer's full premium |
+| Sell · Post an ask | Writer (seller) | Buyer | Writer's full collateral |
+| Buy · Post a bid | Buyer (requester) | Writer | Buyer's full premium |
 
 A request becomes an option only when a writer accepts and deposits all collateral.
 At acceptance, the buyer receives the right and the writer receives the premium.
@@ -46,7 +46,9 @@ exchanges both assets in one transaction. There is no market-price oracle or aut
 
 ## Where to look
 
-**Trade** contains offers, writing and requests. **Portfolio** shows wallet balances,
+**Trade** shows Calls / Strike / Puts, with Bid and Ask prices per token. Click an Ask
+to buy or a Bid to sell a new option; Buy / Sell posts your own price. Expand a strike
+for all orders and their full quantities. **Portfolio** shows wallet balances,
 locked collateral, reserved premiums and positions; expand a position for its actions
 and contract details. **Activity** shows transactions submitted in that browser.
 Balances are token amounts, not a portfolio valuation. Stock Tokens are not direct shares.

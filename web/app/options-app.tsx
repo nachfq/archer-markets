@@ -9,7 +9,6 @@ import { AssetLogo, BalanceTables, FontIcon, MarketList } from "./asset-ui";
 import { assetPresentation } from "../lib/catalog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Alert } from "@/components/ui/alert";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -145,6 +144,9 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
   const [presetExpiry, setPresetExpiry] = useState("");
   const [acceptedFor, setAcceptedFor] = useState("");
   const [resaleTotal, setResaleTotal] = useState("");
+  const [bidTicket, setBidTicket] = useState<{ id?: bigint; revision: number }>({ revision: 0 });
+  const selectedBid = bidTicket.id;
+  const setSelectedBid = (id?: bigint) => setBidTicket(previous => ({ id, revision: previous.revision + 1 }));
   const [reviewedDraft, setReviewedDraft] = useState<string | null>(null);
   const [operationSucceeded, setOperationSucceeded] = useState(false);
   const wrongChain = isConnected && chainId !== chain.id;
@@ -298,6 +300,8 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
     setResaleTotal("");
     if (nextMarketId !== marketId) {
       setMarketId(nextMarketId);
+      setSelectedBid(undefined);
+      if (tab === "requests") setTab("market");
       setQuantity(""); setStrike(""); setPremium(""); setExpiry(""); setPresetExpiry(""); setExpiryMode("suggested");
       setReviewedDraft(null);
     }
@@ -319,6 +323,7 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
     });
     const url = new URL(window.location.href);
     url.searchParams.set("market", nextMarketId);
+    if (nextMarketId !== marketId && tab === "requests") url.searchParams.set("view", "trade");
     if (tab === "mine") url.searchParams.set("view", "portfolio");
     if (option) url.searchParams.set("option", option);
     else url.searchParams.delete("option");
@@ -543,6 +548,7 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
     if (tab === "docs" && docsReturn.current?.tab === next) { closeDocs(); return; }
     if ((next === "market" || next === "create") && net.legacy && tradeMarkets[0]) { setMarketId(tradeMarkets[0].marketId!); setQuantity(""); setStrike(""); setPremium(""); }
     setTab(next);
+    setSelectedBid(undefined);
     setReviewedDraft(null);
     setSelected(null);
     setAcceptedFor("");
@@ -620,7 +626,7 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
     </TradeTicket>
   );
   return (
-    <main className={`shell ${(tab === "market" && selected) || (tab === "create" && reviewingDraft) ? "review-open" : ""}`}>
+    <main className={`shell ${(tab === "market" && selected) || (tab === "create" || tab === "requests") ? "review-open" : ""}`}>
       <WorkspaceHeader tab={tab} disabled={busy} environment={chain.id === 31337 ? "Local demo" : "Testnet"} onNavigate={navigate}
         wallet={isConnected ? <WalletMenu label={short(address!)}>
           <div className="eyebrow">WALLET &amp; TEST FUNDS</div>
@@ -632,7 +638,7 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
         </WalletMenu> : <button className="button dark" onClick={walletConnect}>Connect wallet</button>} />
       <section className="instrument-bar" aria-label="Selected market" data-market-id={marketId} data-market-factory={net.factory ?? ""}>
         <div className="instrument-identity">{(tab === "market" || tab === "create" || tab === "requests") && <AssetLogo presentation={assetPresentation(net, "underlying")} />}<div><h1>{tab === "docs" ? "Documentation" : tab === "mine" ? "Portfolio" : tab === "activity" ? "Activity" : assetPresentation(net, "underlying").name} <span>{tab === "docs" ? "Know the mechanics" : tab === "mine" || tab === "activity" ? "All curated markets" : `/ ${net.quote.symbol}`}</span></h1><small>{tab === "market" || tab === "create" || tab === "requests" ? `${net.underlying.symbol} · ${marketId} · ${net.legacy ? "Legacy market" : "Fully collateralized options"}` : net.name}</small></div></div>
-        {(tab === "market" || tab === "create" || tab === "requests") && <Tabs className="trade-mode" value={tab} onValueChange={value => navigate(value as WorkspaceTab)}><TabsList aria-label="Trade action"><TabsTrigger value="market" disabled={busy}>Buy Options</TabsTrigger><TabsTrigger value="create" disabled={busy || !!net.legacy}>Write Options</TabsTrigger><TabsTrigger value="requests" disabled={busy}>Buy Requests</TabsTrigger></TabsList></Tabs>}
+        {(tab === "market" || tab === "create" || tab === "requests") && <div className="order-actions" role="group" aria-label="Post a new order"><span>Your own price</span><button className="button buy-order" disabled={busy || pending.length > 0 || !!net.legacy} onClick={() => navigate("requests")}>Buy</button><button className="button sell-order" disabled={busy || pending.length > 0 || !!net.legacy} onClick={() => navigate("create")}>Sell</button></div>}
       </section>
       {wrongChain && <div className="banner warning"><span>Your wallet is on another network. Switch to {net.name} to trade.</span><button className="button" disabled={busy} onClick={switchNetwork}>Switch network</button></div>}
       {tab !== "requests" && !(selected && noticeScope === "trade" && (tab === "market" || (tab === "mine" && visible.some(p => p.address.toLowerCase() === selected.toLowerCase())))) && !(tab === "create" && noticeScope === "create") && notification}
@@ -640,23 +646,27 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
       <div className={tab === "market" || tab === "create" || tab === "requests" ? "workspace-layout" : "workspace-single"}>
       {(tab === "market" || tab === "create" || tab === "requests") && <MarketList markets={tradeMarkets} selected={marketId} disabled={busy || pending.length > 0} onSelect={id => openDetail(null, id)} />}
       <section className="market" id="market">
+        {(tab === "market" || tab === "create" || tab === "requests") && <OptionsChain key={marketId} account={address} positions={positions} requests={market.data?.snapshots.find(s => s.market.id === marketId)?.requests ?? []} now={now} selected={detail} symbol={net.underlying.symbol} quoteSymbol={net.quote.symbol} underlyingDecimals={net.underlying.decimals} quoteDecimals={net.quote.decimals}
+          loading={ready && (market.isFetching || health.isPending)} unavailable={!ready || health.isError || market.isError} configured={ready} disabled={busy || pending.length > 0}
+          onSelect={option => { if (tab !== "market") navigate("market"); openDetail(option); }} onBid={id => { navigate("requests"); setSelectedBid(id); }}
+          onRefresh={() => { void health.refetch(); void market.refetch(); }} onCreate={side => navigate(side === "buy" ? "requests" : "create")} />}
         {tab === "docs" ? <Docs onBack={closeDocs} />
-        : tab === "requests" ? <BuyRequests key={marketId} notification={notification} net={net} account={address} walletChainId={chainId} now={now} requests={market.data?.snapshots.find(s => s.market.id === marketId)?.requests ?? []} portfolio={portfolio} canAct={canAct} busy={busy || pending.length > 0} unavailable={health.isError || market.isError} loading={ready && market.isPending} onConnect={walletConnect} onRefresh={() => { void health.refetch(); void market.refetch(); }} onOption={option => { navigate("market"); openDetail(option); }} onRun={async (prepare, success) => { setNoticeScope("global"); return run(async () => executePrepared(await prepare()), success); }} />
+        : tab === "requests" ? <BuyRequests key={`${marketId}:${bidTicket.revision}`} selectedId={selectedBid} onClose={() => navigate("market")} notification={notification} net={net} account={address} walletChainId={chainId} now={now} requests={market.data?.snapshots.find(s => s.market.id === marketId)?.requests ?? []} portfolio={portfolio} canAct={canAct} busy={busy || pending.length > 0} unavailable={health.isError || market.isError} loading={ready && market.isPending} onConnect={walletConnect} onRefresh={() => { void health.refetch(); void market.refetch(); }} onOption={option => { navigate("market"); openDetail(option); }} onRun={async (prepare, success) => { setNoticeScope("global"); return run(async () => executePrepared(await prepare()), success); }} />
         : tab === "activity" ? <ActivityTable transactions={transactions.filter(t => t.chainId === chain.id && t.account.toLowerCase() === address?.toLowerCase())} explorer={explorer} />
         : tab === "mine" ? <>
           <BalanceTables markets={marketRecords} portfolio={portfolio} stale={health.isError || market.isError} />
-          {!!portfolio?.requests.length && <section className="request-portfolio"><h2>Your buy requests</h2><p>Premiums are reserved separately from option collateral. Accepted requests link to their independent options.</p>{portfolio.requests.map(r => <div className="request-portfolio-row" key={`${r.marketId}:${r.id}`}><span>{r.marketId} · {r.optionType === 0 ? "Call" : "Put"} request #{String(r.id)} · {r.state === 1 ? "Accepted" : r.state === 2 ? "Canceled" : r.acceptUntil <= now ? "Recover premium" : "Awaiting writer"}</span><button className="button" disabled={busy || pending.length > 0} onClick={() => { openDetail(null, r.marketId); navigate("requests"); }}>Manage in Buy Requests</button></div>)}</section>}
+          {!!portfolio?.requests.length && <section className="request-portfolio"><h2>Your bids</h2><p>Reserved premiums for your buy orders.</p>{portfolio.requests.map(r => <div className="request-portfolio-row" data-request={String(r.id)} key={`${r.marketId}:${r.id}`}><span>{r.marketId} · {r.optionType === 0 ? "Call" : "Put"} request #{String(r.id)} · {r.state === 1 ? "Accepted" : r.state === 2 ? "Canceled" : r.acceptUntil <= now ? "Recover premium" : "Awaiting writer"}</span><button className="button" disabled={busy || pending.length > 0} onClick={() => { openDetail(null, r.marketId); navigate("requests"); setSelectedBid(r.id); }}>Manage bid</button></div>)}</section>}
           <div className="position-toolbar"><h2>Positions &amp; orders</h2><div className="filters"><label>Status<select aria-label="Position status" disabled={busy || pending.length > 0} value={portfolioScope} onChange={event => { openDetail(null); setPortfolioScope(event.target.value as typeof portfolioScope); }}><option value="current">Open positions &amp; orders</option><option value="history">Closed &amp; resold options</option></select></label><label>Type<select aria-label="Position type" disabled={busy || pending.length > 0} value={filter} onChange={event => { openDetail(null); setFilter(event.target.value as typeof filter); }}><option value="all">Calls &amp; puts</option><option value="call">Calls</option><option value="put">Puts</option></select></label><button className="icon-button" aria-label="Refresh portfolio" disabled={!ready || market.isFetching} onClick={() => { void health.refetch(); void market.refetch(); }}>↻</button></div></div>
           {!address ? <div className="empty"><h3>Connect to see your options and collateral.</h3><p>Your positions across configured markets appear here.</p><button className="button dark" onClick={walletConnect}>Connect wallet</button></div>
           : !ready ? <div className="empty"><h3>Trading is not available on this network yet</h3><p>No contracts are configured. Positions will appear after a valid deployment is available.</p></div>
           : health.isError || market.isError ? <div className="empty" role="alert"><h3>Could not refresh your portfolio</h3><p>Balances and positions may be outdated. Reconnect before trading.</p><button className="button" onClick={() => { void health.refetch(); void market.refetch(); }}>Retry connection</button></div>
           : market.isPending ? <div className="empty" role="status">Loading positions…</div>
           : visible.length ? <PortfolioTable positions={visible} markets={marketRecords} marketId={marketId} account={address} now={now} displayAmount={displayAmount} onSelect={openDetail} selected={selected} detail={detailPanel} disabled={busy || pending.length > 0} />
-          : <div className="empty"><h3>{portfolioScope === "history" ? "No closed positions yet." : "No open positions or orders."}</h3><p>Browse available options or write a collateralized offer.</p><button className="button" onClick={() => navigate("create")}>Write option</button></div>}
+          : <div className="empty"><h3>{portfolioScope === "history" ? "No closed positions yet." : "No open positions or orders."}</h3><p>Buy or sell from the option chain, or post your own price.</p><button className="button" onClick={() => navigate("market")}>Open option chain</button></div>}
           <details className="history-source"><summary>Source: onchain option contracts.</summary><p>Positions are reconstructed for your wallet across all configured markets, including activity from other devices. Closed options are exercised, canceled or reclaimed contracts; expired collateral remains open until reclaimed. This is not transaction-by-transaction history.</p></details>
         </>
         : tab === "create" ? <div className="create-layout">
-          <WriteOptionForm values={{ kind, quantity, strike, premium, expiry, expiryMode, presetExpiry }} onChange={{ kind: value => changeTerm(setKind, value), quantity: value => changeTerm(setQuantity, value), strike: value => changeTerm(setStrike, value), premium: value => changeTerm(setPremium, value), expiry: value => changeTerm(setExpiry, value), expiryMode: value => changeTerm(setExpiryMode, value), presetExpiry: value => changeTerm(setPresetExpiry, value) }}
+          {!reviewingDraft && <TradeTicket title="Sell · Post an ask" busy={busy} onClose={() => navigate("market")}><WriteOptionForm values={{ kind, quantity, strike, premium, expiry, expiryMode, presetExpiry }} onChange={{ kind: value => changeTerm(setKind, value), quantity: value => changeTerm(setQuantity, value), strike: value => changeTerm(setStrike, value), premium: value => changeTerm(setPremium, value), expiry: value => changeTerm(setExpiry, value), expiryMode: value => changeTerm(setExpiryMode, value), presetExpiry: value => changeTerm(setPresetExpiry, value) }}
             underlying={net.underlying} quote={net.quote} busy={busy} effectiveExpiry={effectiveExpiry} suggestions={expirySuggestions}
             canMax={!!collateralRow && !market.isError}
             onMax={async () => { try { const refreshed = await market.refetch(); const row = refreshed.data?.portfolio?.tokens.find(r => r.token.address.toLowerCase() === collateralToken.address?.toLowerCase()); if (refreshed.isError || !row) throw new Error("Could not refresh available collateral."); setReviewedDraft(null); if (kind === 0) setQuantity(units(row.available / (10n ** BigInt(net.underlying.decimals - 1)) * (10n ** BigInt(net.underlying.decimals - 1)), net.underlying.decimals)); else setStrike(units(row.available, net.quote.decimals)); } catch (err) { setNoticeScope("create"); setError(errorText(err)); } }}
@@ -667,8 +677,8 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
             {insufficientCollateral && <div className="banner error" role="alert">Not enough {collateralToken.symbol}. Required: {displayAmount(requiredCollateral!, collateralToken)}. Available: {displayAmount(collateralRow!.available, collateralToken)}. Reduce the amount or reclaim eligible collateral.</div>}
             {health.isError || market.isError ? <div className="banner error" role="alert">Could not refresh balances or validate this deployment.<button type="button" className="button" onClick={() => { void health.refetch(); void market.refetch(); }}>Retry connection</button></div> : null}
             {noticeScope === "create" && !reviewingDraft && notification}
-          </WriteOptionForm>
-          {reviewingDraft && <TradeTicket title="Review offer · Deposit collateral" busy={busy} onClose={() => { setReviewedDraft(null); requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('button[type="submit"]')?.focus()); }}>
+          </WriteOptionForm></TradeTicket>}
+          {reviewingDraft && <TradeTicket title="Review sell order · Deposit collateral" busy={busy} onClose={() => { setReviewedDraft(null); requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('button[type="submit"]')?.focus()); }}>
             <aside className="create-note" aria-label="Offer funding summary"><div className="section-head"><h2 id="write-review-heading" tabIndex={-1}>{kind === 0 ? "Covered call" : "Cash-secured put"} · {net.underlying.symbol}</h2><span className="pill">Review</span></div>
               {!ready && <div className="banner warning" role="status">Preview only. No contract deployment is configured; writing is disabled.</div>}
               <dl className="balance-breakdown">
@@ -683,16 +693,12 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
               <div className="deadline-notice">{exerciseWarning}</div>
               {ready && (health.isError || market.isError) && <div className="banner error" role="alert">Could not refresh balances. Writing is disabled until current data is available.<button className="button" onClick={() => { void health.refetch(); void market.refetch(); }}>Retry connection</button></div>}
               {noticeScope === "create" && notification}
-              <div className="review-bottom"><small>Collateral is deposited into the new option contract. Premium arrives only if purchased.</small><div className="detail-actions">{!isConnected ? <button className="button dark" onClick={walletConnect}>Connect wallet to continue</button> : <button className="button dark" disabled={!!net.legacy || !canAct || !draft || !!expiryError || insufficientCollateral || market.isError || !portfolio} onClick={create}>{busy ? "Processing…" : "Deposit collateral & write option"}</button>}</div></div>
+              <div className="review-bottom"><small>Collateral is deposited into the new option contract. Premium arrives only if purchased.</small><div className="detail-actions">{!isConnected ? <button className="button dark" onClick={walletConnect}>Connect wallet to continue</button> : <button className="button dark" disabled={!!net.legacy || !canAct || !draft || !!expiryError || insufficientCollateral || market.isError || !portfolio} onClick={create}>{busy ? "Processing…" : "Post ask & deposit collateral"}</button>}</div></div>
               <details className="contract-details"><summary>Collateral and token details</summary><p>Writing deploys a separate option contract. Approval authorizes spending; only the creation transaction deposits collateral.</p><p>Gas available: {balances.data ? gasAmount(balances.data.gas) : "Connect to view"}.</p>{!net.underlying.isMock && <p>Stock Token display multiplier: {displayMetadata.data?.multiplier !== undefined ? units(displayMetadata.data.multiplier, 18) : "Unavailable"}. Quantities remain fixed token units.</p>}</details>
             </aside>
           </TradeTicket>}
         </div>
-        : <div className={`trading-workspace ${selected ? "has-selection" : ""}`}>
-          <div className="chain-container"><OptionsChain key={marketId} account={address} positions={positions} now={now} selected={detail} symbol={net.underlying.symbol} quoteSymbol={net.quote.symbol} underlyingDecimals={net.underlying.decimals} quoteDecimals={net.quote.decimals}
-            loading={ready && (market.isFetching || health.isPending)} unavailable={!ready || health.isError || market.isError} configured={ready} onSelect={openDetail} onRefresh={() => { void health.refetch(); void market.refetch(); }} onCreate={() => navigate("create")} /></div>
-          {selected && detailPanel}
-        </div>}
+        : <>{selected && detailPanel}</>}
       </section>
       </div>
       <footer><span>Archer Markets · Fully collateralized options</span><span>{net.name} · Manual exercise · Physical token delivery</span></footer>

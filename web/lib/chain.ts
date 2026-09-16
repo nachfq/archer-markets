@@ -37,3 +37,34 @@ export function perToken(total: bigint, quantity: bigint, underlyingDecimals: nu
   const numerator = total * 10n ** BigInt(underlyingDecimals);
   return `${numerator % quantity ? "≈" : ""}${formatUnits(numerator / quantity, quoteDecimals)}`;
 }
+
+export type Bid = import("@stock-options-lab/sdk").BuyRequest;
+export type BookSide = { bids: Bid[]; asks: Position[] };
+export type BookRow = { key: string; numerator: bigint; denominator: bigint; calls: BookSide; puts: BookSide };
+export function openBids(requests: Bid[], now: bigint): Bid[] {
+  return requests.filter(r => r.state === 0 && r.acceptUntil > now && r.expiry > now && r.underlyingAmount > 0n);
+}
+export function bookExpirations(positions: Position[], requests: Bid[], now: bigint): bigint[] {
+  return [...new Set([...listedExpirations(positions, now), ...openBids(requests, now).map(r => r.expiry)])].sort(compare);
+}
+export function orderBook(positions: Position[], requests: Bid[], expiry: bigint, now: bigint): BookRow[] {
+  const rows = new Map<string, BookRow>();
+  const add = (quote: Position | Bid, bid: boolean) => {
+    if (quote.expiry !== expiry || quote.underlyingAmount <= 0n) return;
+    const divisor = gcd(quote.strikeTotal, quote.underlyingAmount);
+    const numerator = quote.strikeTotal / divisor, denominator = quote.underlyingAmount / divisor;
+    const key = `${numerator}/${denominator}`;
+    const row = rows.get(key) ?? { key, numerator, denominator, calls: { bids: [], asks: [] }, puts: { bids: [], asks: [] } };
+    const side = quote.optionType === 0 ? row.calls : row.puts;
+    if (bid) side.bids.push(quote as Bid); else side.asks.push(quote as Position);
+    rows.set(key, row);
+  };
+  positions.filter(p => isListed(p, now)).forEach(p => add(p, false));
+  openBids(requests, now).forEach(r => add(r, true));
+  for (const row of rows.values()) for (const side of [row.calls, row.puts]) {
+    // Compare exact per-token premiums, never rounded display prices or lot totals.
+    side.bids.sort((a, b) => compare(b.premium * a.underlyingAmount, a.premium * b.underlyingAmount) || compare(a.id, b.id));
+    side.asks.sort((a, b) => compare(optionPrice(a) * b.underlyingAmount, optionPrice(b) * a.underlyingAmount) || a.address.localeCompare(b.address));
+  }
+  return [...rows.values()].sort((a, b) => compare(a.numerator * b.denominator, b.numerator * a.denominator));
+}

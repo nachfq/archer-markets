@@ -493,3 +493,35 @@ footer { display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; 
 .request-portfolio { margin: 20px 0; }
 .request-portfolio-row { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 12px; border-bottom: 1px solid var(--border, #cad2d3); }
 @media (max-width: 600px) { .requests-panel, .request-review { padding: 16px; } .requests-panel > .section-head { flex-wrap: wrap; } .trade-mode [role="tablist"] { flex-wrap: wrap; height: auto; } }
+
+/* The chain quotes per-token prices; every ticket confirms the full lot totals. */
+.order-actions { display:flex; align-items:center; gap:8px; }
+.order-actions > span { color:var(--muted); font-size:13px; margin-right:6px; }
+.order-actions .button { min-width:88px; font-weight:650; }
+.buy-order { color:#81d9b0; border-color:#35775a; background:#162d24; }
+.sell-order { color:#f4b19a; border-color:#8b513d; background:#34221c; }
+.book-side { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; text-align:center; }
+.book-side > div { min-width:0; }
+.book-labels { padding:8px 4px; color:var(--ink); }
+.book-labels small { display:inline; margin-left:4px; font-size:11px; color:var(--muted); }
+.book-quote { display:flex; flex-direction:column; justify-content:center; align-items:center; width:100%; min-height:54px; padding:6px 4px; border:1px solid transparent; border-radius:4px; font-variant-numeric:tabular-nums; }
+.book-quote strong { font-size:15px; font-weight:600; }
+.book-quote small { display:block; color:var(--muted); font-size:11px; }
+.book-quote.bid { color:#f4b19a; background:#f4b19a06; }
+.book-quote.ask { color:#81d9b0; background:#81d9b006; }
+.book-quote:hover:not(:disabled),.book-quote:focus-visible { border-color:currentColor; background:var(--raised); }
+.book-quote.own-quote { border-style:dashed; border-color:var(--muted); }
+.book-no-quote { display:grid; min-height:54px; place-items:center; color:var(--muted); }
+.bid-ask-table .strike-cell { padding:0 4px; }
+.bid-ask-table .strike-cell button small { display:block; color:var(--muted); font-size:10px; font-weight:400; }
+.book-depth { background:var(--raised); }
+.book-depth .book-quote { margin-bottom:4px; }
+.trade-sheet .create-layout { padding:18px; }
+.trade-sheet .create-layout form { padding:0; border:0; }
+.requests-panel:has(.trade-sheet),.requests-panel:empty { padding:0; border:0; }
+@media(max-width:600px) {
+  .order-actions { width:100%; justify-content:flex-end; }
+  .book-labels small { display:block; margin:0; }
+  .book-quote strong { font-size:13px; }
+  .trade-sheet .create-layout { padding:12px; }
+}

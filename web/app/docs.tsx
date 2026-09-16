@@ -7,28 +7,28 @@ export const documentation = [
     "title": "How it works",
     "paragraphs": [
       "Archer Markets offers fully collateralized calls and puts on Stock Tokens. Each agreement is one whole option with fixed terms. A call gives its holder the right to buy tokens; a put gives the right to sell tokens.",
-      "The maker publishes terms and the taker accepts. For an offer, the maker is the writer. For a buy request, the maker is the buyer."
+      "Trade uses one bid/ask chain. Click an ask to buy or a bid to sell a new option. Buy / Sell posts your own price; acceptance is manual and always for the full quantity."
     ]
   },
   {
     "id": "buying",
     "title": "Buying an option",
     "paragraphs": [
-      "Choose a market and offer in Buy Options. Review the full quantity, total premium and expiration, acknowledge manual exercise, then approve and buy. You receive an exercise right; the tokens move only if you exercise. The premium is not refundable."
+      "Choose a market and click an Ask price. Review the full quantity, total premium and expiration, acknowledge manual exercise, then approve and buy. You receive an exercise right; the tokens move only if you exercise. The premium is not refundable."
     ]
   },
   {
     "id": "writing",
     "title": "Writing and collateral",
     "paragraphs": [
-      "In Write Options, enter a quantity in multiples of 0.1 token, total exercise payment, total premium and expiration. A call locks all the tokens; a put locks the full exercise payment. The premium arrives when someone buys. A sold option cannot be canceled."
+      "Choose Sell to post an ask. Enter a quantity in multiples of 0.1 token, total exercise payment, total premium and expiration. A call locks all the tokens; a put locks the full exercise payment. The premium arrives when someone buys. A sold option cannot be canceled."
     ]
   },
   {
     "id": "requests",
-    "title": "Requesting an option",
+    "title": "Posting a bid",
     "paragraphs": [
-      "In Buy Requests, publish the terms you want and reserve the premium. Set Accept until earlier than the option expiration. You do not own an option yet.",
+      "Choose Buy to post a bid with your terms and reserve the premium. Set Accept until earlier than the option expiration. You do not own an option yet.",
       "A writer accepts the full request and deposits all collateral upfront. You receive one option and the writer receives your premium in the same transaction. Until acceptance, you can cancel for a full refund. After the acceptance deadline, recovery still requires a transaction."
     ]
   },
@@ -81,6 +81,6 @@ export const documentation = [
 
 export default function Docs({ onBack }: { onBack: () => void }) {
   return <div className="docs-layout"><nav className="docs-toc" aria-label="Documentation topics"><h2>On this page</h2>{documentation.map(section => <a key={section.id} href={`#${section.id}`}>{section.title}</a>)}<button className="text-button" onClick={onBack}>← Back to workspace</button></nav>
-    <article className="docs-content"><div className="docs-hero"><span className="eyebrow">PLATFORM GUIDE</span><h2>A right today. A decision before expiration.</h2><p>Buy, write or request → Hold or resell → Exercise before the deadline</p></div><p className="docs-intro">Understand each step before signing. This guide explains the product mechanics, not whether an option is a good trade.</p><div className="docs-comparison"><Table><TableHeader><TableRow><TableHead>Buyer’s right</TableHead><TableHead>Deliver at exercise</TableHead><TableHead>Receive at exercise</TableHead></TableRow></TableHeader><TableBody><TableRow><TableCell>Call · Buy tokens</TableCell><TableCell>Agreed total payment</TableCell><TableCell>Agreed token quantity</TableCell></TableRow><TableRow><TableCell>Put · Sell tokens</TableCell><TableCell>Agreed token quantity</TableCell><TableCell>Agreed total payment</TableCell></TableRow></TableBody></Table></div>{documentation.map(section => <section key={section.id} aria-labelledby={section.id}><h2 id={section.id} tabIndex={-1}>{section.title}</h2>{section.paragraphs.map(paragraph => <p key={paragraph}>{paragraph}</p>)}</section>)}</article>
+    <article className="docs-content"><div className="docs-hero"><span className="eyebrow">PLATFORM GUIDE</span><h2>A right today. A decision before expiration.</h2><p>Buy or sell → Hold or resell → Exercise before the deadline</p></div><p className="docs-intro">Understand each step before signing. This guide explains the product mechanics, not whether an option is a good trade.</p><div className="docs-comparison"><Table><TableHeader><TableRow><TableHead>Buyer’s right</TableHead><TableHead>Deliver at exercise</TableHead><TableHead>Receive at exercise</TableHead></TableRow></TableHeader><TableBody><TableRow><TableCell>Call · Buy tokens</TableCell><TableCell>Agreed total payment</TableCell><TableCell>Agreed token quantity</TableCell></TableRow><TableRow><TableCell>Put · Sell tokens</TableCell><TableCell>Agreed token quantity</TableCell><TableCell>Agreed total payment</TableCell></TableRow></TableBody></Table></div>{documentation.map(section => <section key={section.id} aria-labelledby={section.id}><h2 id={section.id} tabIndex={-1}>{section.title}</h2>{section.paragraphs.map(paragraph => <p key={paragraph}>{paragraph}</p>)}</section>)}</article>
   </div>;
 }

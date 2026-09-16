@@ -146,14 +146,14 @@ async function create(page, type, usePreset = false) {
   const block = await client.getBlock();
   const expiry = new Date(Math.max(Date.now(), Number(block.timestamp) * 1000) + 86_400_000).toISOString().slice(0, 16);
   await page.getByRole('button', { name: 'Trade', exact: true }).click();
-  await page.getByRole('tab', { name: 'Write Options', exact: true }).click();
+  await page.getByRole('button', { name: 'Sell', exact: true }).first().click();
   await page.getByLabel('Write option type').selectOption(String(type));
   await expect(page.getByRole('complementary', { name: 'Offer funding summary' })).toHaveCount(0);
   await page.getByLabel(/^Quantity of/).fill('999999999');
   await page.getByLabel(/^Exercise payment — total/).fill(type === 0 ? '1' : '999999999');
-  await page.getByLabel(/^Option price — total/).fill('1');
+  await page.getByLabel(/^Premium — total/).fill('1');
   await expect(page.getByRole('alert').filter({ hasText: /Not enough/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Review offer →' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Review sell order →' })).toBeDisabled();
   if (type === 0) {
     await page.getByRole('button', { name: 'Max', exact: true }).click();
     await expect(page.getByLabel(/^Quantity of/)).toHaveValue(formatUnits(before.underlying,18));
@@ -162,7 +162,7 @@ async function create(page, type, usePreset = false) {
   await expect(page.getByLabel(/^Quantity of/)).toHaveValue('0.1');
   await page.getByLabel(/^Quantity of/).fill('1.2');
   await page.getByLabel(/^Exercise payment — total/).fill('312.34568');
-  await page.getByLabel(/^Option price — total/).fill('4.56789');
+  await page.getByLabel(/^Premium — total/).fill('4.56789');
   let expectedExpiry;
   if (usePreset) {
     const preset = await page.getByLabel('Write expiration', { exact: true }).locator('option').first().getAttribute('value');
@@ -173,14 +173,14 @@ async function create(page, type, usePreset = false) {
     await page.getByLabel(/^Expiration · your local time/).fill(expiry);
     expectedExpiry = BigInt(Date.parse(`${expiry}:00Z`) / 1000);
   }
-  await page.getByRole('button', { name: 'Review offer →' }).click();
+  await page.getByRole('button', { name: 'Review sell order →' }).click();
   await expect(page.getByRole('complementary', { name: 'Offer funding summary' })).toBeVisible();
   await expect(page.locator('.funding-impact dd')).toHaveText(type === 0 ? `1.2 ${deployment.underlying.symbol}` : '312.34568 MockUSD');
   // Reviewing must never send an approval or create a contract.
   assert.equal(await read(factory, factoryAbi, 'optionCount'), beforeCount);
   assert.equal(await read(underlying, erc20Abi, 'balanceOf', [writer]), before.underlying);
   assert.equal(await read(quote, erc20Abi, 'balanceOf', [writer]), before.quote);
-  await complete(page, 'Deposit collateral & write option', 'Option written. Collateral is deposited in its own option contract.');
+  await complete(page, 'Post ask & deposit collateral', 'Option written. Collateral is deposited in its own option contract.');
   assert.equal(await read(factory, factoryAbi, 'optionCount'), beforeCount + 1n);
   const option = await read(factory, factoryAbi, 'options', [beforeCount]);
   assert.equal(await read(option, optionAbi, 'underlyingAmount'), quantity);
@@ -221,10 +221,11 @@ async function create(page, type, usePreset = false) {
     await page.getByRole('button', { name: 'Refresh options', exact: true }).click();
     await page.locator(`[data-expiration="${expectedExpiry}"]`).click();
     await expect(page.getByLabel('Filter by writer')).toHaveCount(0);
-    await expect(page.locator('.chain-offer[data-owner="you"]').first()).toBeVisible();
-    await expect(page.locator('.chain-offer[data-owner="you"]').first()).toContainText('Manage');
-    await expect(page.locator('.chain-offer[data-owner="other"]').first()).toBeVisible();
-    await expect(page.locator('.chain-offer[data-owner="other"]').first()).toContainText('Buy');
+    await page.getByRole('button', { name: /^Strike / }).first().click();
+    await expect(page.locator('.book-quote.own-quote').first()).toBeVisible();
+    await expect(page.locator('.book-quote.own-quote').first()).toContainText('Yours');
+    await expect(page.locator('.book-quote:not(.own-quote)').first()).toBeVisible();
+    await expect(page.locator('.book-quote:not(.own-quote)').first()).toHaveAttribute('aria-label', /Buy at ask/);
     await page.getByRole('button', { name: 'Portfolio', exact: true }).click();
     await page.getByLabel('Position status').selectOption('history');
     await expect(page.locator('.history-source')).toContainText('Source: onchain option contracts.');
@@ -270,13 +271,12 @@ try {
     }
     await buyerPage.goto(baseUrl);
     await expect(buyerPage.getByRole('region', { name: 'Options chain', exact: true })).toBeVisible();
-    await expect(buyerPage.locator('.chain-offer').first()).toBeVisible();
+    await expect(buyerPage.locator('.book-quote').first()).toBeVisible();
     await buyerPage.locator(`[data-expiration="${offer.expiry}"]`).click();
-    await buyerPage.getByLabel('Strikes', { exact: true }).selectOption('all');
     const chainQuote = buyerPage.locator(`[data-offer="${offer.option}"]`);
     const strikeButton = buyerPage.getByRole('button', { name: 'Strike ≈260.288066', exact: true });
     if (await strikeButton.getAttribute('aria-expanded') !== 'true') await strikeButton.click();
-    await chainQuote.click();
+    await chainQuote.last().click();
     await expect(buyerPage).toHaveURL(new RegExp(`option=${offer.option}`, 'i'));
     await expect(buyerPage.getByRole('dialog')).toBeVisible();
     await expect(buyerPage.locator('.detail-role')).toContainText('Written by');
@@ -328,20 +328,20 @@ try {
     evidence.scenarios.push(entry); transactions = entry.transactions;
     console.log(`UI verify factory ${target.marketId}`);
     await writerPage.getByRole('button', { name: 'Trade', exact: true }).click();
-    await writerPage.getByRole('tab', { name: 'Write Options', exact: true }).click();
     await writerPage.locator(`[data-market="${target.marketId}"]`).click();
+    await writerPage.getByRole('button', { name: 'Sell', exact: true }).first().click();
     await expect(writerPage.getByRole('heading', { level: 1 })).toContainText(target.label.split(' / ')[0]);
-    await expect(writerPage.getByRole('tab', { name: 'Write Options', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await expect(writerPage.getByRole('dialog', { name: 'Sell · Post an ask' })).toBeVisible();
     await writerPage.getByLabel('Write option type').selectOption('0');
     await writerPage.getByLabel(/^Quantity of/).fill('0.1');
     await writerPage.getByLabel(/^Exercise payment — total/).fill('25');
-    await writerPage.getByLabel(/^Option price — total/).fill('1');
+    await writerPage.getByLabel(/^Premium — total/).fill('1');
     const count = await read(target.factory, factoryAbi, 'optionCount');
     const previousNotice = writerPage.getByRole('button', { name: 'Dismiss notification' });
     if (await previousNotice.isVisible()) await previousNotice.click();
-    await writerPage.getByRole('button', { name: 'Review offer →' }).click();
+    await writerPage.getByRole('button', { name: 'Review sell order →' }).click();
     await expect(writerPage.getByRole('dialog')).toBeVisible();
-    await complete(writerPage, 'Deposit collateral & write option', 'Option written.');
+    await complete(writerPage, 'Post ask & deposit collateral', 'Option written.');
     assert.equal(await read(target.factory, factoryAbi, 'optionCount'), count + 1n, 'Market selector changes the actual creation factory');
     const created = await read(target.factory, factoryAbi, 'options', [count]);
     await writerPage.locator(`[data-offer="${created}"]`).click();
@@ -405,10 +405,10 @@ try {
   await expect(writerPage.getByRole('region', { name: 'Stablecoins', exact: true }).locator('tbody tr')).toHaveCount(1);
   await writerPage.screenshot({ path: join(process.env.EVIDENCE_DIR ?? tmpdir(), 'options-portfolio-connected.png'), fullPage: true });
   await writerPage.getByRole('button', { name: 'Trade', exact: true }).click();
-  await writerPage.getByRole('tab', { name: 'Write Options', exact: true }).click();
+  await writerPage.getByRole('button', { name: 'Sell', exact: true }).first().click();
   await writerPage.getByLabel(/^Quantity of/).fill('0.1');
   await writerPage.getByLabel(/^Exercise payment — total/).fill('300');
-  await writerPage.getByLabel(/^Option price — total/).fill('8');
+  await writerPage.getByLabel(/^Premium — total/).fill('8');
   await writerPage.screenshot({ path: join(process.env.EVIDENCE_DIR ?? tmpdir(), 'options-create-connected.png'), fullPage: true });
   await writerPage.setViewportSize({ width: 390, height: 844 });
   await writerPage.screenshot({ path: join(process.env.EVIDENCE_DIR ?? tmpdir(), 'options-create-mobile.png'), fullPage: true });
