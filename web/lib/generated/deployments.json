@@ -4,20 +4,20 @@
     "name": "Local Anvil",
     "explorerUrl": "",
     "underlying": {
-      "address": "0x71c95911e9a5d330f4d621842ec243ee1343292e",
+      "address": "0x663f3ad617193148711d28f5334ee4ed07016602",
       "symbol": "mTSLA",
       "decimals": 18,
       "isMock": true
     },
     "quote": {
-      "address": "0x8464135c8f25da09e49bc8782676a84730c318bc",
+      "address": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
       "symbol": "MockUSD",
       "decimals": 6,
       "isMock": true
     },
-    "factory": "0x948b3c65b89df0b4894abe91e6d02fe579834f8f",
-    "deploymentBlock": "3",
-    "version": 2,
+    "factory": "0x2e983a1ba5e8b38aaaec4b440b9ddcfbf72e15d1",
+    "deploymentBlock": "7",
+    "version": 3,
     "legacy": false,
     "marketId": "tesla",
     "label": "Mock Tesla / MockUSD",
@@ -27,85 +27,127 @@
         "marketId": "nvidia",
         "label": "Mock NVIDIA / MockUSD",
         "sandbox": true,
-        "factory": "0xbcf26943c0197d2ee0e5d05c716be60cc2761508",
-        "deploymentBlock": "5",
+        "factory": "0xbc9129dc0487fc2e169941c75aabc539f208fb01",
+        "deploymentBlock": "9",
         "underlying": {
-          "address": "0x712516e61c8b383df4a63cfe83d7701bce54b03e",
+          "address": "0x8438ad1c834623cff278ab6829a248e37c2d7e3f",
           "symbol": "mNVDA",
           "decimals": 18,
           "isMock": true
         },
         "quote": {
-          "address": "0x8464135c8f25da09e49bc8782676a84730c318bc",
+          "address": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
           "symbol": "MockUSD",
           "decimals": 6,
           "isMock": true
         },
-        "version": 2,
+        "version": 3,
         "legacy": false
       },
       {
         "marketId": "apple",
         "label": "Mock Apple / MockUSD",
         "sandbox": true,
-        "factory": "0xc6ba8c3233ecf65b761049ef63466945c362edd2",
-        "deploymentBlock": "7",
+        "factory": "0xf6168876932289d073567f347121a267095f3dd6",
+        "deploymentBlock": "11",
         "underlying": {
-          "address": "0x59f2f1fcfe2474fd5f0b9ba1e73ca90b143eb8d0",
+          "address": "0x6e989c01a3e3a94c973a62280a72ec335598490e",
           "symbol": "mAAPL",
           "decimals": 18,
           "isMock": true
         },
         "quote": {
-          "address": "0x8464135c8f25da09e49bc8782676a84730c318bc",
+          "address": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
           "symbol": "MockUSD",
           "decimals": 6,
           "isMock": true
         },
-        "version": 2,
+        "version": 3,
         "legacy": false
       },
       {
         "marketId": "amazon",
         "label": "Mock Amazon / MockUSD",
         "sandbox": true,
-        "factory": "0x05aa229aec102f78ce0e852a812a388f076aa555",
-        "deploymentBlock": "9",
+        "factory": "0x13d69cf7d6ce4218f646b759dcf334d82c023d8e",
+        "deploymentBlock": "13",
         "underlying": {
-          "address": "0x1275d096b9dbf2347bd2a131fb6bdab0b4882487",
+          "address": "0x94b75aa39bec4cb15e7b9593c315af203b7b847f",
           "symbol": "mAMZN",
           "decimals": 18,
           "isMock": true
         },
         "quote": {
-          "address": "0x8464135c8f25da09e49bc8782676a84730c318bc",
+          "address": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
           "symbol": "MockUSD",
           "decimals": 6,
           "isMock": true
         },
-        "version": 2,
+        "version": 3,
         "legacy": false
       },
       {
         "marketId": "microsoft",
         "label": "Mock Microsoft / MockUSD",
         "sandbox": true,
-        "factory": "0x0f5d1ef48f12b6f691401bfe88c2037c690a6afe",
-        "deploymentBlock": "11",
+        "factory": "0xe7c2a73131dd48d8ac46dcd7ab80c8cbee5b410a",
+        "deploymentBlock": "15",
         "underlying": {
-          "address": "0x0b48af34f4c854f5ae1a3d587da471fea45bad52",
+          "address": "0x8cdbd76bb6cf0293e07deeeed460cf579873af44",
           "symbol": "mMSFT",
           "decimals": 18,
           "isMock": true
         },
         "quote": {
-          "address": "0x8464135c8f25da09e49bc8782676a84730c318bc",
+          "address": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
           "symbol": "MockUSD",
           "decimals": 6,
           "isMock": true
         },
-        "version": 2,
+        "version": 3,
         "legacy": false
+      },
+      {
+        "marketId": "primary",
+        "label": "MockSTOCK / MockUSD",
+        "sandbox": true,
+        "factory": "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0",
+        "deploymentBlock": "3",
+        "underlying": {
+          "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+          "symbol": "MockSTOCK",
+          "decimals": 18,
+          "isMock": true
+        },
+        "quote": {
+          "address": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+          "symbol": "MockUSD",
+          "decimals": 6,
+          "isMock": true
+        },
+        "version": 3,
+        "legacy": true
+      },
+      {
+        "marketId": "practice",
+        "label": "Practice STOCK / MockUSD",
+        "sandbox": true,
+        "factory": "0xdc64a140aa3e981100a9beca4e685f962f0cf6c9",
+        "deploymentBlock": "5",
+        "underlying": {
+          "address": "0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9",
+          "symbol": "MockSTOCK",
+          "decimals": 18,
+          "isMock": true
+        },
+        "quote": {
+          "address": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+          "symbol": "MockUSD",
+          "decimals": 6,
+          "isMock": true
+        },
+        "version": 3,
+        "legacy": true
       }
     ],
     "rpcUrl": "http://127.0.0.1:8545"

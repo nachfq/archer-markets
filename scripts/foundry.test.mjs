@@ -2,12 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { dockerInvocation, foundryImage } from './foundry.mjs';
 
-test('Anvil publishes only to loopback and exposes neither host files nor signing keys', () => {
+test('Anvil runs attached on loopback without host mounts', () => {
   const { command, args } = dockerInvocation('anvil', ['18545'], { name: 'owned-test', env: { DEPLOYER_PRIVATE_KEY: 'not-a-real-key' } });
   assert.equal(command, 'docker');
   assert(args.includes('127.0.0.1:18545:8545'));
   assert(args.includes('--rm'));
-  assert(args.includes('--silent'));
+  assert(!args.includes('--silent'));
+  assert(!args.includes('--detach'));
+  assert(!args.includes('-d'));
+  assert.equal(args[args.indexOf('--entrypoint') + 1], 'anvil');
   assert(!args.includes('--mount'));
   assert(!args.includes('--env'));
   assert(!args.includes('--network=host'));

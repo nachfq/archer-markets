@@ -21,7 +21,7 @@
     "wallet:testnet": "node scripts/create-testnet-wallet.mjs",
     "verify:testnet": "node --env-file-if-exists=.env scripts/verify-testnet.mjs",
     "seed:local": "node scripts/seed.mjs local",
-    "demo:local": "node scripts/demo-local.mjs",
+    "demo:local": "npm run contracts:build && npm run abi && npm run sdk:build && node scripts/demo-local.mjs",
     "seed:testnet": "node --env-file-if-exists=.env scripts/seed.mjs testnet",
     "test:e2e": "node scripts/smoke.mjs && node scripts/smoke-resale.mjs && node scripts/smoke-requests.mjs",
     "test:browser": "node scripts/browser-smoke.mjs",
@@ -33,7 +33,8 @@
     "test:sdk:e2e": "node packages/sdk/examples/lifecycle.mjs deployments/31337.json",
     "test:acceptance": "node scripts/acceptance-local.mjs",
     "test:browser:requests": "node scripts/browser-requests.mjs",
-    "wallet:fund:local": "node scripts/fund-local-wallets.mjs"
+    "wallet:fund:local": "node scripts/fund-local-wallets.mjs",
+    "test:demo": "node scripts/demo-seed-check.mjs"
   },
   "dependencies": {
     "viem": "2.56.3",

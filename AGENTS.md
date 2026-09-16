@@ -31,3 +31,5 @@ settlement, an AMM, or a different product vertical without a new product decisi
   and planning in `docs/research/`; ask before deleting existing documents.
 - Run Foundry tools through Docker using the repository scripts. Do not install or
   download native Foundry binaries onto the host or change the shell PATH for them.
+- Reserve local Anvil accounts 0 and 1 for human demo use. The seed may grant them
+  mock tokens, but must create all fixture options and requests using accounts 2–9.

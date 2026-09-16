@@ -712,3 +712,22 @@ All 13 browser scenarios passed on Docker Anvil; wallet funding and SIGINT clean
 also verified. No task containers remained. Evidence: `.qa-tmp-e2e-T3WH4z/summary.json`
 and `.qa-tmp-audit/docker-*.log`. Explorer verification was adapted but not submitted;
 no public deployment or transaction is claimed.
+
+## September 16, 2026 — Anvil terminal output
+
+Removed `--silent` at the coordinator’s request. Docker runs Anvil directly in the
+foreground with standard output; no output filter or detached mode.
+
+## September 16, 2026 — Player wallets and populated local markets
+
+Reserved Anvil 0–1 for manual play: one-time grants of 100 of each mock stock and
+10,000 MockUSD, with no seeded positions. Accounts 2–9 create 390 options and 150
+funded requests. `demo:local` builds its prerequisites, defaults to Tesla and keeps
+legacy markets; genesis-specific ledgers preserve trades and prevent repeat grants.
+
+Validation: 127 tests passed, one optional fork test skipped; typecheck and build passed.
+The isolated Docker seed check passed conservation, rollback and interrupted-run recovery
+after manual acceptance/cancellation (`.qa-tmp-demo-jQfo9m/summary.json`). Seeded the
+existing local chain without resetting it; verified both player balances and zero positions
+onchain, and Tesla's 30 requests through Orca CLI. Local evidence:
+`.qa-tmp-audit/demo-players-live-evidence.json`. No public transactions were submitted.

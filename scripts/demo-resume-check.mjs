@@ -1,6 +1,7 @@
 // Reproduce a crash between broadcast and ledger persistence on an isolated local node.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { join, dirname } from 'node:path';
 import { createPublicClient, http } from 'viem';
 import { readJson, saveJson } from './config.mjs';
 
@@ -15,7 +16,11 @@ const first = Object.keys(ledger.offers)[0];
 const expectedAddress = ledger.offers[first].address;
 delete ledger.offers[first];
 delete ledger.transactions[`${first}:create`].hash;
-const recoveryFile = 'deployments/demo-resume-check.json';
+const requestKey = Object.keys(ledger.requests)[0];
+const expectedRequest = ledger.requests[requestKey];
+delete ledger.requests[requestKey];
+delete ledger.transactions[`${requestKey}:create`].hash;
+const recoveryFile = join(dirname(source), 'demo-resume-check.json');
 await saveJson(recoveryFile, ledger);
 const execute = extra => spawnSync(process.execPath, ['scripts/demo-local.mjs', '--no-export', ...extra], { env: { ...process.env, DEMO_LEDGER: recoveryFile }, encoding: 'utf8' });
 const dry = execute(['--dry-run']);
@@ -26,8 +31,10 @@ assert.equal(resumed.status, 0, resumed.stderr);
 const recovered = await readJson(recoveryFile);
 assert.equal(recovered.offers[first].address, expectedAddress);
 assert.equal(Object.keys(recovered.offers).length, 390);
+assert.equal(Object.keys(recovered.requests).length, 150);
+assert.deepEqual(recovered.requests[requestKey], expectedRequest);
 assert.equal(await client.getBlockNumber(), before, 'Recovery reuses receipts and sends no duplicate transactions.');
 const repeated = execute([]);
 assert.equal(repeated.status, 0, repeated.stderr);
 assert.equal(await client.getBlockNumber(), before);
-console.log('PASS dry-run, interrupted-broadcast recovery and repeated seed: 390 same addresses, zero extra transactions.');
+console.log('PASS dry-run, interrupted-broadcast recovery and repeated seed: 390 same options, 150 same requests, zero extra transactions.');

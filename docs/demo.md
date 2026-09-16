@@ -1,7 +1,8 @@
 # Try Archer Markets locally
 
-Use two disposable wallets in separate browser profiles. Start with **maker = writer**
-and **taker = buyer**. All assets below are local mocks with no real value.
+Use **anvil0** and **anvil1** in separate wallet/browser profiles. Both start with tokens
+and no option positions. Accounts **anvil2–anvil9** populate the market. All assets are
+local mocks with no real value.
 
 ## 1. Start the app
 
@@ -23,34 +24,39 @@ Terminal A — keep the local chain running:
 npm run anvil
 ```
 
-Terminal B — deploy the contracts and start the frontend:
+Anvil runs in the foreground with its standard output. Keep this terminal open.
+
+Terminal B — populate the five markets and start the frontend:
 
 ```sh
-npm run deploy:local
+npm run demo:local
 npm run dev:local
 ```
 
 Open the printed URL, normally <http://localhost:3000>, in both profiles.
-Select **Mock Stock** in both. The empty market is expected: you will create its first offer.
+Select **Mock Tesla** in both. You should see **390 seeded options** across five markets
+(370 initially listed, including resales) and **150 open buy requests**. Prices are synthetic.
 
 ## 2. Prepare both wallets
 
 Add the network to each wallet: **Local Anvil**, RPC **http://127.0.0.1:8545**,
 chain ID **31337**, currency **ETH**, no explorer. Connect each wallet to the app.
 
-Give each address 2 local ETH for gas, replacing the placeholders with its public address:
+Use Anvil accounts **(0)** and **(1)** printed in its terminal. Each already has local ETH.
+After seeding, **Portfolio → Available** should show, for each account:
 
-```sh
-npm run wallet:fund:local -- YOUR_MAKER_ADDRESS YOUR_TAKER_ADDRESS
-```
+- **100 each:** mTSLA, mNVDA, mAAPL, mAMZN and mMSFT.
+- **10,000 MockUSD** and no seeded options or requests.
 
-In **Wallet menu**, choose **Get MockUSD** and **Get MockSTOCK** for each wallet.
-Confirm the faucet transactions. **Portfolio → Available** should show the tokens.
-You need at least 0.2 MockSTOCK for the writer and 62 MockUSD for the buyer.
+The seed funds these wallets once; rerunning it preserves your trades and does not refill
+spent balances. For more tokens later, use **Wallet menu → Get [token]** in the selected market.
+
+To start immediately, buy an existing NPC offer or accept one of its buy requests.
+The following walkthrough makes a new agreement between your two wallets.
 
 ## 3. Maker: write a call
 
-Go to **Trade → Write Options**. Choose **Call**, enter **0.2** tokens,
+As **anvil0**, go to **Trade → Write Options**. Choose **Call**, enter **0.2** tokens,
 **60** total exercise payment, **2** total option price, and **Custom expiration…** set to tomorrow.
 Review, approve the collateral if prompted, then confirm creation.
 
@@ -59,8 +65,8 @@ option; no premium has arrived yet. Find the offer in **Portfolio** and **Buy Op
 
 ## 4. Taker: buy and exercise
 
-In the other profile, open **Trade → Buy Options**, select the expiration and expand
-the **300** strike row (60 ÷ 0.2). Select the maker's offer, review it and acknowledge
+As **anvil1**, open **Trade → Buy Options**, select the expiration and expand
+the **300** strike row (60 ÷ 0.2). Select anvil0's 0.2-token offer, review it and acknowledge
 manual exercise. Approve the **2 MockUSD** premium if needed, then confirm purchase.
 
 The buyer now holds the option. The writer receives **2 MockUSD** and cannot cancel it.
@@ -72,7 +78,7 @@ Approve **60 MockUSD** if needed, then exercise before expiration.
 | Maker / writer | −0.2 | +62 |
 | Taker / buyer | +0.2 | −62 |
 
-Compare against balances after the faucets. Gas affects ETH separately. The option
+Compare against the initial seeded balances. Gas affects ETH separately. The option
 should show **Exercised** under **Portfolio → Closed & resold options**, with no
 remaining collateral. Buying alone does not deliver stock.
 
@@ -87,7 +93,7 @@ The writer is now the **taker**. Open the request, review and **Accept & write o
 The writer must have **60 MockUSD upfront**: the 2 premium cannot fund the deposit.
 Acceptance locks 60, pays the writer 2 and gives the buyer one option.
 
-The buyer exercises from Portfolio, delivering **0.2 MockSTOCK** to receive **60 MockUSD**.
+The buyer exercises from Portfolio, delivering **0.2 mTSLA** to receive **60 MockUSD**.
 Net for this put alone: buyer −0.2 stock / +58 MockUSD; writer +0.2 stock / −58 MockUSD.
 
 ## Where to check / retry
@@ -100,9 +106,8 @@ Net for this put alone: buyer −0.2 stock / +58 MockUSD; writer +0.2 stock / �
 - **After expiration:** exercise is unavailable. Writers reclaim unused collateral;
   requesters recover unaccepted premiums. Neither recovery happens automatically.
 
-Ctrl+C stops Anvil and removes its container and state. After restarting it, redeploy
-and repeat funding;
-if your wallet reports a stale nonce, clear its local activity for this network.
+Ctrl+C stops Anvil and removes its container and state. After restarting it, rerun
+`npm run demo:local`. If your wallet reports a stale nonce, clear its local activity for this network.
 If the app shows Robinhood Chain Testnet, restart with `npm run dev:local`.
 If the first page load fails while Vite prepares dependencies, stop and restart
 `npm run dev:local`, then reload. Never run time-advancing E2E tests against this node.

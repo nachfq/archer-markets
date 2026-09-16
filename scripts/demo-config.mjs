@@ -26,15 +26,23 @@ export function demoOffers(stock, timestamp, expirations = demoExpirations(times
       const intrinsic = Math.max(0, kind === 0 ? stock.anchor - strike : strike - stock.anchor);
       const timeValue = stock.anchor * 0.06 * Math.sqrt(days / 30) * Math.exp(-3 * Math.abs(strike / stock.anchor - 1));
       const premium = BigInt(Math.max(1, Math.round((intrinsic + timeValue) * quantity * 100))) * 10000n;
-      offers.push({ id: `${stock.id}-${term}-${step}-${kind}-${lot}`, optionType: kind, quantity: BigInt(Math.round(quantity * 10)) * 10n ** 17n, strikeTotal: BigInt(Math.round(strike * quantity * 100)) * 10000n, premium, expiry });
+      offers.push({ id: `${stock.id}-${term}-${step}-${kind}-${lot}`, optionType: kind, quantity: BigInt(Math.round(quantity * 10)) * 10n ** 17n, strikeTotal: BigInt(Math.round(strike * quantity * 100)) * 10000n, premium, expiry, referenceStep: step });
     }
   }
   // Exactly two held, two relisted and two cancelled per market, away from the first expiry.
-  return offers.map((offer, i) => ({ ...offer, disposition: i === 52 || i === 53 ? 'held' : i === 54 || i === 55 ? 'resale' : i === 76 || i === 77 ? 'cancelled' : 'open', writerIndex: 1 + i % 7, buyerIndex: 8 + i % 2 }));
+  return offers.map((offer, i) => ({ ...offer, disposition: i === 52 || i === 53 ? 'held' : i === 54 || i === 55 ? 'resale' : i === 76 || i === 77 ? 'cancelled' : 'open', writerIndex: 2 + i % 6, buyerIndex: 8 + i % 2 }));
+}
+export const playerStockAmount = 100n * 10n ** 18n;
+export const playerQuoteAmount = 10_000n * 10n ** 6n;
+export function demoRequests(stock, timestamp) {
+  return demoOffers(stock, timestamp)
+    .filter(offer => [-2, 0, 2].includes(offer.referenceStep))
+    .map((offer, i) => ({ ...offer, id: `${offer.id}-request`, buyerIndex: 2 + i % 8,
+      premium: offer.premium * 90n / 100n || 1n, acceptUntil: offer.expiry - 86400n }));
 }
 export function assertLocalDemo(url, chainId, clientVersion, accounts) {
   const parsed = new URL(url);
   if (!['http:', 'https:'].includes(parsed.protocol) || !['127.0.0.1', 'localhost', '[::1]'].includes(parsed.hostname) || chainId !== 31337 || !clientVersion.toLowerCase().includes('anvil')) throw new Error('Demo writes require a loopback Anvil RPC on chain 31337.');
   if (accounts.length < 10 || new Set(accounts.map(a => a.toLowerCase())).size !== accounts.length) throw new Error('Ten distinct unlocked Anvil accounts are required.');
-  return accounts.slice(1, 10);
+  return accounts.slice(2, 10);
 }

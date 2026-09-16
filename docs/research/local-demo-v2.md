@@ -1,5 +1,9 @@
 # Five-market local fixture and resale (current contracts: V3)
 
+Historical fixture design. The current [local guide](../demo.md) reserves accounts 0–1
+for players and uses accounts 2–9 for 390 options and 150 buy requests. The account
+allocation, ledger filename and native Anvil commands below describe the earlier setup.
+
 This guide generates synthetic local chain-31337 fixtures, not a funded Robinhood deployment,
 an audit, or human usability validation. The hosted chain-46630 frontend remains
 without a factory. The fixture generator does not publish the frontend.

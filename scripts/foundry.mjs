@@ -12,7 +12,7 @@ export function dockerInvocation(tool, args = [], { name = `archer-foundry-${ran
     const port = args[0] ?? '8545';
     if (args.length > 1 || !/^\d+$/.test(port) || Number(port) < 1024 || Number(port) > 65535) throw new Error('Expected one local port between 1024 and 65535.');
     flags.push('--publish', `127.0.0.1:${port}:8545`);
-    args = ['--host', '0.0.0.0', '--port', '8545', '--chain-id', '31337', '--silent'];
+    args = ['--host', '0.0.0.0', '--port', '8545', '--chain-id', '31337'];
   } else if (tool === 'forge') {
     // Mount contract sources/artifacts only: no wallet files or repository .env.
     flags.push('--mount', `type=bind,source=${contracts},target=/workspace`, '--workdir', '/workspace', '--env', 'HOME=/tmp');
