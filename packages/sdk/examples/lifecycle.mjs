@@ -15,7 +15,7 @@ assert.match(await client.request({method:'web3_clientVersion'}),/anvil/i);
 const account=i=>mnemonicToAccount('test test test test test test test test test test test junk',{addressIndex:i});
 const writer=account(2),buyer=account(3);
 const wallet=account=>createWalletClient({chain,account,transport:http(record.rpcUrl)});
-const market={id:'primary',chainId:31337,factory:record.factory,deploymentBlock:BigInt(record.deploymentBlock),version:1,underlying:record.underlying,quote:record.quote,sandbox:true};
+const market={id:'primary',chainId:31337,factory:record.factory,deploymentBlock:BigInt(record.deploymentBlock),version:record.version ?? 1,underlying:record.underlying,quote:record.quote,sandbox:true};
 async function mined(hash){const result=await client.waitForTransactionReceipt({hash});assert.equal(result.status,'success');return result;}
 for(const person of [writer,buyer]) for(const token of [market.underlying,market.quote]) await mined(await wallet(person).writeContract({address:token.address,abi:parseAbi(['function faucet()']),functionName:'faucet'}));
 async function execute(person,operation){

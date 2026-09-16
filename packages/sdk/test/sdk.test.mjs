@@ -189,3 +189,25 @@ test('request registry uses the portfolio snapshot block; expired requests permi
   await assert.rejects(prepareAcceptRequest(client, m, writer, 0n), {code: 'EXPIRED'});
   await prepareCancelRequest(client, m, buyer, 0n);
 });
+
+test('invalid deployment code, pair, decimals and version never prepare an approval', async () => {
+  for (const invalid of ['code', 'underlying', 'quote', 'decimals', 'version']) {
+    const { client, reads } = fakeClient([]);
+    const read = client.readContract;
+    client.readContract = async r => {
+      if (r.functionName === 'version') return invalid === 'version' ? 2n : 3n;
+      if (r.functionName === invalid) return invalid === 'decimals' ? 5 : addr(999);
+      return read(r);
+    };
+    if (invalid === 'code') client.getCode = async () => '0x';
+    await assert.rejects(() => prepareCreateOffer(client, { ...market, version: 3 }, writer,
+      { optionType: 0, quantity: 10n ** 17n, strikeTotal: 2n, premium: 1n, expiry: 100n }), { code: 'UNAVAILABLE' });
+    assert.equal(reads.some(r => r.functionName === 'allowance'), false, invalid);
+  }
+});
+
+test('an option outside the authenticated factory registry cannot request token approval', async () => {
+  const { client, reads } = fakeClient([option(0)]);
+  await assert.rejects(() => prepareBuy(client, market, buyer, addr(999)), { code: 'UNAVAILABLE' });
+  assert.equal(reads.some(r => r.functionName === 'allowance'), false);
+});

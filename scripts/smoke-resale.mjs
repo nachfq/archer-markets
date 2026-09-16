@@ -62,4 +62,4 @@ for (const optionType of [0, 1]) {
   await assert.rejects(() => client.call({ account: buyer.account.address, to: option, data: unavailable }));
   console.log(`PASS ${optionType === 0 ? 'call' : 'put'} resale: stale quote rollback, conservation, history, old-holder rejection, listed exercise`);
 }
-await saveJson('deployments/local-resale-smoke.json', { chainId: 31337, rpcUrl: url, factory: market.factory, source: 'Executed local Anvil transactions; not a public deployment or audit', receipts });
+await saveJson(`${process.env.EVIDENCE_DIR ?? 'deployments'}/local-resale-smoke.json`, { chainId: 31337, rpcUrl: url, factory: market.factory, source: 'Executed local Anvil transactions; not a public deployment or audit', receipts });

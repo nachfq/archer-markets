@@ -28,18 +28,18 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npx playwright install --with-deps chromium
-      - name: Actual local transactions
-        shell: bash
-        run: |
-          anvil --silent --host 127.0.0.1 --chain-id 31337 &
-          ANVIL_PID=$!
-          trap 'kill "$ANVIL_PID"' EXIT
-          node scripts/wait-anvil.mjs
-          npm run deploy:local
-          npm run test:e2e
-          npm run seed:local
-          npm run dev:local > /tmp/stock-options-web.log 2>&1 &
-          WEB_PID=$!
-          trap 'kill "$ANVIL_PID" "$WEB_PID"' EXIT
-          node scripts/wait-web.mjs
-          npm run test:browser
+      - run: npm --prefix web run lint
+      - run: npm audit --audit-level=moderate
+      - run: npm --prefix web audit --audit-level=moderate
+      - name: Isolated protocol, SDK and browser acceptance
+        run: npm run test:acceptance
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: local-acceptance-evidence
+          path: |
+            .qa-tmp-e2e-*/summary.json
+            .qa-tmp-e2e-*/*.log
+            .qa-tmp-e2e-*/local-*.json
+            .qa-tmp-e2e-*/options-*.png
+          include-hidden-files: true

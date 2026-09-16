@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { isAddress } from "viem";
+import { createPublicClient, http, isAddress } from "viem";
 import OptionsApp from "./options-app";
-import { client, deployment as defaultDeployment, marketRecords, asMarket } from "../lib/config";
+import { deployment as defaultDeployment, marketRecords, asMarket } from "../lib/config";
 import { optionAbi, optionFactoryAbi } from "../lib/generated/abis";
 import { units } from "../lib/options";
 
@@ -30,6 +30,12 @@ export async function generateMetadata({
     deployment.deploymentBlock
   ) {
     try {
+      // Each Worker request owns its RPC work. A shared HTTP batch can resolve
+      // another request's promises after its context was canceled.
+      const client = createPublicClient({
+        transport: http(deployment.rpcUrl, { batch: false, retryCount: 1, timeout: 5000 }),
+        cacheTime: 0,
+      });
       // Authenticate the address through the factory's indexed creation event before reading it.
       const events = await client.getContractEvents({
         address: deployment.factory!,

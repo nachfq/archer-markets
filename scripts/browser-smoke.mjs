@@ -255,13 +255,26 @@ try {
     evidence.scenarios.push(entry); transactions = entry.transactions;
     const offer = await create(writerPage, type, type === 0);
     Object.assign(entry, offer);
+    if (type === 0) {
+      const aborted = Array.from({ length: 4 }, () => fetch(offer.link, { signal: AbortSignal.timeout(20) }).then(r => r.text()).catch(() => null));
+      const pages = await Promise.all(Array.from({ length: 8 }, async () => {
+        const response = await fetch(offer.link, { signal: AbortSignal.timeout(20000) });
+        assert.equal(response.status, 200);
+        const html = await response.text();
+        assert.match(html, /<title>Call/);
+        return response.status;
+      }));
+      await Promise.all(aborted);
+      entry.concurrentMetadataResponses = pages;
+      console.log('PASS concurrent option metadata requests survive other request cancellation');
+    }
     await buyerPage.goto(baseUrl);
     await expect(buyerPage.getByRole('region', { name: 'Options chain', exact: true })).toBeVisible();
     await expect(buyerPage.locator('.chain-offer').first()).toBeVisible();
     await buyerPage.locator(`[data-expiration="${offer.expiry}"]`).click();
     await buyerPage.getByLabel('Strikes', { exact: true }).selectOption('all');
     const chainQuote = buyerPage.locator(`[data-offer="${offer.option}"]`);
-    const strikeButton = buyerPage.getByRole('button', { name: 'Strike 249.876544', exact: true });
+    const strikeButton = buyerPage.getByRole('button', { name: 'Strike ≈260.288066', exact: true });
     if (await strikeButton.getAttribute('aria-expanded') !== 'true') await strikeButton.click();
     await chainQuote.click();
     await expect(buyerPage).toHaveURL(new RegExp(`option=${offer.option}`, 'i'));
@@ -390,15 +403,15 @@ try {
   await expect(writerPage.locator('.balance-table tbody tr')).toHaveCount(tokenCount);
   await expect(writerPage.getByRole('region', { name: 'Stock Tokens', exact: true }).locator('tbody tr')).toHaveCount(stockCount);
   await expect(writerPage.getByRole('region', { name: 'Stablecoins', exact: true }).locator('tbody tr')).toHaveCount(1);
-  await writerPage.screenshot({ path: join(tmpdir(), 'options-portfolio-connected.png'), fullPage: true });
+  await writerPage.screenshot({ path: join(process.env.EVIDENCE_DIR ?? tmpdir(), 'options-portfolio-connected.png'), fullPage: true });
   await writerPage.getByRole('button', { name: 'Trade', exact: true }).click();
   await writerPage.getByRole('tab', { name: 'Write Options', exact: true }).click();
   await writerPage.getByLabel(/^Quantity of/).fill('0.1');
   await writerPage.getByLabel(/^Exercise payment — total/).fill('300');
   await writerPage.getByLabel(/^Option price — total/).fill('8');
-  await writerPage.screenshot({ path: join(tmpdir(), 'options-create-connected.png'), fullPage: true });
+  await writerPage.screenshot({ path: join(process.env.EVIDENCE_DIR ?? tmpdir(), 'options-create-connected.png'), fullPage: true });
   await writerPage.setViewportSize({ width: 390, height: 844 });
-  await writerPage.screenshot({ path: join(tmpdir(), 'options-create-mobile.png'), fullPage: true });
+  await writerPage.screenshot({ path: join(process.env.EVIDENCE_DIR ?? tmpdir(), 'options-create-mobile.png'), fullPage: true });
   assert.equal(await writerPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   evidence.finishedAt = new Date().toISOString();
   evidence.browserErrors = errors;
@@ -409,7 +422,7 @@ try {
   evidence.error = error.message;
   throw error;
 } finally {
-  await writeFile(new URL('deployments/local-browser-smoke.json', root), `${JSON.stringify(evidence, (_, value) => typeof value === 'bigint' ? value.toString() : value, 2)}\n`);
+  await writeFile(new URL(`${process.env.EVIDENCE_DIR ?? 'deployments'}/local-browser-smoke.json`, root), `${JSON.stringify(evidence, (_, value) => typeof value === 'bigint' ? value.toString() : value, 2)}\n`);
   await browser.close();
 }
-console.log(`${evidence.scenarios.length} browser acceptance scenarios passed. Evidence: deployments/local-browser-smoke.json`);
+console.log(`${evidence.scenarios.length} browser acceptance scenarios passed. Evidence: ${process.env.EVIDENCE_DIR ?? 'deployments'}/local-browser-smoke.json`);

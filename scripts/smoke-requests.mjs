@@ -88,4 +88,4 @@ await assert.rejects(prepareExercise(client, market, buyer.account.address, acce
 await run(writer, prepareReclaim(client, market, writer.account.address, accepted.option));
 assert.equal(await balance(market.quote, accepted.option), 0n);
 console.log('PASS accepted request: expired option blocks exercise and returns collateral to writer');
-await saveJson('deployments/local-requests-smoke.json', { chainId: 31337, rpcUrl: url, factory: market.factory, publicTransactions: false, transactions });
+await saveJson(`${process.env.EVIDENCE_DIR ?? 'deployments'}/local-requests-smoke.json`, { chainId: 31337, rpcUrl: url, factory: market.factory, publicTransactions: false, transactions });

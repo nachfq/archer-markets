@@ -30,7 +30,9 @@
     "typecheck": "npm run sdk:build && npm --prefix web run typecheck",
     "sdk:build": "npm run build --workspace @stock-options-lab/sdk",
     "sdk:test": "npm run sdk:build && npm run test --workspace @stock-options-lab/sdk",
-    "test:sdk:e2e": "node packages/sdk/examples/lifecycle.mjs deployments/31337.json"
+    "test:sdk:e2e": "node packages/sdk/examples/lifecycle.mjs deployments/31337.json",
+    "test:acceptance": "node scripts/acceptance-local.mjs",
+    "test:browser:requests": "node scripts/browser-requests.mjs"
   },
   "dependencies": {
     "viem": "2.56.3",

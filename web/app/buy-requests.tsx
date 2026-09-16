@@ -10,7 +10,7 @@ import WriteOptionForm, { type WriteTerms } from "./write-option-form";
 import { TradeTicket } from "./workspace-ui";
 
 type Props = {
-  net: Deployment; requests: BuyRequest[]; account?: Address; now: bigint; portfolio?: Portfolio;
+  net: Deployment; requests: BuyRequest[]; account?: Address; walletChainId?: number; now: bigint; portfolio?: Portfolio;
   canAct: boolean; busy: boolean; unavailable: boolean; loading: boolean;
   notification: ReactNode;
   onRun: (prepare: () => Promise<PreparedOperation>, success: string) => Promise<boolean>;
@@ -26,9 +26,16 @@ export default function BuyRequests(props: Props) {
   const [acceptance, setAcceptance] = useState("");
   const [scope, setScope] = useState<"open" | "mine">("open");
   const [reviewValue, setReviewValue] = useState<"create" | bigint | null>(null);
-  const [reviewAccount, setReviewAccount] = useState(account);
-  const review = reviewAccount === account ? reviewValue : null;
-  const setReview = (value: typeof reviewValue) => { setReviewAccount(account); setReviewValue(value); };
+  const context = `${account?.toLowerCase()}:${props.walletChainId}`;
+  const [reviewContext, setReviewContext] = useState(context);
+  // Discard approval of the review when the wallet context changes. Returning to
+  // the old account/network must not resurrect an earlier confirmation screen.
+  if (reviewContext !== context) {
+    setReviewContext(context);
+    setReviewValue(null);
+  }
+  const review = reviewContext === context ? reviewValue : null;
+  const setReview = (value: typeof reviewValue) => { setReviewContext(context); setReviewValue(value); };
   const suggestions = suggestedExpirations(Number(now) * 1000);
   const effectiveExpiry = values.expiryMode === "custom" ? values.expiry : values.presetExpiry || suggestions[0]?.value || "";
   const fmt = (value: bigint, token = net.quote) => `${readableNumber(units(value, token.decimals), token === net.quote ? 2 : 0)} ${token.symbol}`;

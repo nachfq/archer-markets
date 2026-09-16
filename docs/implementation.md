@@ -607,3 +607,76 @@ remains configured for chain 46630 without a factory or payment-token address, s
 protocol transactions are enabled there. This is frontend publication only, not a
 Robinhood contract deployment. The temporary verification node and preview were stopped
 after the checks; their saved local manifests are historical evidence, not live services.
+
+
+## MVP security review and isolated acceptance — September 16, 2026
+
+The coordinating agent reviewed V3 contracts, escrow accounting, SDK preparation,
+wallet/receipt handling, manifests, tooling and dependencies against baseline
+`b5f944f3012159f2e3fc0d6470ab75f3da422399`. This is an agent review with automated
+evidence, not an independent professional audit, formal verification or human approval.
+No other agent participated in this review.
+
+The dependency audit identified 20 affected web packages, including high-severity
+upstream advisories. Direct versions and compatible transitive lockfile entries
+were updated and pinned; fresh web installation and both full dependency audits
+passed with zero remaining advisories. Supported optional platform packages were
+retained. No exploit was sent to the hosted website.
+
+A new browser regression reproduced request review resurrection after switching
+away from an account and back. Review state now resets on account/network changes
+without deleting typed terms. A concurrent browser run also exposed cross-request
+HTTP batching in server-side option metadata: a Worker canceled a hung request and
+the browser reported a closed connection. Metadata reads now use a separate,
+unbatched, uncached RPC client per request. Concurrent reads with canceled requests
+passed after the correction. Protocol contract source, SDK public APIs, generated
+ABIs and checked-in deployment manifests are unchanged.
+
+Added a stateful request invariant with three actors and a fixed token supply.
+It checks aggregate reserved premiums, donations, independent option backing,
+terminal balances and token conservation after randomized operations. Added SDK
+checks for invalid deployments and options outside the factory registry.
+
+`npm run test:acceptance` now owns its loopback Anvil, ports, V3 fixtures, frontend
+copy and evidence directory. It excludes environment files and keeps dependency
+optimizer caches separate from the user's frontend. CI uses the runner instead of
+the incompatible legacy port/market setup, includes request browser acceptance,
+and uploads logs and local receipts. The standalone SDK example honors manifest
+versions. Browser expectations were repaired for the current fractional quantity
+and for page hydration after cancellation. Evidence output paths are configurable
+through `EVIDENCE_DIR`; browser request tests now record receipts and balances.
+
+Executed validation:
+
+- `npm test`: 81 Foundry executions (including the optional synthetic TSLA fork
+  and inherited tests), 7 script, 17 SDK and 19 frontend tests passed.
+- Stateful invariant: 128 runs, 64 steps each, 8,192 calls, zero reverts.
+- Typecheck, frontend lint, ABI regeneration and the default chain-46630 build passed.
+- Complete isolated acceptance passed in `.qa-tmp-e2e-6SYnq8/`: protocol lifecycle
+  (nine scenarios / 460 checks), resale, requests and standalone SDK lifecycle.
+- Browser options: nine scenarios; requests: four scenarios including exercise,
+  cancellation and expired refund. Both reported zero browser runtime errors.
+  Regression checks include account/chain changes, signature rejection, RPC outage
+  recovery, stale transactions, exact balance conservation and metadata concurrency.
+- Orca CLI performed interactive checks on the chain-46630 local preview with a
+  read-only injected wallet: missing deployment prevents signing; the filled write
+  review remained disabled with zero signing calls and no overflow at 390 px.
+  Docs/manual-exercise navigation was also checked. Orca screenshot capture timed
+  out; automated Playwright screenshots remain separate local artifacts.
+- The bounded tracked-file secret scan found no private-key literal/PEM pattern.
+  Both root and web dependency audits returned zero advisories. No signing keys
+  were copied or printed. The original deployment manifest was preserved.
+
+Limitations: all signing was on the disposable local chain. The optional fork
+uses synthetic balances. No real wallet extension, human usability acceptance,
+public deployment, frontend publication or GitHub-hosted CI run is claimed.
+Cold Vite optimization produced startup reloads/errors before readiness; unsuccessful
+runs are preserved separately from the final passing evidence. Created services
+and the Orca preview were stopped. The unbounded registry/event scan remains a
+public-scale availability limitation. The result supports a controlled local MVP
+demo, not unrestricted public or real-money use.
+
+Details and residual risks: [security review](security-review.md). Proposed public
+acceptance, user validation, demo script and event eligibility work are in
+[the Open House Singapore submission path](hackathon-readiness.md). Solidity remains
+the implementation; no Stylus integration or performance gain is claimed.

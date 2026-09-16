@@ -110,6 +110,20 @@ npm --prefix web run lint
 npm run build
 ```
 
+For the complete isolated protocol, SDK and browser acceptance run:
+
+```sh
+npx playwright install chromium
+npm run test:acceptance
+```
+
+Run `npm run build` first. The runner starts its own loopback Anvil and frontend on
+available ports, deploys fresh V3 fixtures, and runs both option and request browser
+workflows. It copies frontend source without `.env` files, keeps a private local
+manifest, saves logs/receipts under an ignored `.qa-tmp-e2e-*` directory, and stops
+its services afterward. It never resets your demo node or replaces the checked-in
+browser manifest. The browser wallets are injected local fixtures.
+
 For transaction checks, start **another** Anvil instance in its own terminal:
 
 ```sh
@@ -145,3 +159,7 @@ See [request architecture](docs/buy-requests.md), [product roadmap](docs/product
 [research](docs/research/README.md), [Stylus assessment](docs/stylus-assessment.md) and
 [repository coordination](AGENTS.md). Repository content is in English; human coordination
 may be in Spanish.
+
+See the [MVP security review](docs/security-review.md) and
+[Open House Singapore submission path](docs/hackathon-readiness.md) for the latest
+local acceptance results, release limits and proposed next steps.

@@ -255,6 +255,6 @@ for (const [type, name] of [[0, 'CALL'], [1, 'PUT']]) {
 evidence.finishedAt = new Date().toISOString();
 evidence.assertions = assertions;
 evidence.result = 'passed';
-const output = new URL('deployments/local-smoke.json', root);
+const output = new URL(`${process.env.EVIDENCE_DIR ?? 'deployments'}/local-smoke.json`, root);
 await writeFile(output, `${JSON.stringify(evidence, (_, value) => typeof value === 'bigint' ? value.toString() : value, 2)}\n`);
 console.log(`${evidence.scenarios.length} scenarios passed (${assertions} checks). Evidence: ${fileURLToPath(output)}`);
