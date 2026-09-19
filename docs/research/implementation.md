@@ -840,3 +840,21 @@ passed (`.qa-tmp-e2e-OPGisZ/summary.json`), including crossed orders staying ope
 separate collateral on bid acceptance, exact balances and signature rollback. Orca
 verified all four entry paths, strike presets and automatic totals. No public
 transactions, live-demo writes or private keys embedded in the frontend.
+
+## September 19, 2026 — Fresh local-chain cleanup
+
+`npm run anvil` now removes the disposable chain-31337 manifest and genesis-specific
+demo ledgers before starting a new Docker Anvil. This prevents a fresh deterministic
+deployment from reusing addresses and receipts saved by an earlier local chain.
+
+Orca reproduced the failure, then verified a fresh V4 seed with 390 asks and 150 bids.
+Anvil account 0 bought one Tesla call at 11.01 MockUSD: the receipt succeeded, Portfolio
+showed the purchased option, and the visible ask count fell from 74 to 73. This was a
+local transaction only; no public transaction was submitted. Validation: 159 tests passed,
+one optional fork test skipped; typecheck and build passed.
+
+A continued Orca session exercised both sides of matching. Account 0 left call bid #116
+open at 10 MockUSD, then crossed a 12.44 ask with a 13 limit and paid the resting 12.44
+price. Account 1 wrote a call into a 41.40 bid, reducing available stock and increasing
+active collateral, then left ask #119 open at 11 above the remaining 10 bid. The final
+visible book was 10 bid / 11 ask. These were local Anvil transactions.

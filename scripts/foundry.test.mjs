@@ -1,6 +1,18 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
-import { dockerInvocation, foundryImage } from './foundry.mjs';
+import { cleanLocalAnvilState, dockerInvocation, foundryImage } from './foundry.mjs';
+
+test('Anvil cleanup removes only disposable local deployment state', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'archer-anvil-cleanup-'));
+  for (const name of ['31337.json', 'local-demo-0xabc.json', 'local-demo-v4-0xdef.json', 'README.md', '46630.json'])
+    await writeFile(join(directory, name), name);
+  assert.deepEqual((await cleanLocalAnvilState(directory)).sort(), ['31337.json', 'local-demo-0xabc.json', 'local-demo-v4-0xdef.json']);
+  assert.equal(await readFile(join(directory, 'README.md'), 'utf8'), 'README.md');
+  assert.equal(await readFile(join(directory, '46630.json'), 'utf8'), '46630.json');
+});
 
 test('Anvil runs attached on loopback without host mounts', () => {
   const { command, args } = dockerInvocation('anvil', ['18545'], { name: 'owned-test', env: { DEPLOYER_PRIVATE_KEY: 'not-a-real-key' } });

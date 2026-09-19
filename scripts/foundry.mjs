@@ -1,10 +1,19 @@
 // Foundry runs only in disposable Docker containers. No host binary fallback.
 import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { readdir, rm } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const foundryImage = 'ghcr.io/foundry-rs/foundry:v1.3.1@sha256:2dbf3d0fc58593ad9d01ef57677f93f83f4987acd295d17f303448d82e3a3ae7';
 const contracts = fileURLToPath(new URL('../contracts', import.meta.url));
+const deployments = fileURLToPath(new URL('../deployments', import.meta.url));
+
+export async function cleanLocalAnvilState(directory = deployments) {
+  const entries = await readdir(directory).catch(error => error.code === 'ENOENT' ? [] : Promise.reject(error));
+  const stale = entries.filter(name => name === '31337.json' || /^local-demo(?:-v4)?-0x[0-9a-f]+\.json$/i.test(name));
+  await Promise.all(stale.map(name => rm(`${directory}/${name}`, { force: true })));
+  return stale;
+}
 
 export function dockerInvocation(tool, args = [], { name = `archer-foundry-${randomUUID()}`, env = process.env } = {}) {
   const flags = ['run', '--rm', '--init', '--name', name];
@@ -25,6 +34,10 @@ export function dockerInvocation(tool, args = [], { name = `archer-foundry-${ran
 }
 
 export async function runFoundry(tool, args = []) {
+  if (tool === 'anvil') {
+    const removed = await cleanLocalAnvilState();
+    console.log(`Local Anvil cleanup: removed ${removed.length} stale deployment file${removed.length === 1 ? '' : 's'}.`);
+  }
   const invocation = dockerInvocation(tool, args);
   const child = spawn(invocation.command, invocation.args, { stdio: 'inherit' });
   const remove = () => spawnSync(invocation.command, ['rm', '--force', invocation.name], { stdio: 'ignore', timeout: 10_000 });
