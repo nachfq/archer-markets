@@ -4,77 +4,51 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 export const documentation = [
   {
     "id": "overview",
-    "title": "How it works",
+    "title": "Trading",
     "paragraphs": [
-      "Archer Markets offers fully collateralized calls and puts on Stock Tokens. Each agreement is one whole option with fixed terms. A call gives its holder the right to buy tokens; a put gives the right to sell tokens.",
-      "Trade uses one bid/ask chain. Click an ask to buy or a bid to sell a new option. Buy / Sell posts your own price; acceptance is manual and always for the full quantity."
+      "One V4 order trades one option covering one Stock Token. Click an ask to buy or a bid to sell; Buy/Sell opens the same limit ticket. Prices move in 0.01 increments."
     ]
   },
   {
-    "id": "buying",
-    "title": "Buying an option",
+    "id": "matching",
+    "title": "Onchain matching",
     "paragraphs": [
-      "Choose a market and click an Ask price. Buy, Sell, Bid and Ask all open the same ticket, preset from the selected quote. Editing its terms switches to posting a new order; it never automatically matches. Review the full quantity, total premium and expiration, acknowledge manual exercise, then approve and buy. You receive an exercise right; the tokens move only if you exercise. The premium is not refundable."
+      "The highest bid and lowest ask execute when their prices cross, at the resting price. Equal prices use oldest-first priority. Counts aggregate contracts at each price. There are no partial fills or batches. Self-trades and writer buybacks revert."
     ]
   },
   {
-    "id": "writing",
-    "title": "Writing and collateral",
+    "id": "collateral",
+    "title": "Funds and collateral",
     "paragraphs": [
-      "Choose Sell to post an ask. Enter quantity, strike and premium per token, and expiration. The ticket calculates both totals. Quantities are multiples of 0.1 token. A call locks all the tokens; a put locks the full exercise payment. The premium arrives when someone buys. A sold option cannot be canceled."
-    ]
-  },
-  {
-    "id": "requests",
-    "title": "Posting a bid",
-    "paragraphs": [
-      "Choose Buy to post a bid with your terms and reserve the premium. The bid deadline defaults to one hour before expiration and can be customized. You do not own an option yet.",
-      "A writer accepts the full request and deposits all collateral upfront. You receive one option and the writer receives your premium in the same transaction. Until acceptance, you can cancel for a full refund. After the acceptance deadline, recovery still requires a transaction."
+      "An unmatched buy reserves its limit premium. Selling a new call deposits one stock token; a put deposits the strike payment. Incoming premium cannot fund that deposit. Buying gives the exercise right, not immediate stock delivery."
     ]
   },
   {
     "id": "resale",
-    "title": "Reselling your option",
+    "title": "Hold or resell",
     "paragraphs": [
-      "Expand a purchased position in Portfolio to list the whole right at a total resale price. The payment goes to you; collateral and exercise terms stay unchanged. You can withdraw the listing or exercise until it sells. The previous holder loses the right after sale. Original-writer buybacks are not supported."
+      "In Portfolio, choose Sell owned option. The same ticket posts a resale into the same book. Its writer and collateral stay unchanged; payment goes to the holder selling it."
     ]
   },
   {
     "id": "manual-exercise",
-    "title": "Manual American exercise",
+    "title": "Manual exercise",
     "paragraphs": [
-      "American exercise means the holder may exercise any time before expiration. A call delivers the total payment to receive the tokens; a put delivers the tokens to receive the payment. Both transfers happen together.",
-      "Keep the required funds, allowance and gas available. The transaction must execute before the onchain deadline. A reminder or pending transaction does not extend the right."
+      "Before expiration, a call holder pays the strike to receive one stock token. A put holder delivers one token to receive the strike payment. Keep the required funds, allowance and gas ready. Premiums paid are not refundable."
     ]
   },
   {
     "id": "expiration",
     "title": "Cancellation and expiration",
     "paragraphs": [
-      "Writers can cancel unsold offers to recover collateral. After expiration, they must reclaim unused collateral manually and keep any paid premium. There is no automatic exercise, refund or payout."
-    ]
-  },
-  {
-    "id": "prices",
-    "title": "Amounts and approvals",
-    "paragraphs": [
-      "Example: 0.2 tokens, 60 MockUSD exercise payment, 2 MockUSD premium. The strike is 300 per token, but exercising a call costs 60 in total, separately from the 2 paid to buy it. Rounded strike displays never change the agreed totals.",
-      "An approval permits spending; the following transaction moves funds. Check the amount, spender and network in your wallet. Stock Tokens are token units, not direct shares; local mock assets have no real value."
+      "Cancel an open bid for its reserved premium, or an unsold ask for its collateral. Removing a resale listing keeps your exercise right. Orders stop matching at expiration. Unused collateral and expired bid premiums require manual recovery."
     ]
   },
   {
     "id": "portfolio",
-    "title": "Portfolio and Activity",
+    "title": "Portfolio and availability",
     "paragraphs": [
-      "Portfolio shows available wallet balances, locked collateral, reserved request premiums and amounts awaiting recovery. Expand a position for its terms, actions and contract details. Total tracked is not a portfolio valuation.",
-      "Positions come from the configured onchain markets. Activity tracks submissions from this browser only. Unknown balances display a dash."
-    ]
-  },
-  {
-    "id": "markets",
-    "title": "Markets and availability",
-    "paragraphs": [
-      "Markets are selected by the platform and need a valid configured deployment to enable trading. Local Anvil uses mock assets. Robinhood Chain Testnet has no configured protocol deployment; the hosted frontend is not a funded contract demo. There are no partial fills, automatic matching or oracle settlement."
+      "Portfolio shows available funds, collateral, bids and positions; Activity tracks this browser\u2019s submissions. Local Anvil uses mock assets. Robinhood Chain Testnet is not deployed. Existing V1\u2013V3 positions retain their original terms and manual management."
     ]
   }
 ];

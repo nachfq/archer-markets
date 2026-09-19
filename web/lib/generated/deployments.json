@@ -170,6 +170,7 @@
       "symbol": "MockUSD",
       "decimals": 6,
       "isMock": true
-    }
+    },
+    "version": 4
   }
 }

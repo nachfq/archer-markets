@@ -20,7 +20,7 @@ export type Deployment = {
   marketId?: string;
   label?: string;
   sandbox?: boolean;
-  version?: 1 | 2 | 3;
+  version?: 1 | 2 | 3 | 4;
   legacy?: boolean;
   markets?: Array<Pick<Deployment, "marketId" | "label" | "sandbox" | "factory" | "deploymentBlock" | "underlying" | "quote" | "version" | "legacy">>;
   underlying: Token;
@@ -61,7 +61,8 @@ export const ready = !!(
 );
 
 const manifestMarkets: Deployment[] = [deployment, ...(deployment.markets ?? []).map(m => ({ ...deployment, ...m, markets: undefined }))].map((m, i) => ({ ...m, marketId: m.marketId ?? (i === 0 ? "primary" : `market-${i}`), label: m.label ?? `${m.underlying.symbol} / ${m.quote.symbol}`, sandbox: m.sandbox ?? m.underlying.isMock }));
-export const marketRecords = curatedMarkets(manifestMarkets, marketCatalog[deployment.chainId] ?? []);
+const curated = curatedMarkets(manifestMarkets, marketCatalog[deployment.chainId] ?? []);
+export const marketRecords = [...curated, ...manifestMarkets.filter(m=>m.legacy && !curated.some(c=>c.factory===m.factory))];
 export const tradeMarkets = marketRecords.filter(m => !m.legacy);
 export function asMarket(record: Deployment): MarketConfig | null {
   if (!record.factory || !record.underlying.address || !record.quote.address || record.deploymentBlock === null) return null;

@@ -10,14 +10,14 @@ try {
   if (!factoryCode || factoryCode === '0x') throw new Error('Factory is not deployed on this network.');
   const jobs = [
     [record.quote.address, 'src/MockUSD.sol:MockUSD', null],
-    [record.factory, 'src/OptionFactory.sol:OptionFactory', encodeAbiParameters(parseAbiParameters('address,address'), [record.underlying.address, record.quote.address])],
+    [record.factory, (record.version === 4 ? 'src/OptionMarketV4.sol:OptionMarketV4' : 'src/OptionFactory.sol:OptionFactory'), encodeAbiParameters(parseAbiParameters('address,address'), [record.underlying.address, record.quote.address])],
   ];
   for (const market of record.markets ?? []) {
     if (market.underlying.isMock) jobs.push([market.underlying.address, 'src/MockStock.sol:MockStock', null]);
-    jobs.push([market.factory, 'src/OptionFactory.sol:OptionFactory', encodeAbiParameters(parseAbiParameters('address,address'), [market.underlying.address, market.quote.address])]);
+    jobs.push([market.factory, (market.version === 4 ? 'src/OptionMarketV4.sol:OptionMarketV4' : 'src/OptionFactory.sol:OptionFactory'), encodeAbiParameters(parseAbiParameters('address,address'), [market.underlying.address, market.quote.address])]);
   }
-  const { abi: factoryAbi } = await artifact('OptionFactory');
-  const { abi: optionAbi } = await artifact('Option');
+  const { abi: factoryAbi } = await artifact(record.version === 4 ? 'OptionMarketV4' : 'OptionFactory');
+  const { abi: optionAbi } = await artifact(record.version === 4 ? 'OptionV4' : 'Option');
   const count = await publicClient.readContract({ address: record.factory, abi: factoryAbi, functionName: 'optionCount' });
   const types = new Set();
   for (let i = 0n; i < count && types.size < 2; i++) {
@@ -25,6 +25,10 @@ try {
     const fields = await Promise.all(['writer', 'underlying', 'quote', 'optionType', 'underlyingAmount', 'strikeTotal', 'premium', 'expiry'].map(functionName => publicClient.readContract({ address, abi: optionAbi, functionName })));
     if (types.has(fields[3])) continue;
     types.add(fields[3]);
+    if (record.version === 4) {
+      jobs.push([address, 'src/OptionV4.sol:OptionV4', encodeAbiParameters(parseAbiParameters('address,address,address,uint256,uint8,uint256,uint256,uint64'), [fields[0],fields[1],fields[2],fields[4],fields[3],fields[5],fields[6],fields[7]])]);
+      continue;
+    }
     jobs.push([address, 'src/Option.sol:Option', encodeAbiParameters(parseAbiParameters('address,address,address,uint8,uint256,uint256,uint256,uint64'), fields)]);
   }
   const verified = [];

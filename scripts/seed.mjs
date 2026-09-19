@@ -5,21 +5,22 @@ import { clients, artifact, readJson, saveJson, mined, reportError } from './con
 
 try {
   const mode = process.argv[2];
+  if (mode === 'local') throw new Error('Use npm run demo:local; accounts 0 and 1 are reserved for player trades.');
   const writer = await clients(mode);
   const record = await readJson(`deployments/${writer.chain.id}.json`);
-  const { abi: factoryAbi } = await artifact('OptionFactory');
+  const { abi: factoryAbi } = await artifact(record.version === 4 ? 'OptionMarketV4' : 'OptionFactory');
   const { abi: mockAbi } = await artifact('MockUSD');
   const wallets = [writer];
   if (mode === 'local' || process.env.BUYER_PRIVATE_KEY) wallets.push(await clients(mode, true, true));
   const evidence = [];
-  const quantity = parseAmount(process.env.SEED_QUANTITY || (mode === 'local' ? '1' : '0.1'), record.underlying.decimals);
+  const quantity = parseAmount(process.env.SEED_QUANTITY || (record.version === 4 ? '1' : '0.1'), record.underlying.decimals);
   const market = marketFromManifest(record);
   for (const actor of wallets) {
     const { publicClient, walletClient, account } = actor;
     await mined(publicClient, await walletClient.writeContract({ address: record.quote.address, abi: mockAbi, functionName: 'faucet' }));
     if (mode === 'local') await mined(publicClient, await walletClient.writeContract({ address: record.underlying.address, abi: mockAbi, functionName: 'faucet' }));
     const stock = await publicClient.readContract({ address: record.underlying.address, abi: erc20Abi, functionName: 'balanceOf', args: [account.address] });
-    if (stock < quantity) throw new Error(`Insufficient stock for the requested fractional seed lot in ${account.address}.`);
+    if (stock < quantity) throw new Error(`Insufficient stock for the requested seed option in ${account.address}.`);
     const expiry = (await publicClient.getBlock()).timestamp + 7n * 24n * 60n * 60n;
     for (const type of [0, 1]) {
       const strike = quoteTotal(quantity, BigInt(type === 0 ? 300 : 250) * 10n ** 6n, record.underlying.decimals);

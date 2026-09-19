@@ -1,60 +1,48 @@
 # How Archer Markets works
 
-An option gives its holder a right to exchange an agreed quantity of Stock Tokens
-for a fixed payment before a deadline. The writer deposits all required collateral
-upfront. Each agreement creates one independent option, accepted and exercised in full.
-Quantities are multiples of **0.1 token**.
+**One order trades one option covering one Stock Token.** Each option has its own
+contract and collateral. A book contains one stock/payment pair, call or put, strike
+and expiration. Prices use 0.01 increments in the payment token.
 
-## Who does what?
+## Buy and sell
 
-**Maker** publishes terms; **taker** accepts them. These roles depend on the flow:
+Click an **ask to buy** or a **bid to sell**. The same ticket opens with that price.
+You can also choose Buy/Sell and enter a limit. Quantity is always 1.
 
-| Flow | Maker | Taker | Funds deposited when published |
-| --- | --- | --- | --- |
-| Sell · Post an ask | Writer (seller) | Buyer | Writer's full collateral |
-| Buy · Post a bid | Buyer (requester) | Writer | Buyer's full premium |
+- **Buy:** pays the lowest eligible ask, or reserves the limit premium as an open bid.
+- **Sell new option:** deposits one stock token for a call, or the full strike payment
+  for a put. It receives the highest eligible bid, or rests as an ask.
+- **Matching:** the contract executes at the resting order's price. Equal prices use
+  oldest-first priority. One transaction fills at most one order; no partial fills.
 
-A request becomes an option only when a writer accepts and deposits all collateral.
-At acceptance, the buyer receives the right and the writer receives the premium.
-There are no partial fills or automatic matching. A bid above an ask leaves both
-orders open until someone explicitly accepts one. Accepting a bid creates a new option;
-it does not sell an already-written ask or reuse its collateral.
+The displayed bid is the highest buy price; the ask is the lowest sell price. Counts
+combine all orders at that price. Click a strike to see other levels. If your order
+would trade with yourself or return an option to its writer, it reverts instead of
+skipping another order. No centralized service chooses or executes matches.
 
-## What moves?
+## Hold, resell, exercise
 
-| Option | Writer locks | Holder delivers at exercise | Holder receives |
-| --- | --- | --- | --- |
-| Call | Stock Token quantity | Total exercise payment | Stock Token quantity |
-| Put | Total exercise payment | Stock Token quantity | Total exercise payment |
+Buying gives you the exercise right; it does not deliver stock yet. From **Portfolio**,
+choose **Sell owned option** to put that right into the same book. Its writer and
+collateral remain unchanged; the resale premium goes to the previous holder.
 
-Example: **0.2 tokens**, **60 MockUSD exercise payment**, **2 MockUSD premium**.
-The buyer pays 2 for the right. Exercising a call later costs another 60 and delivers
-0.2 tokens. Exercising a put delivers 0.2 tokens and receives 60. The displayed strike
-is 300 per token (60 ÷ 0.2); **60 is the total exercise payment**.
+| Option | Holder delivers at exercise | Holder receives |
+| --- | --- | --- |
+| Call | Strike payment | 1 stock token |
+| Put | 1 stock token | Strike payment |
 
-An approval permits spending; the following transaction moves the funds. Exercise
-exchanges both assets in one transaction. There is no market-price oracle or automatic payout.
+Exercise is manual, any time **before expiration**, and requires funds, allowance and
+gas. A call at strike 300 with premium 10 costs 310 in total if exercised. Premiums
+already paid are not refundable.
 
-## How does it end?
+## Cancel or expire
 
-- **Exercise:** the current holder acts any time before expiration. The transaction
-  must execute before the onchain deadline. Keep the required tokens and gas available.
-- **Resale:** the holder can sell the whole right. Collateral and exercise terms stay
-  unchanged; the resale payment goes to that holder.
-- **Cancellation:** the writer can cancel an unsold offer; a requester can cancel an
-  unaccepted request and recover its premium. A sold option cannot be canceled.
-- **Expiration:** the right ends. The writer manually reclaims unused collateral and
-  keeps the paid premium. An expired, unaccepted request requires manual premium recovery.
+Open bids can be canceled for a full premium refund. Unsold new asks return collateral;
+canceling a resale only removes its listing. Orders stop matching at option expiration.
+Afterwards buyers recover unspent bid premiums and writers reclaim unused collateral
+with a transaction. Nothing automatically exercises or withdraws funds.
 
-## Where to look
+**Portfolio** shows balances, collateral, bids and positions. **Activity** shows this
+browser's submissions. Older V1–V3 positions keep their original rules and management.
 
-**Trade** shows Calls / Strike / Puts, with Bid and Ask prices per token. Click an Ask
-to buy or a Bid to sell a new option; Buy / Sell posts your own price. Expand a strike
-for all orders and their full quantities. All four entry points use the same ticket:
-quantity, expiration, strike and premium per token. Totals are calculated automatically.
-Editing a selected quote posts a new order instead of accepting the original. **Portfolio** shows wallet balances,
-locked collateral, reserved premiums and positions; expand a position for its actions
-and contract details. **Activity** shows transactions submitted in that browser.
-Balances are token amounts, not a portfolio valuation. Stock Tokens are not direct shares.
-
-[Run the two-wallet walkthrough →](demo.md)
+[Local maker/taker walkthrough](demo.md)

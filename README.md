@@ -1,8 +1,8 @@
 # Archer Markets
 
-Fully collateralized options on Stock Tokens. Publish an offer or a buyer-funded
-request, agree on fixed terms, then exercise manually before expiration or resell
-the entire option. Calls let holders buy tokens; puts let holders sell them.
+Fully collateralized Stock Token options with an onchain bid/ask orderbook.
+**One order = one option covering one token.** Crossing limits match automatically
+at the resting price, oldest first. Hold, resell or exercise manually before expiration.
 
 **Local PoC:** works with mock assets on Anvil. Robinhood Chain Testnet is the target;
 the hosted frontend has no configured protocol deployment. Test funds only.

@@ -9,15 +9,21 @@ import { orderTotals, unitInput, type OrderSeed } from "../lib/order-ticket";
 import { suggestedExpirations, utcDeadline } from "../lib/expirations";
 import { TradeTicket } from "./workspace-ui";
 
+import OrderTicketV4 from "./order-ticket-v4";
+
 export type QuoteSelection = { ask: Position } | { bid: BuyRequest };
-type Props = {
+export type OrderTicketProps = {
+  resale?: Position;
   net: Deployment; seed: OrderSeed; quote?: QuoteSelection; positions: Position[]; requests: BuyRequest[];
   account?: Address; walletChainId?: number; now: bigint; portfolio?: Portfolio;
   canAct: boolean; busy: boolean; unavailable: boolean; notification: ReactNode;
   onClose: () => void; onConnect: () => void; onRefresh: () => void; onDone: () => void;
   onRun: (prepare: () => Promise<PreparedOperation>, success: string) => Promise<boolean>;
 };
-export default function OrderTicket(props: Props) {
+export default function OrderTicket(props: OrderTicketProps) {
+  return props.net.version === 4 ? <OrderTicketV4 {...props}/> : <LegacyOrderTicket {...props}/>;
+}
+function LegacyOrderTicket(props: OrderTicketProps) {
   const { net, now, account, busy } = props;
   const market = asMarket(net);
   const [seed] = useState(props.seed);

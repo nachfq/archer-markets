@@ -2,10 +2,12 @@
 
 This project is built by agents under human coordination. The current human product
 decision is a fully collateralized options PoC on Robinhood Chain Testnet, with manual
-American exercise and physical Stock Token delivery. V3 adds buyer-funded requests,
-accepted only in full, with quantities in multiples of 0.1 token and one independent
-option per agreement. No partial fills or automatic matching are in scope. Do not add mainnet, oracle-based
-settlement, an AMM, or a different product vertical without a new product decision.
+American exercise and physical Stock Token delivery. V4 uses an entirely onchain
+price/time orderbook per pair, kind, strike and expiration. Each order covers exactly
+one Stock Token and creates or transfers one independent option; at most one full
+match executes at the resting price. No partial fills or batches. Resales share the
+book; existing V1–V3 positions retain their original management paths. Do not add
+mainnet, oracle settlement, an AMM or centralized matching without a product decision.
 
 - Keep all repository content in English: documentation, UI copy, source comments,
   test descriptions, and durable agent instructions. Conversation with the human

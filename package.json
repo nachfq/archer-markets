@@ -20,10 +20,10 @@
     "check:stylus": "node scripts/check-stylus.mjs",
     "wallet:testnet": "node scripts/create-testnet-wallet.mjs",
     "verify:testnet": "node --env-file-if-exists=.env scripts/verify-testnet.mjs",
-    "seed:local": "node scripts/seed.mjs local",
-    "demo:local": "npm run contracts:build && npm run abi && npm run sdk:build && node scripts/demo-local.mjs",
+    "seed:local": "node scripts/demo-v4.mjs --seed-only",
+    "demo:local": "npm run contracts:build && npm run abi && npm run sdk:build && node scripts/demo-v4.mjs",
     "seed:testnet": "node --env-file-if-exists=.env scripts/seed.mjs testnet",
-    "test:e2e": "node scripts/smoke.mjs && node scripts/smoke-resale.mjs && node scripts/smoke-requests.mjs",
+    "test:e2e": "node scripts/e2e.mjs",
     "test:browser": "node scripts/browser-smoke.mjs",
     "dev": "npm --prefix web run dev",
     "dev:local": "VITE_CHAIN_ID=31337 npm --prefix web run dev",
@@ -34,7 +34,10 @@
     "test:acceptance": "node scripts/acceptance-local.mjs",
     "test:browser:requests": "node scripts/browser-requests.mjs",
     "wallet:fund:local": "node scripts/fund-local-wallets.mjs",
-    "test:demo": "node scripts/demo-seed-check.mjs"
+    "test:demo": "node scripts/demo-seed-check.mjs",
+    "demo:legacy": "npm run contracts:build && npm run abi && npm run sdk:build && node scripts/demo-local.mjs",
+    "test:acceptance:v4": "node scripts/acceptance-v4.mjs",
+    "test:e2e:v4": "node scripts/smoke-v4.mjs"
   },
   "dependencies": {
     "viem": "2.56.3",

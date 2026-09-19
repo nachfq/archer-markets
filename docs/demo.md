@@ -1,126 +1,93 @@
 # Try Archer Markets locally
 
-Use **anvil0** and **anvil1** in separate wallet/browser profiles. Both start with tokens
-and no option positions. Accounts **anvil2–anvil9** populate the market. All assets are
-local mocks with no real value.
+Use **anvil0** and **anvil1** in separate wallet/browser profiles. Both receive stock
+and MockUSD, with no seeded positions. Accounts 2–9 populate five synthetic markets.
 
-## 1. Start the app
+## Start
 
-Requirements: Node.js 22.13+ and a running Docker engine accessible to your user
-([Linux permissions setup](https://docs.docker.com/engine/install/linux-postinstall/)).
-Foundry runs in Docker; no native `forge`, `anvil` or `cast` installation is needed.
-From the repository root:
+Requirements: Node.js 22.13+ and Docker accessible to your user
+([Linux setup](https://docs.docker.com/engine/install/linux-postinstall/)).
+Foundry runs in Docker; no native installation is needed.
 
 ```sh
-docker version
 npm ci
 npm --prefix web ci
 npm run contracts:deps
-```
-
-Terminal A — keep the local chain running:
-
-```sh
 npm run anvil
 ```
 
-Anvil runs in the foreground with its standard output. Keep this terminal open.
-
-Terminal B — populate the five markets and start the frontend:
+Keep that terminal open: Anvil runs in the foreground. In another terminal:
 
 ```sh
 npm run demo:local
 npm run dev:local
 ```
 
-Open the printed URL, normally <http://localhost:3000>, in both profiles.
-Select **Mock Tesla** in both. You should see **390 seeded options** across five markets
-(370 initially listed, including resales) and **150 open buy requests**. Prices are synthetic.
+Open the printed frontend URL, normally http://localhost:3000. Configure both wallets
+with RPC **http://127.0.0.1:8545**, chain **31337**, currency **ETH**, using Anvil accounts
+0 and 1 from its terminal. Connect and select **Mock Tesla**.
 
-![Local bid/ask option chain with synthetic Tesla quotes](images/option-chain.png)
+![V4 option chain in Orca](images/option-chain-v4.png)
 
-## 2. Prepare both wallets
+Each player receives **100 of each stock** and **10,000 MockUSD** once. Rerunning the
+seed preserves trades and spent balances. Wallet menu faucets provide more mocks.
+V4 deploys alongside older markets and preserves their positions in Portfolio.
 
-Add the network to each wallet: **Local Anvil**, RPC **http://127.0.0.1:8545**,
-chain ID **31337**, currency **ETH**, no explorer. Connect each wallet to the app.
+![The shared ticket, shown with a seeded ask](images/order-ticket-v4.png)
 
-Use Anvil accounts **(0)** and **(1)** printed in its terminal. Each already has local ETH.
-After seeding, **Portfolio → Available** should show, for each account:
+The screenshot shows a seeded quote; the walkthrough below uses strike 300 and premium 10.
 
-- **100 each:** mTSLA, mNVDA, mAAPL, mAMZN and mMSFT.
-- **10,000 MockUSD** and no seeded options or requests.
+## Maker: sell one call
 
-The seed funds these wallets once; rerunning it preserves your trades and does not refill
-spent balances. For more tokens later, use **Wallet menu → Get [token]** in the selected market.
+As **anvil0**, choose **Trade → Sell**, Call, strike **300**, limit premium **10**.
+Quantity is fixed at **1**. Choose a custom expiration tomorrow with a distinct time
+so this walkthrough uses its own series.
 
-To start immediately, click an Ask to buy, or a Bid to sell a new option to an NPC.
-The following walkthrough makes a new agreement between your two wallets.
+Review, acknowledge manual exercise, then **Confirm sell** and approve if asked.
+One mTSLA leaves your available balance and becomes collateral. The ask rests at 10
+until matched. Find it in Trade and Portfolio.
 
-## 3. Maker: sell a new call
+## Taker: buy, then exercise
 
-As **anvil0**, go to **Trade → Sell** to post an ask. Choose **Call**, enter **0.2** tokens,
-**300** strike per token, **10** premium per token, and **Custom…** expiration set to tomorrow.
-The ticket calculates **60 MockUSD** exercise payment and **2 MockUSD** premium.
+As **anvil1**, select the same expiration and click that ask at strike 300. The same
+ticket opens. Set your buy limit to **12**: the estimate should show execution at **10**.
+Review and confirm. The transaction pays 10 to the writer and gives you the option.
 
-![The same ticket, with per-token prices and calculated totals](images/order-ticket.png)
-Choose **Review order**, acknowledge the terms, then **Confirm sell**. Approve collateral if prompted.
-
-The writer's available stock decreases by **0.2**. That amount is now locked in the
-option; no premium has arrived yet. Find the offer in **Portfolio** and **Trade**.
-
-## 4. Taker: buy and exercise
-
-As **anvil1**, open **Trade**, select the expiration and expand
-the **300** strike row (60 ÷ 0.2). Click the Ask for anvil0's 0.2-token offer. The same ticket opens with its terms already filled.
-Choose **Review order**, acknowledge manual exercise, then **Confirm buy**. Approve the
-**2 MockUSD** premium if prompted.
-
-The buyer now holds the option. The writer receives **2 MockUSD** and cannot cancel it.
-In the buyer's **Portfolio**, expand the position and choose **Review exercise**.
-Approve **60 MockUSD** if needed, then exercise before expiration.
+In **Portfolio**, expand it with **Review exercise**, then **Exercise option**. Approve
+300 MockUSD if prompted and exercise before expiration.
 
 | Wallet | Final stock change | Final MockUSD change |
 | --- | --- | --- |
-| Maker / writer | −0.2 | +62 |
-| Taker / buyer | +0.2 | −62 |
+| anvil0 / writer | −1 mTSLA | +310 |
+| anvil1 / holder | +1 mTSLA | −310 |
 
-Compare against the initial seeded balances. Gas affects ETH separately. The option
-should show **Exercised** under **Portfolio → Closed & resold options**, with no
-remaining collateral. Buying alone does not deliver stock.
+ETH gas is separate. The option appears under **Closed & resold options → Exercised**.
+Buying alone does not deliver stock.
 
-## 5. Reverse the roles: post a bid for a put
+## Try the other paths
 
-The buyer is now the **maker**. In **Trade → Buy**, choose
-**Put**, quantity **0.2**, strike **300** and premium **10** per token, expiration tomorrow.
-The bid deadline defaults to one hour before expiration; expand it to customize.
-Review and **Confirm buy** to reserve the calculated **2 MockUSD** premium.
-Portfolio now shows **2 MockUSD in request premiums**; there is no option yet.
+- **Bid first:** as anvil1, Buy a Put at strike 300, premium 10 and a new expiration.
+  It reserves 10 MockUSD. As anvil0, click its bid to Sell: depositing 300 creates the
+  option and pays the resting premium of 10. The buyer exercises by delivering 1 mTSLA.
+- **Cancel:** cancel an unmatched bid or unsold ask from Portfolio. Its reserved
+  premium or collateral returns. Sold options cannot be canceled by their writer.
+- **Resell:** buy an option, then choose **Sell owned option** in Portfolio. Set a
+  premium in the same ticket. It competes with new asks; no new collateral is deposited.
+- **Depth:** post two asks at the same price and series. Trade should show **2 contracts**.
+  One buy removes only the oldest. Bid is the highest buy price; ask is the lowest sell price.
 
-The writer is now the **taker**. Click the Bid in the option chain. Review the same prefilled ticket and **Confirm sell**.
-The writer must have **60 MockUSD upfront**: the 2 premium cannot fund the deposit.
-Acceptance locks 60, pays the writer 2 and gives the buyer one option.
+## Where to look
 
-The buyer exercises from Portfolio, delivering **0.2 mTSLA** to receive **60 MockUSD**.
-Net for this put alone: buyer −0.2 stock / +58 MockUSD; writer +0.2 stock / −58 MockUSD.
+**Portfolio:** available balances, locked collateral, bids, holdings and contract details.
+**Activity:** submissions and receipt status from this browser. After expiration,
+recover unused collateral or bid premiums manually; neither is withdrawn automatically.
 
-The ticket keeps the selected quote while you review. Editing any term switches to
-**Post new bid/ask**; it does not modify or accept the original. Use **Restore selected quote**
-to return. Orders never match automatically and cannot be partially filled.
+Ctrl+C stops Anvil and discards that container's chain. After a fresh start, rerun the
+seed; clear stale wallet activity if needed. Use `npm run dev:local` for chain 31337.
+Automated acceptance owns separate Docker nodes and does not reset this demo:
 
-## Where to check / retry
+```sh
+npm run test:acceptance:v4
+```
 
-- **Portfolio:** available balances, locked collateral, reserved premiums and positions.
-  Expand a position for **Contract details & exercise funding**, including its address.
-- **Activity:** submitted transactions and confirmation status in this browser.
-- **Cancellation:** publish a second offer or request, leave it unaccepted, then cancel.
-  Its collateral or reserved premium should return in full.
-- **After expiration:** exercise is unavailable. Writers reclaim unused collateral;
-  requesters recover unaccepted premiums. Neither recovery happens automatically.
-
-Ctrl+C stops Anvil and removes its container and state. After restarting it, rerun
-`npm run demo:local`. If your wallet reports a stale nonce, clear its local activity for this network.
-If the app shows Robinhood Chain Testnet, restart with `npm run dev:local`.
-If the first page load fails while Vite prepares dependencies, stop and restart
-`npm run dev:local`, then reload. Never run time-advancing E2E tests against this node.
-
-[How it works](how-it-works.md) · [Automated checks and evidence](research/security-review.md)
+[How it works](how-it-works.md) · [Implementation evidence](research/implementation.md)

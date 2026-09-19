@@ -64,7 +64,7 @@ export function orderBook(positions: Position[], requests: Bid[], expiry: bigint
   for (const row of rows.values()) for (const side of [row.calls, row.puts]) {
     // Compare exact per-token premiums, never rounded display prices or lot totals.
     side.bids.sort((a, b) => compare(b.premium * a.underlyingAmount, a.premium * b.underlyingAmount) || compare(a.id, b.id));
-    side.asks.sort((a, b) => compare(optionPrice(a) * b.underlyingAmount, optionPrice(b) * a.underlyingAmount) || a.address.localeCompare(b.address));
+    side.asks.sort((a, b) => compare(optionPrice(a) * b.underlyingAmount, optionPrice(b) * a.underlyingAmount) || (a.orderId !== undefined && b.orderId !== undefined ? compare(a.orderId,b.orderId) : a.address.localeCompare(b.address)));
   }
   return [...rows.values()].sort((a, b) => compare(a.numerator * b.denominator, b.numerator * a.denominator));
 }

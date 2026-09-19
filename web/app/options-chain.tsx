@@ -7,7 +7,7 @@ import { unitInput, type OrderSeed } from "../lib/order-ticket";
 import { utcDeadline } from "../lib/expirations";
 
 type Props = {
-  account?: string; positions: Position[]; requests: Bid[]; now: bigint; selected?: Position; symbol: string;
+  version?: number; account?: string; positions: Position[]; requests: Bid[]; now: bigint; selected?: Position; symbol: string;
   quoteSymbol: string; underlyingDecimals: number; quoteDecimals: number;
   loading: boolean; unavailable: boolean; configured: boolean; disabled: boolean;
   onSelect: (address: string) => void; onBid: (id: bigint) => void;
@@ -26,7 +26,7 @@ export default function OptionsChain(props: Props) {
   useEffect(() => { if (expiry) onContext({ expiry }); }, [expiry, onContext]);
   const rows = expiry ? orderBook(positions, requests, expiry, now) : [];
   const price = (total: bigint, quantity: bigint) => readableNumber(perToken(total, quantity, underlyingDecimals, quoteDecimals), 2);
-  function quoteButton(quote: Position | Bid | undefined, bid: boolean) {
+  function quoteButton(quote: Position | Bid | undefined, bid: boolean, count?: number) {
     if (!quote) return <span className="book-no-quote">—</span>;
     const total = bid ? quote.premium : optionPrice(quote as Position);
     const mine = (bid ? (quote as Bid).buyer : optionSeller(quote as Position)).toLowerCase() === props.account?.toLowerCase();
@@ -35,13 +35,20 @@ export default function OptionsChain(props: Props) {
     return <button key={key} className={`book-quote ${bid ? "bid" : "ask"} ${mine ? "own-quote" : ""}`}
       disabled={props.disabled || props.unavailable}
       data-request={bid ? key : undefined} data-offer={bid ? undefined : key}
-      aria-label={`${mine ? "Manage your" : bid ? "Sell at" : "Buy at"} ${bid ? "bid" : "ask"}: ${quote.optionType === 0 ? "Call" : "Put"}, ${quantity} ${symbol}, premium total ${units(total, quoteDecimals)} ${quoteSymbol}`}
+      aria-label={`${mine ? "Manage your" : bid ? "Sell at" : "Buy at"} ${bid ? "bid" : "ask"}: ${quote.optionType === 0 ? "Call" : "Put"}, ${quantity} ${symbol}, premium total ${units(total, quoteDecimals)} ${quoteSymbol}${count ? `, ${count} contracts available` : ""}`}
       onClick={() => bid ? props.onBid((quote as Bid).id) : props.onSelect((quote as Position).address)}>
       <strong>{price(total, quote.underlyingAmount)}</strong>
-      <small>{quantity} tokens{mine ? " · Yours" : !bid && quote.state === 1 ? " · Resale" : ""}</small>
+      <small>{count ? `${count} contract${count === 1 ? "" : "s"}` : `${quantity} tokens`}{mine ? " · Yours" : !bid && quote.state === 1 ? " · Resale" : ""}</small>
     </button>;
   }
-  const side = (quotes: BookSide, depth = false) => <div className="book-side"><div>{depth ? quotes.bids.map(q => quoteButton(q, true)) : quoteButton(quotes.bids[0], true)}</div><div>{depth ? quotes.asks.map(q => quoteButton(q, false)) : quoteButton(quotes.asks[0], false)}</div></div>;
+  function levels(quotes: (Position | Bid)[], bid: boolean, depth: boolean) {
+    if (props.version !== 4) return depth ? quotes.map(q=>quoteButton(q,bid)) : quoteButton(quotes[0],bid);
+    const groups = new Map<string,(Position|Bid)[]>();
+    for (const q of quotes) { const key=String(bid?q.premium:optionPrice(q as Position)); groups.set(key,[...(groups.get(key)??[]),q]); }
+    const entries=[...groups.values()];
+    return (depth?entries:entries.slice(0,1)).map(group=>quoteButton(group[0],bid,group.length));
+  }
+  const side = (quotes: BookSide, depth = false) => <div className="book-side"><div>{quotes.bids.length?levels(quotes.bids,true,depth):quoteButton(undefined,true)}</div><div>{quotes.asks.length?levels(quotes.asks,false,depth):quoteButton(undefined,false)}</div></div>;
   return <section className="chain-panel" aria-label="Options chain">
     <div className="chain-heading"><div><h2>Option chain</h2><p className="fine">{openBids(requests, now).length} bids · {positions.filter(p => isListed(p, now)).length} asks · Premiums in {quoteSymbol} per token</p></div><button className="button" aria-label="Refresh options" disabled={props.loading || !props.configured || props.disabled} onClick={props.onRefresh}>↻</button></div>
     <div className="chain-controls"><div className="expiration-navigation"><span className="term-label">Expiration · UTC</span><div className="expiration-strip" role="group" aria-label="Expiration">
@@ -63,7 +70,7 @@ export default function OptionsChain(props: Props) {
       })}</tbody>
     </table></div>
     {!rows.length && !props.unavailable && <div className="chain-empty" role="status"><h3>{props.loading ? "Loading quotes…" : "No orders yet"}</h3><p>Post a bid to buy or an ask to sell a new option.</p><button className="button" disabled={props.disabled} onClick={() => props.onCreate("buy")}>Buy</button> <button className="button" disabled={props.disabled} onClick={() => props.onCreate("sell")}>Sell</button></div>}
-    <div className="chain-foot"><span>Click bid to sell · Click ask to buy</span><span>Full lots · Manual acceptance</span></div>
-    <details className="chain-disclosure"><summary>How to read this chain</summary><p>Bid is the highest premium offered by a buyer; ask is the lowest premium a seller wants, per token. Quantities may differ: expand a strike to see every order. The ticket shows exact totals before approval. Buy / Sell posts your own price with no automatic matching. Selling a new call locks stock; selling a new put locks its exercise payment. Resale asks transfer an existing option. Manage your holdings and resales in Portfolio.</p></details>
+    <div className="chain-foot"><span>Click bid to sell · Click ask to buy</span><span>{props.version === 4 ? "One contract per order · Onchain matching" : "Full lots · Manual acceptance"}</span></div>
+    <details className="chain-disclosure"><summary>How to read this chain</summary><p>{props.version === 4 ? "Bid is the highest buy limit; ask is the lowest sell limit. Counts combine orders at the same price. Each order trades one token, at the resting price with oldest-first priority. Unmatched orders remain open until canceled or expiration. Resales share the same book." : <>Bid is the highest premium offered by a buyer; ask is the lowest premium a seller wants, per token. Quantities may differ: expand a strike to see every order. The ticket shows exact totals before approval. Buy / Sell posts your own price with no automatic matching. Selling a new call locks stock; selling a new put locks its exercise payment. Resale asks transfer an existing option. Manage your holdings and resales in Portfolio.</>}</p></details>
   </section>;
 }

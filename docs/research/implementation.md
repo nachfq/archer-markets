@@ -1,9 +1,85 @@
 # Implementation record
 
-Current status: V3 whole-fill requests are repository/local development. There is no
-configured Robinhood testnet protocol deployment or public V3 acceptance run. Earlier
-sections are dated historical reports, not a claim that a local node is running today
-or that its saved addresses exist on testnet. See the latest V3 entry below.
+Current status: V4 is a local implementation of the human-approved single-token,
+onchain orderbook decision. Robinhood testnet remains undeployed. Earlier sections
+are historical evidence for their stated versions, not current public deployments.
+
+## V4 — single-token onchain orderbook (2026-09-16)
+
+Implemented by `/root`, without delegated review. Each series uses a four-level
+sparse bitmap for prices and a linked FIFO at each occupied price. A transaction
+creates at most one fully collateralized independent option and fills at most one
+resting order. Resales join the same book. Matching, cancellation and exercise update
+the index atomically; there is no privileged matcher, keeper, oracle or upgrade admin.
+The Solidity market runtime is 20,915 bytes; an option runtime is 5,592 bytes.
+
+The SDK reads active depth and account history in pages at one block; paid premiums
+come from execution events. The UI has one limit ticket and aggregates equal-price
+contracts. Deployment scripts select V4; the local seed reuses mocks, preserves legacy
+markets and reserves accounts 0–1 for people. No live demo reset or public transaction
+was used for this implementation.
+
+### Measured gas, local Anvil
+
+These are actual transaction gas units from `scripts/smoke-v4.mjs`, excluding separate
+approvals. They are not Robinhood fee estimates or production benchmarks.
+
+| Operation | Gas |
+| --- | ---: |
+| First new ask in a new series | 1,751,562 |
+| Further new asks | 1,516,457–1,535,879 |
+| Buy crossing a primary ask | 314,200 |
+| Post resale | 211,998 |
+| Buy crossing a resale | 297,025 |
+| New sell crossing a funded bid | 1,571,235 |
+| Resting bid | 308,416–344,983 |
+| Cancel bid | 77,040 |
+| Exercise call / put | 85,513 / 85,502 |
+
+`testGasBookDepth1And256` measures the best-quote lookup at **6,335 gas** for both
+1 and 256 occupied levels in a warm Foundry context. That is a lookup comparison,
+not a cold transaction estimate. Independent deployment dominates new-sell costs.
+Clones and Stylus remain separate optimization experiments, not this implementation.
+
+### Executed validation
+
+- `npm test`: **158 passed**; one optional Robinhood fork test skipped.
+- `npm run typecheck`, frontend lint and `npm run build`: passed; ABIs regenerated.
+- `npm run test:acceptance`: legacy protocol/SDK checks and **13 browser scenarios** passed.
+- `npm run test:acceptance:v4`: protocol/SDK, **6 browser scenarios**, full fixture seed,
+  no-write rerun, simulated interruption recovery and legacy collateral preservation passed.
+- V4 invariant testing: **128 runs / 8,192 actions**, checking conservation, escrow,
+  collateral and best price/FIFO against a reference scan.
+- `npm audit --omit=dev` for root and frontend: **zero reported production advisories**.
+- Orca CLI: visually inspected the seeded chain and shared ticket; captures are in
+  the [local walkthrough](../demo.md). Wallet automation used unlocked local RPC accounts,
+  with no embedded keys or public transactions.
+
+[Machine-readable results and transaction gas](v4-validation.json). Raw local evidence
+is in `.qa-tmp-e2e-I3S24b/` (V4) and `.qa-tmp-e2e-zM4kES/` (legacy); these directories are
+ignored. Temporary web copies and owned Docker nodes were removed after completion.
+
+### Next steps for a Stylus proposal
+
+1. Deploy and verify V4 on Robinhood Chain Testnet with disposable funded wallets;
+   repeat physical delivery using the actual Stock Token and record receipts and fees.
+2. Benchmark a Stylus implementation of the price index against this Solidity baseline,
+   using the same state transitions and adversarial tests. Adopt it only if measurements
+   justify the added deployment and tooling complexity; the current protocol is Solidity.
+3. Record a short demo: two equal-price asks → one better-limit buy → oldest ask fills
+   at the resting price → resale or exercise. Explain fully onchain matching and show
+   the separate collateral contract. Check the target hackathon's eligibility before
+   presenting Solidity V4 as a Stylus submission.
+
+### Limits
+
+This is an internal PoC review, not an external security audit or proof of absence
+of vulnerabilities. Exact-transfer ERC20s are required; rebasing, fee tokens and
+issuer restrictions need separate compatibility work. Public Robinhood deployment,
+real Stock Token delivery and L3 fee measurements have not been executed for V4.
+Storage accumulates order and option history; matching remains bounded but large
+book snapshots still require many RPC reads. Self-trades reject the incoming order
+instead of skipping FIFO. Expired orders need individual owner recovery transactions.
 
 ## Human decisions
 

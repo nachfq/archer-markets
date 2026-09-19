@@ -34,19 +34,19 @@ try {
   }
   if (!underlying) underlying = await deploy('MockStock');
   const quote = await deploy('MockUSD');
-  const factory = await deploy('OptionFactory', [underlying, quote]);
+  const factory = await deploy('OptionMarketV4', [underlying, quote]);
   const primaryBlock = receipts.at(-1).blockNumber;
   const practiceStock = await deploy('MockStock');
-  const practiceFactory = await deploy('OptionFactory', [practiceStock, quote]);
+  const practiceFactory = await deploy('OptionMarketV4', [practiceStock, quote]);
   const practiceBlock = receipts.at(-1).blockNumber;
   const record = {
     chainId: chain.id, name: chain.name, rpcUrl: url,
     explorerUrl: chain.blockExplorers?.default.url || '',
     underlying: { address: underlying, symbol: mode === 'local' ? 'MockSTOCK' : await publicClient.readContract({ address: underlying, abi: erc20Abi, functionName: 'symbol' }), decimals: 18, isMock: mode === 'local' },
     quote: { address: quote, symbol: 'MockUSD', decimals: 6, isMock: true },
-    factory, deploymentBlock: primaryBlock, version: 3,
+    factory, deploymentBlock: primaryBlock, version: 4, tickSize: "10000",
     marketId: 'primary', label: mode === 'local' ? 'MockSTOCK / MockUSD' : 'TSLA / MockUSD', sandbox: mode === 'local',
-    markets: [{ marketId: 'practice', label: 'Practice STOCK / MockUSD', sandbox: true, version: 3, factory: practiceFactory, deploymentBlock: practiceBlock, underlying: { address: practiceStock, symbol: 'MockSTOCK', decimals: 18, isMock: true }, quote: { address: quote, symbol: 'MockUSD', decimals: 6, isMock: true } }],
+    markets: [{ marketId: 'practice', label: 'Practice STOCK / MockUSD', sandbox: true, version: 4, tickSize: "10000", factory: practiceFactory, deploymentBlock: practiceBlock, underlying: { address: practiceStock, symbol: 'MockSTOCK', decimals: 18, isMock: true }, quote: { address: quote, symbol: 'MockUSD', decimals: 6, isMock: true } }],
   };
   await saveJson(file, { ...record, deployer: account.address, receipts });
   const manifestPath = 'web/lib/generated/deployments.json';
