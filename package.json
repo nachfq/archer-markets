@@ -17,6 +17,7 @@
     "anvil": "node scripts/foundry.mjs anvil",
     "deploy:local": "npm run contracts:build && npm run abi && npm run sdk:build && node scripts/deploy.mjs local",
     "deploy:testnet": "npm run contracts:build && npm run abi && npm run sdk:build && node --env-file-if-exists=.env scripts/deploy.mjs testnet",
+    "deploy:testnet:wallet": "npm run contracts:build && node --env-file-if-exists=.env scripts/deploy-testnet-wallet.mjs",
     "check:testnet": "node --env-file-if-exists=.env scripts/check-testnet.mjs",
     "check:stylus": "node scripts/check-stylus.mjs",
     "wallet:testnet": "node scripts/create-testnet-wallet.mjs",

@@ -1,5 +1,25 @@
 # Implementation record
 
+## Interactive testnet deployment signer (2026-09-20)
+
+The deployment tooling can now use an explicitly selected, funded browser wallet
+without receiving or storing its private key. A loopback-only page checks the expected
+account and chain 46630, prepares one deployment at a time, and validates each mined
+transaction against its exact creation bytecode before recording it. Four separate
+wallet confirmations deploy MockUSD, the TSLA V4 market, MockStock and the practice V4
+market. The normal private and public manifests are written only after both markets are
+read back successfully. Partial public receipt evidence is retained if the user stops
+between confirmations.
+
+The selected wallet `0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0` was checked
+read-only at block 122183808 and held 0.01 test ETH and 5 TSLA. No transaction was sent
+during that balance check.
+
+Validation before presenting the signer: the script passed Node syntax and missing-
+argument failure checks; `npm test` passed 69 tests with the optional Robinhood RPC-
+fork test skipped; typecheck, frontend lint, the production build and
+`git diff --check` passed. These checks did not request a wallet signature.
+
 ## MIT license and testnet funding check (2026-09-20)
 
 The human coordinator selected the MIT License for the repository. The canonical
