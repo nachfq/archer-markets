@@ -4,6 +4,15 @@ Current status: V4 is a local implementation of the human-approved single-token,
 onchain orderbook decision. Robinhood testnet remains undeployed. Earlier sections
 are historical evidence for their stated versions, not current public deployments.
 
+## V4 product-thesis roadmap (2026-09-20)
+
+The human coordinator selected Stock Token holders seeking downside protection or
+covered-call income as the initial product wedge. The product roadmap now reflects V4,
+separates product validation from later technical and public-deployment phases, and
+records explicit continuation and rejection criteria. This was a documentation-only
+iteration: no contract, SDK, UI, deployment, test, or public evidence changed. Demand,
+writer participation, liquidity, and human comprehension remain unvalidated.
+
 ## V4 aggregate reads and Orca QA (2026-09-19)
 
 The market now maintains an active-series index and returns best bid/ask plus total
