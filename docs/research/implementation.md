@@ -1,5 +1,44 @@
 # Implementation record
 
+## Repository publication preflight and cleanup (2026-09-20)
+
+This private-repository iteration prepared the V4 candidate for a later visibility
+change without deploying contracts or publishing the repository. The full pre-cleanup
+development lineage was preserved on
+`archive/pre-publication-cleanup-2026-09-20` before tracked cleanup began.
+
+Removed material was limited to six superseded social/demo images, four one-off visual
+review scripts, two standalone readiness helpers superseded by isolated acceptance,
+and two unused UI primitives. Legacy contracts, SDK behavior, scripts and acceptance
+coverage remain because V1–V3 positions still require their original management paths.
+Local QA/build caches were moved to the desktop trash; ignored local deployment evidence
+and `.env` were preserved.
+
+The publication review searched current files and every reachable Git ref for common
+credential markers and 32-byte hexadecimal literals. The reviewed matches were empty
+environment variables, explicit fake test values and local transaction hashes. A
+Gitleaks `v8.30.1` history scan covered 23 reachable commits and reported no leaks.
+These checks are not a security audit. GitHub Actions were updated from floating major
+tags to reviewed commit SHAs, with concurrency cancellation and job timeouts.
+
+The remaining visibility blockers are an explicit license decision, removal or
+relocation of private archive/feature branches, explicit human approval, and an
+anonymous-clone check after visibility changes. See
+[`publication-preflight.md`](publication-preflight.md).
+
+Executed validation after cleanup:
+
+- `npm test`: 162 passed; the optional Robinhood RPC-fork test was skipped.
+- `npm run typecheck`, frontend lint, production build and both dependency audits:
+  passed. ABI generation left tracked generated files unchanged.
+- `npm run test:acceptance:v4` and `npm run test:acceptance`: passed on separate local
+  Docker/Anvil environments; neither produced public transactions.
+- Workflow YAML parsing, relative Markdown links and `git diff --check`: passed.
+
+The build still emits non-blocking Foundry naming/style notes, one test-only unchecked
+transfer warning, a vinext Node deprecation warning and a large-client-chunk warning.
+No contract code was changed in this iteration.
+
 Current status: V4 is a local implementation of the human-approved single-token,
 onchain orderbook decision. Robinhood testnet remains undeployed. Earlier sections
 are historical evidence for their stated versions, not current public deployments.

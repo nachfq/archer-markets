@@ -9,6 +9,7 @@ Historical conclusions and deployment statements apply to their recorded dates.
 - [Security review](security-review.md) · [Implementation history](implementation.md)
 - [Hackathon proposal](hackathon-readiness.md) · [Stylus assessment](stylus-assessment.md)
 - [Product roadmap](product-roadmap.md)
+- [Repository publication preflight](publication-preflight.md)
 - [Buy-request design](buy-requests.md) · [Settlement research](expiration-and-settlement.md)
 - [Larger local fixture](local-demo-v2.md)
 - [Original opportunity research](opportunity-research.md)

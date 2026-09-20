@@ -62,6 +62,11 @@ release candidate, then publish each layer in a controlled order.
 Phases are sequential. A public website is not published against an unverified manifest,
 and submission materials do not claim evidence from a later phase.
 
+The V4 release-candidate gate passed on `v0.1.0-rc.1`. Repository cleanup and private
+publication preflight are in progress; visibility remains private. See the
+[publication preflight](publication-preflight.md) for the final human decisions and
+visibility checkpoint.
+
 ### Branches and releases
 
 - Stabilize V4 on `release/hackathon-v4` while the repository remains private.
