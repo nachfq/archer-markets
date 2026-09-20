@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { catalogAssets, curatedMarkets, marketCatalog } from "../lib/catalog.ts";
 import type { Deployment } from "../lib/config.ts";
 const token = { address: "0x1111111111111111111111111111111111111111", symbol: "STOCK", decimals: 18, isMock: true } as const;
-const primary: Deployment = { chainId: 31337, name: "Local", rpcUrl: "http://127.0.0.1:8545", explorerUrl: "", factory: null, deploymentBlock: null, marketId: "primary", underlying: token, quote: { ...token, address: "0x2222222222222222222222222222222222222222", symbol: "USD", decimals: 6 } };
+const primary: Deployment = { chainId: 31337, name: "Local", rpcUrl: "http://127.0.0.1:8545", explorerUrl: "", factory: null, deploymentBlock: null, marketId: "primary", version: 4, underlying: token, quote: { ...token, address: "0x2222222222222222222222222222222222222222", symbol: "USD", decimals: 6 } };
 const practice = { ...primary, marketId: "practice", underlying: { ...token, address: "0x3333333333333333333333333333333333333333" as const } };
 test("owner catalog determines visibility and order without fabricating deployments", () => {
   const entries = ["primary", "practice"].map(id => marketCatalog[31337].find(m => m.marketId === id)!);

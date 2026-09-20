@@ -86,7 +86,7 @@ seed; clear stale wallet activity if needed. Use `npm run dev:local` for chain 3
 Automated acceptance owns separate Docker nodes and does not reset this demo:
 
 ```sh
-npm run test:acceptance:v4
+npm run test:acceptance
 ```
 
 [How it works](how-it-works.md) · [Implementation evidence](research/implementation.md)

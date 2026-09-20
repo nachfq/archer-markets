@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { demoStocks, demoOffers, demoExpirations, demoRequests, assertLocalDemo } from './demo-config.mjs';
+import { demoStocks, demoOffers, demoExpirations, demoBids, assertLocalDemo } from './demo-config.mjs';
 
-test('demo has 390 whole lots, varied quantities and reproducible totals', () => {
+test('demo has 390 one-token V4 asks with aggregate levels and reproducible totals', () => {
   const now = 1788998400n;
   const offers = demoStocks.flatMap(stock => demoOffers(stock, now));
   assert.equal(offers.length, 390);
@@ -10,7 +10,7 @@ test('demo has 390 whole lots, varied quantities and reproducible totals', () =>
   for (const kind of ['held', 'resale', 'cancelled']) assert.equal(offers.filter(o => o.disposition === kind).length, 10);
   assert.equal(offers.filter(o => o.disposition === 'open').length, 360);
   assert.ok(offers.every(o => o.writerIndex >= 2 && o.writerIndex <= 7 && o.buyerIndex >= 8 && o.buyerIndex <= 9 && o.writerIndex !== o.buyerIndex && o.premium > 0n && o.strikeTotal > 0n && o.expiry > now));
-  assert.equal(new Set(offers.map(o => o.quantity)).size, 5);
+  assert(offers.every(o => o.quantity === 10n ** 18n));
   assert.deepEqual(offers, demoStocks.flatMap(stock => demoOffers(stock, now)));
 });
 test('demo deadlines are Friday 16:00 New York across DST', () => {
@@ -26,13 +26,13 @@ test('demo reserves accounts zero and one and refuses nonlocal or non-Anvil netw
   for (const args of [['https://rpc.testnet.chain.robinhood.com', 31337, 'anvil'], ['http://localhost:8545', 46630, 'anvil'], ['http://localhost:8545', 31337, 'geth']]) assert.throws(() => assertLocalDemo(...args, accounts));
 });
 
-test('150 funded-request plans cover calls and puts without using player accounts', () => {
+test('150 funded bid plans cover calls and puts without using player accounts', () => {
   const now = 1788998400n;
-  const requests = demoStocks.flatMap(stock => demoRequests(stock, now));
-  assert.equal(requests.length, 150);
-  assert.equal(new Set(requests.map(r => r.id)).size, 150);
-  assert.equal(requests.filter(r => r.optionType === 0).length, 75);
-  assert.equal(requests.filter(r => r.optionType === 1).length, 75);
-  assert(requests.every(r => r.buyerIndex >= 2 && r.buyerIndex <= 9 && r.premium > 0n && r.acceptUntil > now && r.acceptUntil < r.expiry && r.quantity % (10n ** 17n) === 0n));
-  assert.deepEqual(requests, demoStocks.flatMap(stock => demoRequests(stock, now)));
+  const bids = demoStocks.flatMap(stock => demoBids(stock, now));
+  assert.equal(bids.length, 150);
+  assert.equal(new Set(bids.map(r => r.id)).size, 150);
+  assert.equal(bids.filter(r => r.optionType === 0).length, 75);
+  assert.equal(bids.filter(r => r.optionType === 1).length, 75);
+  assert(bids.every(r => r.buyerIndex >= 2 && r.buyerIndex <= 9 && r.premium > 0n && r.expiry > now && r.quantity === 10n ** 18n));
+  assert.deepEqual(bids, demoStocks.flatMap(stock => demoBids(stock, now)));
 });

@@ -12,7 +12,7 @@ import type { Deployment } from "../lib/config";
 import { actions, status, short, optionPayments, type Position } from "../lib/options";
 import type { TransactionRecord } from "../lib/transactions";
 
-export type WorkspaceTab = "market" | "create" | "mine" | "activity" | "docs" | "requests";
+export type WorkspaceTab = "market" | "create" | "mine" | "activity" | "docs" | "bids";
 
 export function WorkspaceHeader({ tab, disabled, environment, wallet, onNavigate }: {
   tab: WorkspaceTab; disabled: boolean; environment: string; wallet: ReactNode; onNavigate: (tab: WorkspaceTab) => void;
@@ -21,8 +21,8 @@ export function WorkspaceHeader({ tab, disabled, environment, wallet, onNavigate
     <Link className="wordmark" href="/" aria-label="Archer Markets">Archer<span>Markets</span></Link>
     <nav className="tabs" aria-label="Sections">
       {([["market", "Trade"], ["mine", "Portfolio"], ["activity", "Activity"], ["docs", "Docs"]] as const).map(([key, label]) =>
-        <button key={key} aria-current={tab === key || (key === "market" && (tab === "create" || tab === "requests")) ? "page" : undefined}
-          className={tab === key || (key === "market" && (tab === "create" || tab === "requests")) ? "active" : ""} disabled={disabled} onClick={() => onNavigate(key)}>{label}</button>)}
+        <button key={key} aria-current={tab === key || (key === "market" && (tab === "create" || tab === "bids")) ? "page" : undefined}
+          className={tab === key || (key === "market" && (tab === "create" || tab === "bids")) ? "active" : ""} disabled={disabled} onClick={() => onNavigate(key)}>{label}</button>)}
     </nav>
     <span className="environment-badge">{environment} · Test funds only</span>
     {wallet}
@@ -67,7 +67,7 @@ export function PortfolioTable({ positions, markets, marketId, account, now, dis
       const label = action === "exercise" ? "Review exercise" : action === "cancel" ? "Review cancellation" : action === "reclaimExpired" ? "Review reclaim" : "View option";
       return <Fragment key={position.address}><tr className={expanded ? "expanded-position" : ""} onClick={() => { if (!disabled) onSelect(expanded ? null : position.address, id); }}>
         <td data-label="Market / Type"><div className="asset-cell"><AssetLogo presentation={assetPresentation(market, "underlying")} /><span>{market.underlying.symbol} <small>{position.optionType === 0 ? "CALL" : "PUT"} · {assetPresentation(market, "underlying").name}</small></span></div></td>
-        <td data-label="Role">{isWriter ? "Writer" : isHolder ? "Holder" : "Past holder"}{market.legacy && <small className="term-label">Legacy · No resale</small>}</td>
+        <td data-label="Role">{isWriter ? "Writer" : isHolder ? "Holder" : "Past holder"}</td>
         <td data-label="Quantity">{displayAmount(position.underlyingAmount, market.underlying)}</td>
         <td data-label="Exercise payment — total">{displayAmount(position.strikeTotal, market.quote)}</td>
         <td data-label="Option payment — total">{Object.keys(payments).length ? Object.entries(payments).map(([kind, value]) => <span className="term-label" key={kind}>{kind === "paid" ? "Paid" : kind === "received" ? "Received" : "Asking price"} {displayAmount(value, market.quote)}</span>) : <span className="term-label">Not purchased · No payment</span>}</td>

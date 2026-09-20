@@ -135,7 +135,7 @@ try {
     await confirm(buyer, 'Buy');
     const bidId = await count();
     assert.equal((await order(bidId)).state, 1);
-    await buyer.locator(`[data-request="${bidId}"]`).getByRole('button', { name: 'Manage bid' }).click();
+    await buyer.locator(`[data-bid="${bidId}"]`).getByRole('button', { name: 'Manage bid' }).click();
     await buyer.getByRole('button', { name: 'Cancel bid & recover premium' }).click();
     await expect.poll(async () => (await order(bidId)).state).toBe(3);
     evidence.scenarios.push('Funded bid cancellation refunds its escrow');

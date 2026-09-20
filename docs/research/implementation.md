@@ -1,5 +1,28 @@
 # Implementation record
 
+## V4-only active product cleanup (2026-09-20)
+
+The human coordinator removed backward compatibility as a product requirement. The
+active tree now supports only V4: the V1–V3 Solidity contracts, SDK methods, frontend
+branches, fixtures and acceptance jobs were removed. Deployment manifests require V4,
+one order covers one Stock Token, and resales use the same onchain orderbook. Historical
+research sections below remain as dated development evidence, not supported behavior.
+
+Before this cleanup, the private archive branch
+`archive/pre-publication-cleanup-2026-09-20` preserved the earlier tree. No repository,
+contract or frontend visibility changed, and no public transaction was sent.
+
+Validation for this iteration:
+
+- `npm test`: 69 passed across V4 contracts, scripts, SDK and frontend; the optional
+  Robinhood RPC-fork test was skipped because no fork URL was supplied.
+- `npm run typecheck`, frontend lint and `npm run build`: passed. ABI generation now
+  exports only `OptionMarketV4`, `OptionV4` and token interfaces.
+- `npm run test:acceptance`: passed an isolated Docker/Anvil deployment, protocol/SDK
+  lifecycle, browser transactions, the five-market seed, idempotent rerun and receipt
+  recovery. The evidence explicitly records `publicTransactions: false`.
+- `git diff --check`: passed.
+
 ## Repository publication preflight and cleanup (2026-09-20)
 
 This private-repository iteration prepared the V4 candidate for a later visibility

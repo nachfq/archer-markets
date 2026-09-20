@@ -38,16 +38,16 @@ export function perToken(total: bigint, quantity: bigint, underlyingDecimals: nu
   return `${numerator % quantity ? "≈" : ""}${formatUnits(numerator / quantity, quoteDecimals)}`;
 }
 
-export type Bid = import("@stock-options-lab/sdk").BuyRequest;
+export type Bid = import("@stock-options-lab/sdk").Bid;
 export type BookSide = { bids: Bid[]; asks: Position[] };
 export type BookRow = { key: string; numerator: bigint; denominator: bigint; calls: BookSide; puts: BookSide };
-export function openBids(requests: Bid[], now: bigint): Bid[] {
-  return requests.filter(r => r.state === 0 && r.acceptUntil > now && r.expiry > now && r.underlyingAmount > 0n);
+export function openBids(bids: Bid[], now: bigint): Bid[] {
+  return bids.filter(r => r.state === 0 && r.expiry > now && r.underlyingAmount > 0n);
 }
-export function bookExpirations(positions: Position[], requests: Bid[], now: bigint): bigint[] {
-  return [...new Set([...listedExpirations(positions, now), ...openBids(requests, now).map(r => r.expiry)])].sort(compare);
+export function bookExpirations(positions: Position[], bids: Bid[], now: bigint): bigint[] {
+  return [...new Set([...listedExpirations(positions, now), ...openBids(bids, now).map(r => r.expiry)])].sort(compare);
 }
-export function orderBook(positions: Position[], requests: Bid[], expiry: bigint, now: bigint): BookRow[] {
+export function orderBook(positions: Position[], bids: Bid[], expiry: bigint, now: bigint): BookRow[] {
   const rows = new Map<string, BookRow>();
   const add = (quote: Position | Bid, bid: boolean) => {
     if (quote.expiry !== expiry || quote.underlyingAmount <= 0n) return;
@@ -60,7 +60,7 @@ export function orderBook(positions: Position[], requests: Bid[], expiry: bigint
     rows.set(key, row);
   };
   positions.filter(p => isListed(p, now)).forEach(p => add(p, false));
-  openBids(requests, now).forEach(r => add(r, true));
+  openBids(bids, now).forEach(r => add(r, true));
   for (const row of rows.values()) for (const side of [row.calls, row.puts]) {
     // Compare exact per-token premiums, never rounded display prices or lot totals.
     side.bids.sort((a, b) => compare(b.premium * a.underlyingAmount, a.premium * b.underlyingAmount) || compare(a.id, b.id));

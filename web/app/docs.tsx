@@ -48,7 +48,7 @@ export const documentation = [
     "id": "portfolio",
     "title": "Portfolio and availability",
     "paragraphs": [
-      "Portfolio shows available funds, collateral, bids and positions; Activity tracks this browser\u2019s submissions. Local Anvil uses mock assets. Robinhood Chain Testnet is not deployed. Existing V1\u2013V3 positions retain their original terms and manual management."
+      "Portfolio shows available funds, collateral, bids and positions; Activity tracks this browser\u2019s submissions. Local Anvil uses mock assets. Robinhood Chain Testnet is not deployed."
     ]
   }
 ];

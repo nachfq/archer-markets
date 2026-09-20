@@ -40,15 +40,15 @@ export function BalanceTables({ markets, portfolio, stale }: { markets: Deployme
       <h3>{kind === "stock" ? "Stock Tokens" : "Stablecoins"}</h3>{/* Keyboard users can scroll the table horizontally. */}
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex */}
       <div className="table-scroll" tabIndex={0} role="region" aria-label={`${kind === "stock" ? "Stock Token" : "Stablecoin"} balances`}><table className="balance-table">
-        <thead><tr>{["Asset", "Available", "Open orders", "Active collateral", "Reclaimable", "Request premiums", "Refundable premiums", "Total tracked"].map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
+        <thead><tr>{["Asset", "Available", "Open asks", "Active collateral", "Reclaimable", "Open bids", "Refundable bids", "Total tracked"].map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
         <tbody>{assets.filter(asset => asset.presentation.kind === kind).map(({ key, token, presentation }) => {
           const row = stale ? undefined : portfolio?.tokens.find(row => row.token.address.toLowerCase() === token.address?.toLowerCase());
           return <tr key={key}><th scope="row"><div className="asset-cell"><AssetLogo presentation={presentation} /><span>{presentation.name}<small>{token.symbol} · {token.address ? short(token.address) : "Not configured"}</small></span></div></th>
-            {(["available", "openCollateral", "activeCollateral", "reclaimable", "requestPremium", "refundablePremium", "totalTracked"] as const).map(field => <td key={field}>{row ? readableNumber(units(row[field], token.decimals), kind === "stablecoin" ? 2 : 0) : "—"}</td>)}
+            {(["available", "openCollateral", "activeCollateral", "reclaimable", "openBidPremium", "refundableBidPremium", "totalTracked"] as const).map(field => <td key={field}>{row ? readableNumber(units(row[field], token.decimals), kind === "stablecoin" ? 2 : 0) : "—"}</td>)}
           </tr>;
         })}</tbody>
       </table></div>
     </section>)}
-    <p className="fine">Amounts are token units, not portfolio value. Total tracked includes collateral and reserved/refundable request premiums; purchased rights appear below. Gas is separate in your wallet menu.</p>
+    <p className="fine">Amounts are token units, not portfolio value. Total tracked includes collateral and reserved/refundable bid premiums; purchased rights appear below. Gas is separate in your wallet menu.</p>
   </section>;
 }

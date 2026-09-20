@@ -82,7 +82,7 @@ visibility checkpoint.
 Keep V4 fully collateralized, oracle-free, manually exercised, and physically settled.
 Do not add partial fills, batches, margin, an AMM, centralized matching, automatic
 exercise, or mainnet deployment without a separate decision. Existing V1–V3 positions
-retain their original management paths.
+are historical research artifacts and are not supported by the current product.
 
 See [how it works](../how-it-works.md), the [local demo](../demo.md), and the
 [implementation record](implementation.md). Historical research remains evidence for

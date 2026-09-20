@@ -1,6 +1,6 @@
 import { encodeAbiParameters, encodeFunctionData, keccak256, parseAbiItem, zeroAddress, type Address, type PublicClient, type Hash } from 'viem';
 import { optionMarketV4Abi, optionV4Abi } from './abis.js';
-import { prepare, ProtocolError, type MarketConfig, type MarketSnapshot, type Option, type BuyRequest } from './index.js';
+import { prepare, ProtocolError, type MarketConfig, type MarketSnapshot, type Option, type Bid } from './index.js';
 export type OrderV4 = {
     id: bigint;
     owner: Address;
@@ -90,8 +90,8 @@ const syntheticQuotes = (m: MarketConfig, series: SeriesV4, quotes: readonly Quo
     return quotes.filter(q => q.firstOrder !== 0n).map(q => buy ? ({
         id: q.firstOrder, bookSize: q.count, seriesKey: series.key, buyer: q.owner, optionType: series.kind,
         underlyingAmount, strikeTotal: BigInt(series.strike) * tick, premium: BigInt(q.price) * tick,
-        expiry: series.expiry, acceptUntil: series.expiry, state: 0, option: q.option,
-    } satisfies BuyRequest) : ({
+        expiry: series.expiry, state: 0, option: q.option,
+    } satisfies Bid) : ({
         orderId: q.firstOrder, bookSize: q.count, seriesKey: series.key, address: q.option,
         writer: q.writer, buyer: q.resale ? q.owner : zeroAddress,
         underlyingAmount, strikeTotal: BigInt(series.strike) * tick, premium: BigInt(q.price) * tick,
@@ -107,13 +107,13 @@ export async function getSnapshotV4(c: PublicClient, m: MarketConfig, block: {
     timestamp: bigint;
 }): Promise<MarketSnapshot> {
     const rows = await getBookV4(c, m, block.number);
-    const positions: Option[] = [], requests: BuyRequest[] = [];
+    const positions: Option[] = [], bids: Bid[] = [];
     for (const row of rows) {
         const s: SeriesV4 = { key: row.key, ...row.terms };
-        requests.push(...syntheticQuotes(m, s, [row.bid], true) as BuyRequest[]);
+        bids.push(...syntheticQuotes(m, s, [row.bid], true) as Bid[]);
         positions.push(...syntheticQuotes(m, s, [row.ask], false) as Option[]);
     }
-    return { market: m, ...block, blockNumber: block.number, blockHash: block.hash, positions, requests, total: BigInt(rows.length) };
+    return { market: m, ...block, blockNumber: block.number, blockHash: block.hash, positions, bids, total: BigInt(rows.length) };
 }
 
 export async function getBookDepthV4(c: PublicClient, m: MarketConfig, terms: { optionType: 0 | 1; strikeTotal: bigint; expiry: bigint }, blockNumber?: bigint) {
@@ -133,7 +133,7 @@ export async function getBookDepthV4(c: PublicClient, m: MarketConfig, terms: { 
         }
     };
     const [bids, asks] = await Promise.all([read(true), read(false)]);
-    return { positions: syntheticQuotes(m, series, asks, false) as Option[], requests: syntheticQuotes(m, series, bids, true) as BuyRequest[] };
+    return { positions: syntheticQuotes(m, series, asks, false) as Option[], bids: syntheticQuotes(m, series, bids, true) as Bid[] };
 }
 
 export async function getPortfolioSnapshotV4(c: PublicClient, m: MarketConfig, account: Address, block: { number: bigint; hash: Hash; timestamp: bigint }): Promise<MarketSnapshot> {
@@ -171,12 +171,12 @@ export async function getPortfolioSnapshotV4(c: PublicClient, m: MarketConfig, a
         for (const log of logs) { paid.set(log.args.incoming, log.args.price); paid.set(log.args.resting, log.args.price); }
     }
     if (executed.some(id => !paid.has(id))) throw new Error('Execution history is incomplete for this market snapshot.');
-    const tick = v4Tick(m.quote.decimals), requests: BuyRequest[] = [];
+    const tick = v4Tick(m.quote.decimals), bids: Bid[] = [];
     for (const order of orderMap.values()) if (order.buy) {
         const s = series.get(order.series)!;
-        requests.push({ id: order.id, buyer: order.owner, optionType: s.kind, underlyingAmount: 10n ** BigInt(m.underlying.decimals), strikeTotal: BigInt(s.strike) * tick, premium: BigInt(paid.get(order.id) ?? order.price) * tick, expiry: s.expiry, acceptUntil: s.expiry, state: order.state === 1 ? 0 : order.state === 2 ? 1 : 2, option: order.option });
+        bids.push({ id: order.id, buyer: order.owner, optionType: s.kind, underlyingAmount: 10n ** BigInt(m.underlying.decimals), strikeTotal: BigInt(s.strike) * tick, premium: BigInt(paid.get(order.id) ?? order.price) * tick, expiry: s.expiry, state: order.state === 1 ? 0 : order.state === 2 ? 1 : 2, option: order.option });
     }
-    return { market: m, ...block, blockNumber: block.number, blockHash: block.hash, positions, requests, orders: [...orderMap.values()], total: await c.readContract({ address: m.factory, abi: optionMarketV4Abi, functionName: 'optionCount', blockNumber: block.number }) };
+    return { market: m, ...block, blockNumber: block.number, blockHash: block.hash, positions, bids, orders: [...orderMap.values()], total: await c.readContract({ address: m.factory, abi: optionMarketV4Abi, functionName: 'optionCount', blockNumber: block.number }) };
 }
 export async function prepareOrderV4(c: PublicClient, m: MarketConfig, account: Address, terms: {
     optionType: 0 | 1;

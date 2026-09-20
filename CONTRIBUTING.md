@@ -16,12 +16,11 @@ npm test
 npm run typecheck
 npm --prefix web run lint
 npm run build
-npm run test:acceptance:v4
 npm run test:acceptance
 ```
 
 Contract changes must regenerate committed ABIs with `npm run abi` and pass the
-isolated acceptance suites. Do not commit deployment manifests, generated evidence,
+isolated V4 acceptance suite. Do not commit deployment manifests, generated evidence,
 private keys or `.env` files.
 
 ## Scope

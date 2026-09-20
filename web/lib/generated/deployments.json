@@ -18,7 +18,6 @@
     "factory": "0x8438ad1c834623cff278ab6829a248e37c2d7e3f",
     "deploymentBlock": "3",
     "version": 4,
-    "legacy": false,
     "tickSize": "10000",
     "marketId": "tesla",
     "label": "Mock Tesla / MockUSD",
@@ -43,7 +42,6 @@
           "isMock": true
         },
         "version": 4,
-        "legacy": false,
         "tickSize": "10000"
       },
       {
@@ -65,7 +63,6 @@
           "isMock": true
         },
         "version": 4,
-        "legacy": false,
         "tickSize": "10000"
       },
       {
@@ -87,7 +84,6 @@
           "isMock": true
         },
         "version": 4,
-        "legacy": false,
         "tickSize": "10000"
       },
       {
@@ -109,7 +105,6 @@
           "isMock": true
         },
         "version": 4,
-        "legacy": false,
         "tickSize": "10000"
       }
     ],

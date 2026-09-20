@@ -7,7 +7,7 @@ import {MockUSD} from "../src/MockUSD.sol";
 import {OptionMarketV4 as Market} from "../src/OptionMarketV4.sol";
 import {OptionV4} from "../src/OptionV4.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {AdversarialToken} from "./Option.t.sol";
+import {AdversarialToken} from "./AdversarialToken.sol";
 import {PriceIndex} from "../src/PriceIndex.sol";
 
 contract IndexHarness {

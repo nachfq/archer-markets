@@ -478,21 +478,21 @@ footer { display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; 
 }
 
 /* Requests are premium-backed offers; each acceptance creates a separate option. */
-.requests-panel { padding: 24px; min-width: 0; }
-.requests-panel > .section-head { align-items: flex-start; gap: 16px; }
-.requests-panel > .section-head p { max-width: 720px; margin-top: 8px; }
+.bids-panel { padding: 24px; min-width: 0; }
+.bids-panel > .section-head { align-items: flex-start; gap: 16px; }
+.bids-panel > .section-head p { max-width: 720px; margin-top: 8px; }
 .request-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; margin: 20px 0; }
 .request-card { border: 1px solid var(--border, #cad2d3); border-radius: 10px; padding: 20px; background: var(--card, #fff); }
 .request-card .section-head { flex-wrap: wrap; gap: 8px; }
-.request-card dl > div, .request-review dl > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 18px; padding: 10px 0; border-bottom: 1px solid var(--border, #cad2d3); }
-.request-card dt, .request-review dt { color: var(--muted-foreground, #52616b); }
-.request-card dd, .request-review dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.bid-card dl > div, .bid-review dl > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 18px; padding: 10px 0; border-bottom: 1px solid var(--border, #cad2d3); }
+.bid-card dt, .bid-review dt { color: var(--muted-foreground, #52616b); }
+.bid-card dd, .bid-review dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
 .request-card > button { margin-top: 16px; }
-.request-review { padding: 24px; max-width: 760px; margin: auto; }
-.request-review p { margin: 18px 0; line-height: 1.6; }
-.request-portfolio { margin: 20px 0; }
-.request-portfolio-row { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 12px; border-bottom: 1px solid var(--border, #cad2d3); }
-@media (max-width: 600px) { .requests-panel, .request-review { padding: 16px; } .requests-panel > .section-head { flex-wrap: wrap; } .trade-mode [role="tablist"] { flex-wrap: wrap; height: auto; } }
+.bid-review { padding: 24px; max-width: 760px; margin: auto; }
+.bid-review p { margin: 18px 0; line-height: 1.6; }
+.bid-portfolio { margin: 20px 0; }
+.bid-portfolio-row { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 12px; border-bottom: 1px solid var(--border, #cad2d3); }
+@media (max-width: 600px) { .bids-panel, .bid-review { padding: 16px; } .bids-panel > .section-head { flex-wrap: wrap; } .trade-mode [role="tablist"] { flex-wrap: wrap; height: auto; } }
 
 /* The chain quotes per-token prices; every ticket confirms the full lot totals. */
 .order-actions { display:flex; align-items:center; gap:8px; }
@@ -518,7 +518,7 @@ footer { display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; 
 .book-depth .book-quote { margin-bottom:4px; }
 .trade-sheet .create-layout { padding:18px; }
 .trade-sheet .create-layout form { padding:0; border:0; }
-.requests-panel:has(.trade-sheet),.requests-panel:empty { padding:0; border:0; }
+.bids-panel:has(.trade-sheet),.bids-panel:empty { padding:0; border:0; }
 @media(max-width:600px) {
   .order-actions { width:100%; justify-content:flex-end; }
   .book-labels small { display:block; margin:0; }

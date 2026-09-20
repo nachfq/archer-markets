@@ -43,6 +43,6 @@ Afterwards buyers recover unspent bid premiums and writers reclaim unused collat
 with a transaction. Nothing automatically exercises or withdraws funds.
 
 **Portfolio** shows balances, collateral, bids and positions. **Activity** shows this
-browser's submissions. Older V1–V3 positions keep their original rules and management.
+browser's submissions.
 
 [Local maker/taker walkthrough](demo.md)

@@ -1,12 +1,35 @@
 "use client";
-import { useState } from "react";
-import { prepareOrderV4, prepareResaleV4, priceTicks } from "@stock-options-lab/sdk";
-import { asMarket, client } from "../lib/config";
+import { useState, type ReactNode } from "react";
+import type { Address } from "viem";
+import { prepareOrderV4, prepareResaleV4, priceTicks, type Bid, type Portfolio, type PreparedOperation } from "@stock-options-lab/sdk";
+import { asMarket, client, type Deployment } from "../lib/config";
 import { expiration, isListed, optionPrice, optionSeller, units } from "../lib/options";
 import { suggestedExpirations, utcDeadline } from "../lib/expirations";
-import { orderTotals } from "../lib/order-ticket";
+import { orderTotals, type OrderSeed } from "../lib/order-ticket";
 import { TradeTicket } from "./workspace-ui";
-import type { OrderTicketProps } from "./order-ticket";
+import type { Position } from "../lib/options";
+export type QuoteSelection = { ask: Position } | { bid: Bid };
+export type OrderTicketProps = {
+    resale?: Position;
+    net: Deployment;
+    seed: OrderSeed;
+    quote?: QuoteSelection;
+    positions: Position[];
+    bids: Bid[];
+    account?: Address;
+    walletChainId?: number;
+    now: bigint;
+    portfolio?: Portfolio;
+    canAct: boolean;
+    busy: boolean;
+    unavailable: boolean;
+    notification: ReactNode;
+    onClose: () => void;
+    onConnect: () => void;
+    onRefresh: () => void;
+    onDone: () => void;
+    onRun: (prepare: () => Promise<PreparedOperation>, success: string) => Promise<boolean>;
+};
 export default function OrderTicketV4(props: OrderTicketProps) {
     const { net, account, now, busy, resale } = props;
     const market = asMarket(net);
@@ -36,7 +59,7 @@ export default function OrderTicketV4(props: OrderTicketProps) {
     let error = '';
     try {
         if (strike && price && expiry) {
-            const amounts = orderTotals('1', strike, price, net.underlying.decimals, net.quote.decimals);
+            const amounts = orderTotals(strike, price, net.underlying.decimals, net.quote.decimals);
             priceTicks(amounts.strikeTotal, net.quote.decimals);
             priceTicks(amounts.premium, net.quote.decimals);
             terms = { ...amounts, expiry: expiration(expiry, Number(now) * 1000), optionType: kind as 0 | 1 };
@@ -46,7 +69,7 @@ export default function OrderTicketV4(props: OrderTicketProps) {
         error = e instanceof Error ? e.message : 'Check order terms.';
     }
     const asks = props.positions.filter(p => terms && isListed(p, now) && p.optionType === kind && p.strikeTotal === terms.strikeTotal && p.expiry === terms.expiry).sort((a, b) => optionPrice(a) < optionPrice(b) ? -1 : optionPrice(a) > optionPrice(b) ? 1 : Number((a.orderId ?? 0n) - (b.orderId ?? 0n)));
-    const bids = props.requests.filter(r => terms && r.state === 0 && r.expiry > now && r.optionType === kind && r.strikeTotal === terms.strikeTotal && r.expiry === terms.expiry).sort((a, b) => a.premium > b.premium ? -1 : a.premium < b.premium ? 1 : Number(a.id - b.id));
+    const bids = props.bids.filter(r => terms && r.state === 0 && r.expiry > now && r.optionType === kind && r.strikeTotal === terms.strikeTotal && r.expiry === terms.expiry).sort((a, b) => a.premium > b.premium ? -1 : a.premium < b.premium ? 1 : Number(a.id - b.id));
     const best = side === 'buy' ? asks[0] : bids[0];
     const bestPrice = best ? (side === 'buy' ? optionPrice(asks[0]) : bids[0].premium) : undefined;
     const crosses = terms && bestPrice !== undefined && (side === 'buy' ? bestPrice <= terms.premium : bestPrice >= terms.premium);
@@ -60,7 +83,7 @@ export default function OrderTicketV4(props: OrderTicketProps) {
     const available = props.portfolio?.tokens.find(t => t.token.address.toLowerCase() === token.address?.toLowerCase())?.available;
     if (funding !== undefined && available !== undefined && funding > available)
         error = `Not enough ${token.symbol} for the required funds. Incoming premium cannot fund collateral.`;
-    const valid = !!terms && !error && !props.unavailable && !!market && !net.legacy;
+    const valid = !!terms && !error && !props.unavailable && !!market;
     const fingerprint = JSON.stringify([context, net.marketId, resale?.address, side, kind, strike, price, expiry]);
     const reviewing = review === fingerprint;
     const fmt = (value: bigint | undefined, symbol = net.quote.symbol, decimals = net.quote.decimals) => value === undefined ? '—' : `${units(value, decimals)} ${symbol}`;

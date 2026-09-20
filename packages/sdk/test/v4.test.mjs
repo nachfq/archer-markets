@@ -42,7 +42,7 @@ test('V4 trade snapshots use one aggregate book read and preserve quoted size', 
     },
   };
   const [snapshot]=await getMarkets(client,[market]);
-  assert.equal(snapshot.requests[0].bookSize,3n);
+  assert.equal(snapshot.bids[0].bookSize,3n);
   assert.equal(snapshot.positions[0].bookSize,2n);
   assert.equal(snapshot.positions[0].premium,10_000_000n);
   assert.equal(calls.filter(name=>name==='getBookPage').length,1);

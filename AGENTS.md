@@ -6,8 +6,9 @@ American exercise and physical Stock Token delivery. V4 uses an entirely onchain
 price/time orderbook per pair, kind, strike and expiration. Each order covers exactly
 one Stock Token and creates or transfers one independent option; at most one full
 match executes at the resting price. No partial fills or batches. Resales share the
-book; existing V1–V3 positions retain their original management paths. Do not add
-mainnet, oracle settlement, an AMM or centralized matching without a product decision.
+book. The product supports V4 only; V1–V3 source and compatibility paths belong only
+in the private archive branch and must not be restored to `main`. Do not add mainnet,
+oracle settlement, an AMM or centralized matching without a product decision.
 
 - Keep all repository content in English: documentation, UI copy, source comments,
   test descriptions, and durable agent instructions. Conversation with the human

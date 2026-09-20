@@ -13,7 +13,7 @@ const m = { ...record, id: record.marketId, deploymentBlock: BigInt(record.deplo
 assert.equal(m.version, 4);
 const a = (await c.request({ method: 'eth_accounts' })).slice(6, 9);
 const read = (address, abi, functionName, args = []) => c.readContract({ address, abi, functionName, args });
-assert.equal(await read(m.factory,optionMarketV4Abi,'orderCount'),0n,'Use a clean deployment via npm run test:acceptance:v4.');
+assert.equal(await read(m.factory,optionMarketV4Abi,'orderCount'),0n,'Use a clean deployment via npm run test:acceptance.');
 const gas = [];
 async function tx(from, to, abi, functionName, args = []) {
     const hash = await c.request({ method: 'eth_sendTransaction', params: [{ from, to, data: encodeFunctionData({ abi, functionName, args }), gas: '0x989680' }] });
@@ -65,7 +65,7 @@ assert.equal(fill.price, 900);
 assert.equal(buyerBefore - await balance(m.quote, a[1]), 9000000n);
 assert.equal((await getOrderV4(c, m, 3n)).state, 1);
 const owned = fill.option;
-assert.equal((await getPortfolio(c, [m], a[1])).requests.find(r => r.id === 4n).premium, 9000000n);
+assert.equal((await getPortfolio(c, [m], a[1])).bids.find(r => r.id === 4n).premium, 9000000n);
 // Resale competes in the same ask book and preserves writer/collateral.
 await execute(await prepareResaleV4(c, m, a[1], owned, 8000000n));
 logs = await execute(await order(a[2], true, 10000000n));

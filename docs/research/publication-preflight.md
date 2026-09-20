@@ -17,13 +17,12 @@ change. It does not state that the repository, contracts or V4 frontend are publ
 - Confirmed that `.env`, deployment evidence, build outputs, Foundry dependencies and
   acceptance directories are ignored. The local `.env` was not read or modified.
 - Removed unused visual-review scripts, unused UI primitives and superseded image
-  assets. V1–V3 contracts, SDK paths and acceptance tests remain because existing
-  positions retain their original management behavior.
+  assets. A later V4-only cleanup removed V1–V3 contracts, SDK paths and acceptance
+  tests from the active tree; their dated research records remain archived here.
 - Added contributor and security guidance and pinned GitHub Actions to reviewed commit
   SHAs.
-- Re-ran 162 automated tests, type checking, lint, production build, dependency audits,
-  V4 acceptance and legacy acceptance after cleanup. The optional Robinhood RPC-fork
-  test remained skipped and no public transaction was sent.
+- The validation results for the later V4-only cleanup are recorded in
+  [the implementation record](implementation.md). No public transaction was sent.
 
 ## Final visibility checkpoint
 

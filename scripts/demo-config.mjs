@@ -20,13 +20,13 @@ export function demoOffers(stock, timestamp, expirations = demoExpirations(times
   const offers = [];
   for (const [term, expiry] of expirations.entries()) for (let step = -5; step <= 5; step++) for (const kind of [0, 1]) {
     const strike = Math.round(stock.anchor * (1 + step * 0.05) / 5) * 5;
-    const quantities = step === 0 ? [1, 0.1, 5] : [[0.1, 0.5, 1, 2, 5][(step + 5 + term + kind) % 5]];
-    for (const [lot, quantity] of quantities.entries()) {
+    const copies = step === 0 ? 3 : 1;
+    for (let copy = 0; copy < copies; copy++) {
       const days = Number(expiry - BigInt(timestamp)) / 86400;
       const intrinsic = Math.max(0, kind === 0 ? stock.anchor - strike : strike - stock.anchor);
       const timeValue = stock.anchor * 0.06 * Math.sqrt(days / 30) * Math.exp(-3 * Math.abs(strike / stock.anchor - 1));
-      const premium = BigInt(Math.max(1, Math.round((intrinsic + timeValue) * quantity * 100))) * 10000n;
-      offers.push({ id: `${stock.id}-${term}-${step}-${kind}-${lot}`, optionType: kind, quantity: BigInt(Math.round(quantity * 10)) * 10n ** 17n, strikeTotal: BigInt(Math.round(strike * quantity * 100)) * 10000n, premium, expiry, referenceStep: step });
+      const premium = BigInt(Math.max(1, Math.round((intrinsic + timeValue) * 100))) * 10000n;
+      offers.push({ id: `${stock.id}-${term}-${step}-${kind}-${copy}`, optionType: kind, quantity: 10n ** 18n, strikeTotal: BigInt(strike * 100) * 10000n, premium, expiry, referenceStep: step });
     }
   }
   // Exactly two held, two relisted and two cancelled per market, away from the first expiry.
@@ -34,11 +34,11 @@ export function demoOffers(stock, timestamp, expirations = demoExpirations(times
 }
 export const playerStockAmount = 100n * 10n ** 18n;
 export const playerQuoteAmount = 10_000n * 10n ** 6n;
-export function demoRequests(stock, timestamp) {
+export function demoBids(stock, timestamp) {
   return demoOffers(stock, timestamp)
     .filter(offer => [-2, 0, 2].includes(offer.referenceStep))
-    .map((offer, i) => ({ ...offer, id: `${offer.id}-request`, buyerIndex: 2 + i % 8,
-      premium: offer.premium * 90n / 100n || 1n, acceptUntil: offer.expiry - 86400n }));
+    .map((offer, i) => ({ ...offer, id: `${offer.id}-bid`, buyerIndex: 2 + i % 8,
+      premium: offer.premium * 90n / 100n || 1n }));
 }
 export function assertLocalDemo(url, chainId, clientVersion, accounts) {
   const parsed = new URL(url);

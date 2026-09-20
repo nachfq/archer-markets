@@ -3,7 +3,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { createPublicClient, createWalletClient, decodeEventLog, encodeDeployData, encodeFunctionData, erc20Abi, http } from 'viem';
 import { artifact, network, readJson, saveJson, publicDeployment, reportError } from './config.mjs';
-import { assertLocalDemo, demoStocks, demoOffers, demoRequests, playerStockAmount, playerQuoteAmount, priceSnapshotDate } from './demo-config.mjs';
+import { assertLocalDemo, demoStocks, demoOffers, demoBids, playerStockAmount, playerQuoteAmount, priceSnapshotDate } from './demo-config.mjs';
 try {
     const args = new Set(process.argv.slice(2));
     for (const arg of args)
@@ -39,31 +39,20 @@ try {
     }
     if (ledger && (ledger.schema !== 4 || ledger.genesis !== genesis.hash || ledger.rpcUrl !== url || ledger.actors.join().toLowerCase() !== actors.join().toLowerCase()))
         throw new Error('The saved run belongs to a different node or actor set. Choose a separate DEMO_LEDGER; do not overwrite it.');
-    ledger ??= { schema: 4, genesis: genesis.hash, rpcUrl: url, actors, referenceDate: priceSnapshotDate, referenceStocks: demoStocks, timestamp: (await client.getBlock()).timestamp.toString(), transactions: {}, markets: [], offers: {}, requests: {} };
-    const normalize = offer => ({ ...offer, quantity: 10n ** 18n,
-        strikeTotal: (offer.strikeTotal * 10n ** 18n / offer.quantity / 10000n) * 10000n,
-        premium: ((offer.premium * 10n ** 18n / offer.quantity + 9999n) / 10000n) * 10000n });
-    const plans = demoStocks.flatMap(stock => demoOffers(stock, BigInt(ledger.timestamp))).map(normalize);
+    ledger ??= { schema: 4, genesis: genesis.hash, rpcUrl: url, actors, referenceDate: priceSnapshotDate, referenceStocks: demoStocks, timestamp: (await client.getBlock()).timestamp.toString(), transactions: {}, markets: [], offers: {}, bids: {} };
+    if (!ledger.bids) ledger.bids = {};
+    const plans = demoStocks.flatMap(stock => demoOffers(stock, BigInt(ledger.timestamp)));
     for (const p of plans)
         if (p.referenceStep === 0)
             p.premium = plans.find(q => q.id.split('-')[0] === p.id.split('-')[0] && q.expiry === p.expiry && q.optionType === p.optionType && q.referenceStep === 0).premium;
-    const requests = demoStocks.flatMap(stock => demoRequests(stock, BigInt(ledger.timestamp))).map(r => {
-        const offer = plans.find(p => p.id === r.id.replace('-request', ''));
-        return { ...r, ...normalize(r), premium: (offer.premium / 10000n * 90n / 100n || 1n) * 10000n, acceptUntil: r.expiry };
+    const bids = demoStocks.flatMap(stock => demoBids(stock, BigInt(ledger.timestamp))).map(r => {
+        const offer = plans.find(p => p.id === r.id.replace('-bid', ''));
+        return { ...r, premium: (offer.premium / 10000n * 90n / 100n || 1n) * 10000n };
     });
-    console.log(`Local demo: ${plans.length} options and ${requests.length} buy requests across five markets. Accounts 0–1 are players; accounts 2–9 populate the market. Synthetic prices (${priceSnapshotDate}).`);
+    console.log(`Local demo: ${plans.length} asks and ${bids.length} bids across five markets. Accounts 0–1 are players; accounts 2–9 populate the market. Synthetic prices (${priceSnapshotDate}).`);
     if (args.has('--dry-run')) {
-        console.log(JSON.stringify({ stages: ['deploy', 'fund players', 'seed offers and requests'], markets: demoStocks, offers: plans.length, requests: requests.length, alreadyRecorded: Object.keys(ledger.offers).length, expirations: [...new Set(plans.map(p => p.expiry.toString()))], writes: 0 }, null, 2));
+        console.log(JSON.stringify({ stages: ['deploy', 'fund players', 'seed asks and bids'], markets: demoStocks, asks: plans.length, bids: bids.length, alreadyRecorded: Object.keys(ledger.offers).length, expirations: [...new Set(plans.map(p => p.expiry.toString()))], writes: 0 }, null, 2));
         process.exit(0);
-    }
-    // Reuse only previously recorded grants to the same tokens on this genesis.
-    let previousLedger;
-    try {
-        previousLedger = await readJson(`deployments/local-demo-${genesis.hash}.json`);
-    }
-    catch (error) {
-        if (error.code !== 'ENOENT')
-            throw error;
     }
     await saveJson(ledgerFile, ledger);
     const wallet = account => {
@@ -146,7 +135,7 @@ try {
                 token = { address: r.contractAddress, symbol: stock.symbol, decimals: 18, isMock: true };
             }
             const r = await deploy(`${stock.id}:factory`, 'OptionMarketV4', [token.address, quote.address]);
-            const market = { marketId: stock.id, label: `${stock.name} / MockUSD`, sandbox: true, version: 4, legacy: false, tickSize: '10000', factory: r.contractAddress, deploymentBlock: r.blockNumber.toString(), underlying: token, quote };
+            const market = { marketId: stock.id, label: `${stock.name} / MockUSD`, sandbox: true, version: 4, tickSize: '10000', factory: r.contractAddress, deploymentBlock: r.blockNumber.toString(), underlying: token, quote };
             const index = ledger.markets.findIndex(m => m.marketId === stock.id);
             if (index < 0)
                 ledger.markets.push(market);
@@ -160,12 +149,7 @@ try {
     for (const m of ledger.markets)
         if (await client.readContract({ address: m.factory, abi: factoryAbi, functionName: 'version' }) !== 4n)
             throw new Error('V4 deployment mismatch.');
-    const legacy = [];
-    for (const m of previousMarkets)
-        if (m.factory && !ledger.markets.some(n => n.factory.toLowerCase() === m.factory.toLowerCase()) && ((await client.getCode({ address: m.factory }))?.length ?? 0) > 2 && !legacy.some(n => n.factory.toLowerCase() === m.factory.toLowerCase())) {
-            legacy.push({ ...m, markets: undefined, marketId: m.legacy ? m.marketId : `${m.marketId ?? 'primary'}-v${m.version ?? 1}`, version: m.version ?? 1, legacy: true });
-        }
-    const record = { chainId: 31337, name: 'Local Anvil', rpcUrl: url, explorerUrl: '', ...ledger.markets[0], markets: [...ledger.markets.slice(1), ...legacy] };
+    const record = { chainId: 31337, name: 'Local Anvil', rpcUrl: url, explorerUrl: '', ...ledger.markets[0], markets: ledger.markets.slice(1) };
     await saveJson(manifestFile, record);
     if (!args.has('--no-export')) {
         const browser = await readJson('web/lib/generated/deployments.json');
@@ -177,9 +161,6 @@ try {
     for (const [id, token, amount] of [['quote', quote.address, playerQuoteAmount], ...ledger.markets.map(m => [m.marketId, m.underlying.address, playerStockAmount])])
         for (const index of [0, 1]) {
             const key = `player:${index}:${id}`;
-            const sameToken = id === 'quote' ? previousLedger?.markets?.[0]?.quote?.address === token : previousLedger?.markets?.some(m => m.marketId === id && m.underlying.address === token);
-            if (previousLedger?.genesis === genesis.hash && sameToken && previousLedger.transactions?.[`${key}:grant`]?.hash)
-                continue;
             await write(`${key}:mint`, actors[0], token, faucetAbi, 'faucet');
             await write(`${key}:grant`, actors[0], token, erc20Abi, 'transfer', [accounts[index], amount]);
         }
@@ -240,8 +221,8 @@ try {
                 console.log(`Seeded ${Object.keys(ledger.offers).length}/${plans.length} V4 asks.`);
         }
     for (const market of ledger.markets)
-        for (const r of requests.filter(r => r.id.startsWith(`${market.marketId}-`))) {
-            if (ledger.requests[r.id])
+        for (const r of bids.filter(r => r.id.startsWith(`${market.marketId}-`))) {
+            if (ledger.bids[r.id])
                 continue;
             const buyer = accounts[r.buyerIndex];
             if (!ledger.transactions[`${r.id}:create`]) {
@@ -252,10 +233,10 @@ try {
             const posted = event(receipt, 'OrderPosted');
             if (!posted)
                 throw new Error('Seed bid unexpectedly crossed.');
-            ledger.requests[r.id] = { marketId: market.marketId, requestId: String(posted.args.id), buyer };
+            ledger.bids[r.id] = { marketId: market.marketId, orderId: String(posted.args.id), buyer };
             await saveJson(ledgerFile, ledger);
         }
-    console.log(`V4 ready: ${plans.length} ask fixtures and ${requests.length} bids. Player wallets and previous trades preserved.`);
+    console.log(`V4 ready: ${plans.length} ask fixtures and ${bids.length} bids. Player wallets and recorded trades preserved.`);
 }
 catch (error) {
     reportError(error);

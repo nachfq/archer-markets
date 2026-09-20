@@ -12,4 +12,4 @@ export async function executeOperation(actor, operation) {
   await simulatePrepared(publicClient, operation);
   return mined(publicClient, await walletClient.sendTransaction({ ...operation.request, account }));
 }
-export const marketFromManifest = record => ({ id: record.marketId ?? 'primary', chainId: record.chainId, factory: record.factory, deploymentBlock: BigInt(record.deploymentBlock), version: record.version ?? 1, underlying: record.underlying, quote: record.quote, sandbox: record.underlying.isMock });
+export const marketFromManifest = record => ({ id: record.marketId ?? 'primary', chainId: record.chainId, factory: record.factory, deploymentBlock: BigInt(record.deploymentBlock), version: 4, underlying: record.underlying, quote: record.quote, sandbox: record.underlying.isMock });

@@ -20,7 +20,7 @@ const option: Position = {
   optionType: 0,
   state: 0,
 };
-test("fractional lots preserve all 18 stock and 6 settlement decimals without floating point", () => {
+test("amount parsing preserves all token decimals without floating point", () => {
   assert.equal(amount("0.500000000000000001", 18), option.underlyingAmount);
   assert.equal(amount("100.000001", 6), option.strikeTotal);
   assert.equal(amount("5.000001", 6), option.premium);

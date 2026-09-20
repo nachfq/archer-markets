@@ -39,10 +39,6 @@ jobs:
   acceptance:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        suite: [v4, legacy]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -61,15 +57,11 @@ jobs:
       - run: npm run sdk:build
       - run: npx playwright install --with-deps chromium
       - name: Isolated V4 acceptance
-        if: matrix.suite == 'v4'
-        run: npm run test:acceptance:v4
-      - name: Isolated legacy acceptance
-        if: matrix.suite == 'legacy'
         run: npm run test:acceptance
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: local-acceptance-evidence-${{ matrix.suite }}
+          name: local-acceptance-evidence-v4
           path: |
             .qa-tmp-e2e-*/summary.json
             .qa-tmp-e2e-*/*.log

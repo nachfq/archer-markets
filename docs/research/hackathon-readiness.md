@@ -17,7 +17,7 @@ on an Arbitrum chain; Robinhood Chain is an eligible target.
 ## Release sequence
 
 1. **Release candidate:** make V4 the canonical branch, close repository quality gates,
-   run V4 and legacy acceptance in private CI, and tag `v0.1.0-rc.1`.
+   run the V4 acceptance suite in private CI, and tag a release candidate.
 2. **Public repository:** review history, secrets, license, generated files and release
    notes before changing visibility. Verify a clean anonymous checkout.
 3. **Robinhood testnet:** deploy and verify V4 with disposable wallets, then record a
