@@ -1,78 +1,52 @@
 # Open House Singapore submission path
 
-Prepared September 16, 2026. This is a proposed execution sequence, not evidence of
-public deployment, human approval, demand, or a competition result.
+Updated September 20, 2026. This is the engineering path from the V4 local PoC to a
+reviewable submission. It is not evidence of a public deployment or competition result.
 
 ## Positioning
 
-**Archer Markets lets a buyer request a fully collateralized Stock Token option
-by reserving its premium; one writer accepts the complete agreement, and the buyer
-can manually exercise for physical token delivery.** The first audience to validate
-is a Stock Token holder who wants to define protection terms and a counterparty
-willing to fund the entire obligation. Demand and willingness to provide collateral
-remain hypotheses.
+**Archer Markets is a fully collateralized Stock Token options market with an entirely
+onchain price/time orderbook, manual American exercise and physical token delivery.**
+One order covers one token, creates or transfers one independent option, and executes
+at most one full match at the resting price. Resales share the same book.
 
-The current protocol is Solidity. The event explicitly accepts Solidity or Stylus
-and existing projects. Its published criteria cover contract quality, product-market
-fit, innovation, and solving a real problem. Deployment on an Arbitrum chain is required;
-Robinhood Chain is explicitly listed. A local demo and the existing unconfigured
-hosted frontend do not establish that requirement.
+The implementation remains Solidity. The event accepts Solidity and requires deployment
+on an Arbitrum chain; Robinhood Chain is an eligible target.
 [Official event listing](https://www.hackquest.io/hackathons/Arbitrum-Open-House-Singapore-Online-Buildathon).
 
-The listing currently gives registration through October 2, 2026 and submission
-through October 4, 2026. Verify the exact cutoff and timezone in the signed-in
-submission portal; this review does not establish the timezone or private form fields.
-Review the event's current terms and required deliverables before submitting.
+## Release sequence
 
-## Prioritized next steps
+1. **Release candidate:** make V4 the canonical branch, close repository quality gates,
+   run V4 and legacy acceptance in private CI, and tag `v0.1.0-rc.1`.
+2. **Public repository:** review history, secrets, license, generated files and release
+   notes before changing visibility. Verify a clean anonymous checkout.
+3. **Robinhood testnet:** deploy and verify V4 with disposable wallets, then record a
+   two-wallet call, put, resale, cancellation and physical exercise with exact balances.
+4. **Public frontend:** publish only the manifest that passed testnet acceptance. Test
+   an anonymous browser, a real wallet, wrong-network recovery and explorer links.
+5. **Submission package:** publish a short demo, architecture diagram, exact revision,
+   contract addresses, reproduction commands and concise security limitations.
 
-1. **Close the local acceptance gate.** Keep the security review, automated tests,
-   failure reproductions and exact revision together. Resolve any open custody,
-   permission or amount defect before recording a demo.
-2. **Perform a public testnet acceptance run.** Use fresh disposable wallets,
-   obtain gas and the selected test Stock Token, confirm transfer compatibility,
-   deploy V3, and verify addresses, version, token decimals and receipts. Exercise
-   a call and a put using two real wallets. Add request acceptance and cancellation.
-   Publish a matching frontend only after these checks. MockUSD must remain labeled
-   as freely minted, valueless test funds. Saved local addresses are not reusable
-   evidence for chain 46630.
-3. **Validate the problem with people.** Interview at least three prospective
-   buyers/writers and run two independent walkthroughs. Ask them to distinguish
-   premium, collateral, exercise payment and both deadlines, then complete a request
-   and refund without coaching. Record failures, quotes with consent, and resulting
-   changes. Do not call interviews adoption or treat a synthetic order book as demand.
-4. **Package the submission.** Prepare an English README, a short video, public
-   contract/explorer links, architecture diagram, reproduction commands and a concise
-   limitations/security section. Confirm the portal's actual upload and video limits.
-   Explain why full collateral and one contract per agreement make the initial
-   custody model understandable, and acknowledge the liquidity/capital tradeoff.
+The listing currently shows registration through October 2, 2026 and submission through
+October 4, 2026. Confirm the cutoff timezone and private form fields in the signed-in portal.
 
-## Three-minute demonstration script
+## Three-minute V4 demonstration
 
-- **0:00–0:30:** State the user hypothesis and identify test tokens/network. Explain
-  total premium, total exercise payment, manual exercise and physical delivery.
-- **0:30–1:15:** Buyer requests a put for a multiple of 0.1 token; show the premium
-  leaving the wallet and becoming reserved in the factory.
-- **1:15–2:00:** Writer accepts the entire request; show the new option address,
-  full collateral, buyer assignment and premium paid to the writer.
-- **2:00–2:40:** Buyer approves token delivery and exercises. Reconcile both wallets
-  and the emptied option against the agreed amounts.
-- **2:40–3:00:** Cancel a second unaccepted request and show the exact refund.
-  State public deployment status and remaining limitations accurately.
+- **0:00–0:25:** Explain the Stock Token protection/covered-call use case and identify
+  the network, assets and test-only status.
+- **0:25–1:05:** Show two equal-price asks and one better-limit buy. The oldest ask fills
+  once at the resting price while the second remains in the book.
+- **1:05–1:45:** Show the independent option, writer collateral, holder and exact premium.
+- **1:45–2:25:** Resell or exercise the option and reconcile Stock Token and payment-token
+  balances for both wallets.
+- **2:25–3:00:** Cancel an unmatched bid, show its refund, then summarize the no-oracle,
+  no-privileged-matcher design and its capital-efficiency and manual-exercise tradeoffs.
 
-Use a small fixture, not the optional 390-offer synthetic market. Include a recorded
-fallback if the public RPC/faucet fails; label the network of every recording.
+Use a small fixture rather than the optional 390-order synthetic market. Label the network
+of every recording and keep a recorded local fallback separate from public-chain evidence.
 
-## Stylus decision
+## Deliberate exclusions
 
-Keep Solidity for this submission. The current lifecycle mostly transfers tokens
-and updates storage. Stylus interoperates with Solidity and primarily benefits
-compute- or memory-heavy work; storage-heavy code does not automatically become
-cheaper. [Official Stylus overview](https://docs.arbitrum.io/stylus/gentle-introduction).
-
-If user research establishes a need for an onchain computational module, propose a
-separate experiment with identical inputs/outputs and differential tests. Measure
-activation, first/repeated execution, ERC-20 calls and storage on a Stylus-enabled
-Nitro node. Ordinary Anvil tests do not execute WASM. A browser-only calculator does
-not justify claiming Stylus integration. Do not add pricing, oracle settlement,
-matching, partial fills, margin or mainnet under the security-review task.
+Do not add Stylus, oracle settlement, an AMM, partial fills, batches, margin, automatic
+exercise or mainnet for this submission. These change the product or trust model and are
+not required to demonstrate the V4 orderbook and physical-delivery lifecycle.

@@ -199,8 +199,7 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
     refetchInterval: 20_000,
     retry: 1,
     queryFn: async () => {
-      const selected = (await getMarkets(client, [activeMarket!]))[0];
-      return { ...selected, loadedAt: Date.now() };
+      return (await getMarkets(client, [activeMarket!]))[0];
     },
   });
   const portfolioQuery = useQuery({
@@ -233,7 +232,7 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
   const rowFor = (token: Token) => portfolio?.tokens.find(row => row.token.address.toLowerCase() === token.address?.toLowerCase());
   const balances = { data: portfolio ? { underlying: rowFor(net.underlying)?.available ?? 0n, quote: rowFor(net.quote)?.available ?? 0n, gas: portfolio.gas } : tradeBalances.data, isError: portfolioQuery.isError || tradeBalances.isError };
   const snapshotTimestamp = market.data?.timestamp ?? portfolio?.timestamp;
-  const snapshotLoadedAt = market.data?.loadedAt ?? portfolioQuery.dataUpdatedAt;
+  const snapshotLoadedAt = market.data ? market.dataUpdatedAt : portfolioQuery.dataUpdatedAt;
   const now = snapshotTimestamp
     ? snapshotTimestamp +
       BigInt(Math.max(0, Math.floor((clock - snapshotLoadedAt) / 1000)))

@@ -4,6 +4,28 @@ Current status: V4 is a local implementation of the human-approved single-token,
 onchain orderbook decision. Robinhood testnet remains undeployed. Earlier sections
 are historical evidence for their stated versions, not current public deployments.
 
+## V4 release candidate preparation (2026-09-20)
+
+The release workflow now treats V4 as the canonical protocol while retaining a separate
+legacy acceptance gate. GitHub CI splits repository quality checks from a parallel V4/
+legacy acceptance matrix and uploads distinct evidence for each suite. The frontend uses
+React Query's update timestamp instead of creating an impure wall-clock value in query
+data, closing the current React lint failure without changing financial snapshots.
+
+Executed local evidence for this iteration:
+
+- `npm test`: **162 passed**; the optional Robinhood RPC-fork test remained skipped.
+- `npm run typecheck`, frontend lint and `npm run build`: passed. ABI regeneration left
+  tracked generated files unchanged. Root and frontend audits reported zero advisories.
+- `npm run test:acceptance:v4`: passed protocol/SDK, browser transactions, full V4 seed
+  and seed verification after installing the pinned Playwright Chromium revision locally.
+- `npm run test:acceptance`: passed the retained V1–V3 protocol, SDK and browser flows.
+
+The first V4 acceptance attempt stopped only because the pinned Chromium executable was
+not installed; it sent no public transactions. The rerun passed after installing that
+revision in the local Playwright cache. GitHub CI execution, branch publication, the
+squashed `main` commit and the release tag remain separate steps after this source commit.
+
 ## V4 product-thesis roadmap (2026-09-20)
 
 The human coordinator selected Stock Token holders seeking downside protection or

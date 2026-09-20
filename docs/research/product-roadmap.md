@@ -46,40 +46,31 @@ liquidity by itself.
 - Token restrictions, freezes, upgrades, or non-exact transfers can prevent an
   otherwise valid lifecycle.
 
-## Current phase — product thesis
+## Release roadmap
 
-This phase is complete when the team can state consistently:
+The immediate objective is to turn the working V4 implementation into a reproducible
+release candidate, then publish each layer in a controlled order.
 
-1. The initial user and the job Archer improves.
-2. Why collateral, matching, and delivery benefit from onchain enforcement.
-3. How Archer differs from a broker option, covered-call vault, and structured product.
-4. Which tradeoffs are intentional in the PoC.
-5. Which observations would support, change, or reject the thesis.
-
-The next validation should test these hypotheses:
-
-- Stock Token holders recognize downside protection or covered-call income as a
-  relevant task, rather than a feature looking for a user.
-- They understand premium, strike, collateral, expiration, manual exercise, and
-  physical delivery without relying on traditional brokerage assumptions.
-- At least one plausible writer type accepts full collateral in exchange for the
-  premium and transparent terms.
-- The onchain guarantees matter enough to justify wallet, gas, and deadline friction.
-
-Reject or narrow the thesis if target users prefer spot exit, existing broker options,
-or managed vaults and cannot identify a meaningful benefit from self-custodied physical
-delivery. Do not interpret seeded orders, local transactions, or interviews as adoption.
-
-## Later phases
-
-| Phase | Outcome | Entry condition |
+| Phase | Outcome | Exit gate |
 | --- | --- | --- |
-| Human validation | Interviews and unassisted walkthroughs test the four hypotheses above | Product thesis is stable |
-| Technical and demo hardening | V4 review, repository quality gates, and a clear local demonstration | Validation identifies a workflow worth preserving |
-| Public testnet and submission | Verifiable deployment, matching frontend, and accurate submission materials | Local product and technical gates pass |
+| V4 release candidate | Canonical source, generated artifacts, tests, builds and browser acceptance agree on V4 | Private CI is green on `v0.1.0-rc.1` |
+| Repository publication | Reviewable public source with intentional history, license, release notes and no exposed secrets | Anonymous clone and documented checks succeed |
+| Robinhood testnet deployment | Verified V4 contracts, public receipts and a small reproducible market | Two-wallet lifecycle and balance reconciliation pass |
+| Frontend publication | Public UI reads the verified manifest and safely handles unavailable transactions | Anonymous browser and real-wallet smoke tests pass |
+| Hackathon submission | Concise pitch, demo video, explorer links, repository and limitations tell one consistent story | Every submitted link works without private access |
 
-These phases are intentionally sequential. Work planned for a later phase should not
-be pulled into the current iteration without a new human product decision.
+Phases are sequential. A public website is not published against an unverified manifest,
+and submission materials do not claim evidence from a later phase.
+
+### Branches and releases
+
+- Stabilize V4 on `release/hackathon-v4` while the repository remains private.
+- Squash the approved candidate into `main` so the public default branch starts from one
+  reviewable V4 release commit after the repository's initial commit.
+- Tag the private baseline as `v0.1.0-rc.1`; use `v0.1.0` only after the public testnet
+  deployment and matching frontend have passed acceptance.
+- Keep feature branches out of the public release surface unless they contain evidence
+  that is intentionally preserved.
 
 ## Product boundary
 
