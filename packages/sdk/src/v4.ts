@@ -1,4 +1,4 @@
-import { encodeFunctionData, parseAbiItem, type Address, type PublicClient, type Hash } from 'viem';
+import { encodeAbiParameters, encodeFunctionData, keccak256, parseAbiItem, zeroAddress, type Address, type PublicClient, type Hash } from 'viem';
 import { optionMarketV4Abi, optionV4Abi } from './abis.js';
 import { prepare, ProtocolError, type MarketConfig, type MarketSnapshot, type Option, type BuyRequest } from './index.js';
 export type OrderV4 = {
@@ -23,6 +23,18 @@ export type LevelV4 = {
     price: number;
     count: bigint;
     firstOrder: bigint;
+};
+export type QuoteV4 = LevelV4 & {
+    owner: Address;
+    writer: Address;
+    option: Address;
+    resale: boolean;
+};
+export type BookRowV4 = {
+    key: Hash;
+    terms: { kind: number; strike: number; expiry: bigint };
+    bid: QuoteV4;
+    ask: QuoteV4;
 };
 export const v4Tick = (decimals: number) => {
     if (!Number.isInteger(decimals) || decimals < 2 || decimals > 18)
@@ -51,6 +63,19 @@ export async function getSeriesV4(c: PublicClient, m: MarketConfig, offset = 0n,
 export async function getDepthV4(c: PublicClient, m: MarketConfig, key: Hash, buy: boolean, afterPrice = 0, blockNumber?: bigint): Promise<readonly LevelV4[]> {
     return c.readContract({ address: m.factory, abi: optionMarketV4Abi, functionName: 'getDepth', args: [key, buy, afterPrice, 64], blockNumber });
 }
+export async function getDepthPageV4(c: PublicClient, m: MarketConfig, key: Hash, buy: boolean, afterPrice = 0, blockNumber?: bigint): Promise<readonly QuoteV4[]> {
+    requireV4(m);
+    return c.readContract({ address: m.factory, abi: optionMarketV4Abi, functionName: 'getDepthPage', args: [key, buy, afterPrice, 32], blockNumber });
+}
+export async function getBookV4(c: PublicClient, m: MarketConfig, blockNumber?: bigint): Promise<BookRowV4[]> {
+    requireV4(m);
+    const result: BookRowV4[] = [];
+    for (let offset = 0n;; offset += 32n) {
+        const page = await c.readContract({ address: m.factory, abi: optionMarketV4Abi, functionName: 'getBookPage', args: [offset, 32], blockNumber });
+        result.push(...page);
+        if (page.length < 32) return result;
+    }
+}
 export async function getOptionV4(c: PublicClient, m: MarketConfig, address: Address, blockNumber?: bigint): Promise<Option> {
     if (!await c.readContract({ address: m.factory, abi: optionMarketV4Abi, functionName: 'registeredOption', args: [address], blockNumber }))
         throw new ProtocolError('UNAVAILABLE', 'This option is not registered in the market.', 'Select a registered option.');
@@ -59,92 +84,98 @@ export async function getOptionV4(c: PublicClient, m: MarketConfig, address: Add
     const orderId = await c.readContract({ address: m.factory, abi: optionMarketV4Abi, functionName: 'optionOrder', args: [address], blockNumber });
     return { address, ...Object.fromEntries(names.map((n, i) => [n, values[i]])), orderId } as Option;
 }
-// Reads only active book depth and the connected user's own history, in bounded pages.
+const syntheticQuotes = (m: MarketConfig, series: SeriesV4, quotes: readonly QuoteV4[], buy: boolean) => {
+    const tick = v4Tick(m.quote.decimals);
+    const underlyingAmount = 10n ** BigInt(m.underlying.decimals);
+    return quotes.filter(q => q.firstOrder !== 0n).map(q => buy ? ({
+        id: q.firstOrder, bookSize: q.count, seriesKey: series.key, buyer: q.owner, optionType: series.kind,
+        underlyingAmount, strikeTotal: BigInt(series.strike) * tick, premium: BigInt(q.price) * tick,
+        expiry: series.expiry, acceptUntil: series.expiry, state: 0, option: q.option,
+    } satisfies BuyRequest) : ({
+        orderId: q.firstOrder, bookSize: q.count, seriesKey: series.key, address: q.option,
+        writer: q.writer, buyer: q.resale ? q.owner : zeroAddress,
+        underlyingAmount, strikeTotal: BigInt(series.strike) * tick, premium: BigInt(q.price) * tick,
+        expiry: series.expiry, optionType: series.kind, state: q.resale ? 1 : 0,
+        resalePrice: q.resale ? BigInt(q.price) * tick : 0n, listingNonce: 0n,
+    } satisfies Option));
+};
+
+// The trade screen reads only aggregate onchain quotes, never option registries or logs.
 export async function getSnapshotV4(c: PublicClient, m: MarketConfig, block: {
     number: bigint;
     hash: Hash;
     timestamp: bigint;
-}, account?: Address): Promise<MarketSnapshot> {
-    const series: SeriesV4[] = [], orderMap = new Map<bigint, OrderV4>();
-    for (let offset = 0n;; offset += 64n) {
-        const page = await getSeriesV4(c, m, offset, block.number);
-        series.push(...page);
-        if (page.length < 64)
-            break;
+}): Promise<MarketSnapshot> {
+    const rows = await getBookV4(c, m, block.number);
+    const positions: Option[] = [], requests: BuyRequest[] = [];
+    for (const row of rows) {
+        const s: SeriesV4 = { key: row.key, ...row.terms };
+        requests.push(...syntheticQuotes(m, s, [row.bid], true) as BuyRequest[]);
+        positions.push(...syntheticQuotes(m, s, [row.ask], false) as Option[]);
     }
-    const readOrders = async (ids: readonly bigint[]) => {
-        for (let i = 0; i < ids.length; i += 8)
-            await Promise.all(ids.slice(i, i + 8).map(async (id) => { if (!orderMap.has(id))
-                orderMap.set(id, await getOrderV4(c, m, id, block.number)); }));
+    return { market: m, ...block, blockNumber: block.number, blockHash: block.hash, positions, requests, total: BigInt(rows.length) };
+}
+
+export async function getBookDepthV4(c: PublicClient, m: MarketConfig, terms: { optionType: 0 | 1; strikeTotal: bigint; expiry: bigint }, blockNumber?: bigint) {
+    const snapshotBlock = blockNumber ?? (await c.getBlock({ blockTag: 'latest' })).number;
+    if (snapshotBlock === null) throw new Error('A mined block is required.');
+    const strike = priceTicks(terms.strikeTotal, m.quote.decimals);
+    const key = keccak256(encodeAbiParameters([{ type: 'uint8' }, { type: 'uint32' }, { type: 'uint64' }], [terms.optionType, strike, terms.expiry]));
+    const series: SeriesV4 = { key, kind: terms.optionType, strike, expiry: terms.expiry };
+    const read = async (buy: boolean) => {
+        const quotes: QuoteV4[] = [];
+        let afterPrice = 0;
+        for (;;) {
+            const page = await getDepthPageV4(c, m, key, buy, afterPrice, snapshotBlock);
+            quotes.push(...page);
+            if (page.length < 32) return quotes;
+            afterPrice = page[page.length - 1].price;
+        }
     };
-    for (const s of series.filter(s => s.expiry > block.timestamp))
-        for (const buy of [true, false]) {
-            let afterPrice = 0;
-            for (;;) {
-                const depth = await getDepthV4(c, m, s.key, buy, afterPrice, block.number);
-                for (const level of depth) {
-                    let after = 0n;
-                    for (;;) {
-                        const ids = await c.readContract({ address: m.factory, abi: optionMarketV4Abi, functionName: 'getLevelOrders', args: [s.key, buy, level.price, after, 64], blockNumber: block.number });
-                        await readOrders(ids);
-                        if (ids.length < 64)
-                            break;
-                        after = ids[ids.length - 1];
-                    }
-                }
-                if (depth.length < 64)
-                    break;
-                afterPrice = depth[depth.length - 1].price;
-            }
-        }
+    const [bids, asks] = await Promise.all([read(true), read(false)]);
+    return { positions: syntheticQuotes(m, series, asks, false) as Option[], requests: syntheticQuotes(m, series, bids, true) as BuyRequest[] };
+}
+
+export async function getPortfolioSnapshotV4(c: PublicClient, m: MarketConfig, account: Address, block: { number: bigint; hash: Hash; timestamp: bigint }): Promise<MarketSnapshot> {
+    const orderMap = new Map<bigint, OrderV4>();
+    for (let offset = 0n;; offset += 64n) {
+        const ids = await c.readContract({ address: m.factory, abi: optionMarketV4Abi, functionName: 'getUserOrders', args: [account, offset, 64], blockNumber: block.number });
+        for (let i = 0; i < ids.length; i += 8) await Promise.all(ids.slice(i, i + 8).map(async id => orderMap.set(id, await getOrderV4(c, m, id, block.number))));
+        if (ids.length < 64) break;
+    }
     const addresses = new Set<Address>();
-    if (account)
-        for (let offset = 0n;; offset += 64n) {
-            const ids = await c.readContract({ address: m.factory, abi: optionMarketV4Abi, functionName: 'getUserOrders', args: [account, offset, 64], blockNumber: block.number });
-            await readOrders(ids);
-            if (ids.length < 64)
-                break;
-        }
-    if (account)
-        for (let offset = 0n;; offset += 64n) {
-            const page = await c.readContract({ address: m.factory, abi: optionMarketV4Abi, functionName: 'getUserOptions', args: [account, offset, 64], blockNumber: block.number });
-            page.forEach(a => addresses.add(a));
-            if (page.length < 64)
-                break;
-        }
-    for (const o of orderMap.values())
-        if (!o.buy && o.state === 1)
-            addresses.add(o.option);
-    const positions: Option[] = [];
-    const list = [...addresses];
-    for (let i = 0; i < list.length; i += 8)
-        positions.push(...await Promise.all(list.slice(i, i + 8).map(a => getOptionV4(c, m, a, block.number))));
-    // Trade provenance is read only for relevant option addresses, never used for matching.
+    for (let offset = 0n;; offset += 64n) {
+        const page = await c.readContract({ address: m.factory, abi: optionMarketV4Abi, functionName: 'getUserOptions', args: [account, offset, 64], blockNumber: block.number });
+        page.forEach(address => addresses.add(address));
+        if (page.length < 64) break;
+    }
+    const positions: Option[] = [], list = [...addresses];
+    for (let i = 0; i < list.length; i += 8) positions.push(...await Promise.all(list.slice(i, i + 8).map(address => getOptionV4(c, m, address, block.number))));
     for (let i = 0; i < list.length; i += 64) {
         const logs = await c.getLogs({ address: list.slice(i, i + 64), events: [parseAbiItem('event Bought(address indexed buyer, uint256 premium)'), parseAbiItem('event Resold(address indexed seller, address indexed buyer, uint256 price, uint256 nonce)')], fromBlock: m.deploymentBlock, toBlock: block.number, strict: true });
         for (const log of logs) {
-            const p = positions.find(p => p.address.toLowerCase() === log.address.toLowerCase())!;
+            const p = positions.find(position => position.address.toLowerCase() === log.address.toLowerCase())!;
             (p.trades ??= []).push({ seller: log.eventName === 'Bought' ? p.writer : log.args.seller, buyer: log.args.buyer, price: log.eventName === 'Bought' ? log.args.premium : log.args.price, blockNumber: log.blockNumber, transactionHash: log.transactionHash });
         }
     }
+    const series = new Map<Hash, SeriesV4>();
+    for (const key of new Set([...orderMap.values()].map(order => order.series))) {
+        const [kind, strike, expiry] = await c.readContract({ address: m.factory, abi: optionMarketV4Abi, functionName: 'series', args: [key], blockNumber: block.number });
+        series.set(key, { key, kind, strike, expiry });
+    }
     const paid = new Map<bigint, number>();
-    const executed = [...orderMap.values()].filter(o => o.buy && o.state === 2).map(o => o.id);
-    const executionEvent = parseAbiItem('event OrderExecuted(uint64 indexed incoming, uint64 indexed resting, address indexed option, address buyer, address seller, uint32 price)');
-    for (let i = 0; i < executed.length; i += 64)
-        for (const args of [{ incoming: executed.slice(i, i + 64) }, { resting: executed.slice(i, i + 64) }]) {
-            const logs = await c.getLogs({ address: m.factory, event: executionEvent, args, fromBlock: m.deploymentBlock, toBlock: block.number, strict: true });
-            for (const log of logs) {
-                paid.set(log.args.incoming, log.args.price);
-                paid.set(log.args.resting, log.args.price);
-            }
-        }
+    const executed = [...orderMap.values()].filter(order => order.buy && order.state === 2).map(order => order.id);
+    const event = parseAbiItem('event OrderExecuted(uint64 indexed incoming, uint64 indexed resting, address indexed option, address buyer, address seller, uint32 price)');
+    for (let i = 0; i < executed.length; i += 64) for (const args of [{ incoming: executed.slice(i, i + 64) }, { resting: executed.slice(i, i + 64) }]) {
+        const logs = await c.getLogs({ address: m.factory, event, args, fromBlock: m.deploymentBlock, toBlock: block.number, strict: true });
+        for (const log of logs) { paid.set(log.args.incoming, log.args.price); paid.set(log.args.resting, log.args.price); }
+    }
     if (executed.some(id => !paid.has(id))) throw new Error('Execution history is incomplete for this market snapshot.');
     const tick = v4Tick(m.quote.decimals), requests: BuyRequest[] = [];
-    for (const o of orderMap.values())
-        if (o.buy) {
-            const s = series.find(s => s.key === o.series)!;
-            requests.push({ id: o.id, buyer: o.owner, optionType: s.kind, underlyingAmount: 10n ** BigInt(m.underlying.decimals), strikeTotal: BigInt(s.strike) * tick, premium: BigInt(paid.get(o.id) ?? o.price) * tick, expiry: s.expiry, acceptUntil: s.expiry, state: o.state === 1 ? 0 : o.state === 2 ? 1 : 2, option: o.option });
-        }
+    for (const order of orderMap.values()) if (order.buy) {
+        const s = series.get(order.series)!;
+        requests.push({ id: order.id, buyer: order.owner, optionType: s.kind, underlyingAmount: 10n ** BigInt(m.underlying.decimals), strikeTotal: BigInt(s.strike) * tick, premium: BigInt(paid.get(order.id) ?? order.price) * tick, expiry: s.expiry, acceptUntil: s.expiry, state: order.state === 1 ? 0 : order.state === 2 ? 1 : 2, option: order.option });
+    }
     return { market: m, ...block, blockNumber: block.number, blockHash: block.hash, positions, requests, orders: [...orderMap.values()], total: await c.readContract({ address: m.factory, abi: optionMarketV4Abi, functionName: 'optionCount', blockNumber: block.number }) };
 }
 export async function prepareOrderV4(c: PublicClient, m: MarketConfig, account: Address, terms: {

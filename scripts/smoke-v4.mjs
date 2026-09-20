@@ -54,7 +54,8 @@ const order = (actor, buy, premium, optionType = 0) => prepareOrderV4(c, m, acto
 for (const price of [10n, 9n, 9n])
     await execute(await order(a[0], false, price * 1000000n));
 let snapshot = (await getMarkets(c, [m], a[1]))[0];
-assert.equal(snapshot.positions.length, 3);
+assert.equal(snapshot.positions.length, 1);
+assert.equal(snapshot.positions[0].bookSize, 2n);
 assert(snapshot.positions.every(p => p.underlyingAmount === 10n ** 18n));
 let buyerBefore = await balance(m.quote, a[1]);
 let logs = await execute(await order(a[1], true, 11000000n));
@@ -64,7 +65,7 @@ assert.equal(fill.price, 900);
 assert.equal(buyerBefore - await balance(m.quote, a[1]), 9000000n);
 assert.equal((await getOrderV4(c, m, 3n)).state, 1);
 const owned = fill.option;
-assert.equal((await getMarkets(c, [m], a[1]))[0].requests.find(r => r.id === 4n).premium, 9000000n);
+assert.equal((await getPortfolio(c, [m], a[1])).requests.find(r => r.id === 4n).premium, 9000000n);
 // Resale competes in the same ask book and preserves writer/collateral.
 await execute(await prepareResaleV4(c, m, a[1], owned, 8000000n));
 logs = await execute(await order(a[2], true, 10000000n));

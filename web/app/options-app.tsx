@@ -41,7 +41,6 @@ import {
 import {
   erc20Abi,
   faucetAbi,
-  optionFactoryAbi,
 } from "../lib/generated/abis";
 import {
   actions,
@@ -53,7 +52,7 @@ import {
   units,
   type Position,
 } from "../lib/options";
-import { optionMarketV4Abi, getMarkets, getPortfolio, decodeProtocolError, prepareBuy, prepareExercise, prepareCancel, prepareReclaim, prepareBuyResale, prepareListResale, prepareCancelResale, simulatePrepared, ProtocolError, type PreparedOperation } from "@stock-options-lab/sdk";
+import { optionMarketV4Abi, getMarkets, getPortfolio, getBookDepthV4, validateMarket, decodeProtocolError, prepareBuy, prepareExercise, prepareCancel, prepareReclaim, prepareBuyResale, prepareListResale, prepareCancelResale, simulatePrepared, ProtocolError, type Portfolio, type PreparedOperation } from "@stock-options-lab/sdk";
 import { readTransactions, writeTransactions, type TransactionRecord } from "../lib/transactions";
 import { utcDeadline } from "../lib/expirations";
 
@@ -148,47 +147,10 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
   const health = useQuery({
     queryKey: ["deployment-health", chain.id, net.factory],
     enabled: ready,
-    refetchInterval: 30_000,
+    staleTime: Infinity,
     retry: 1,
     queryFn: async () => {
-      const [rpcChain, code, underlying, quote, stockDecimals, quoteDecimals] =
-        await Promise.all([
-          client.getChainId(),
-          client.getCode({ address: net.factory! }),
-          client.readContract({
-            address: net.factory!,
-            abi: optionFactoryAbi,
-            functionName: "underlying",
-          }),
-          client.readContract({
-            address: net.factory!,
-            abi: optionFactoryAbi,
-            functionName: "quote",
-          }),
-          client.readContract({
-            address: net.underlying.address!,
-            abi: erc20Abi,
-            functionName: "decimals",
-          }),
-          client.readContract({
-            address: net.quote.address!,
-            abi: erc20Abi,
-            functionName: "decimals",
-          }),
-        ]);
-      if (
-        rpcChain !== chain.id ||
-        !code ||
-        code === "0x" ||
-        underlying.toLowerCase() !== net.underlying.address!.toLowerCase() ||
-        quote.toLowerCase() !== net.quote.address!.toLowerCase() ||
-        stockDecimals !== net.underlying.decimals ||
-        quoteDecimals !== net.quote.decimals
-      ) {
-        throw new Error(
-          "The deployment does not match this network configuration.",
-        );
-      }
+      await validateMarket(client, activeMarket!);
       return true;
     },
   });
@@ -230,42 +192,53 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
     });
     return () => cancelAnimationFrame(timer);
   }, [tab]);
-  useEffect(() => {
-    if (!net.factory) return;
-    return client.watchContractEvent({
-      address: net.factory,
-      abi: optionFactoryAbi,
-      eventName: "OptionCreated",
-      pollingInterval: 12_000,
-      onLogs: () => {
-        void cache.invalidateQueries({ queryKey: ["market"] });
-      },
-      onError: () => {
-        /* Periodic registry reads remain available when filters are unsupported. */
-      },
-    });
-  }, [cache, net.factory]);
-
+  const tradeVisible = tab === "market" || tab === "create" || tab === "requests";
   const market = useQuery({
-    queryKey: ["market", chain.id, address],
-    enabled: ready && health.isSuccess,
+    queryKey: ["market", chain.id, marketId],
+    enabled: ready && health.isSuccess && tradeVisible,
     refetchInterval: 20_000,
     retry: 1,
     queryFn: async () => {
-      const snapshots = await getMarkets(client, configuredMarkets, address);
-      const selected = snapshots.find(snapshot => snapshot.market.id === marketId) ?? snapshots[0];
-      const portfolio = address ? await getPortfolio(client, configuredMarkets, address, snapshots) : undefined;
-      return { ...selected, snapshots, portfolio, loadedAt: Date.now() };
+      const selected = (await getMarkets(client, [activeMarket!]))[0];
+      return { ...selected, loadedAt: Date.now() };
     },
   });
-  const portfolio = market.data?.portfolio;
+  const portfolioQuery = useQuery({
+    queryKey: ["portfolio", chain.id, address],
+    enabled: ready && health.isSuccess && tab === "mine" && !!address,
+    refetchInterval: 20_000,
+    retry: 1,
+    queryFn: () => getPortfolio(client, configuredMarkets, address!),
+  });
+  const tradeBalances = useQuery({
+    queryKey: ["trade-balances", chain.id, marketId, address, String(market.data?.blockNumber ?? "")],
+    enabled: ready && health.isSuccess && tradeVisible && !!address && !!market.data,
+    retry: 1,
+    queryFn: async () => {
+      const blockNumber = market.data!.blockNumber;
+      const [underlying, quote, gas] = await Promise.all([
+        client.readContract({ address: net.underlying.address!, abi: erc20Abi, functionName: "balanceOf", args: [address!], blockNumber }),
+        client.readContract({ address: net.quote.address!, abi: erc20Abi, functionName: "balanceOf", args: [address!], blockNumber }),
+        client.getBalance({ address: address!, blockNumber }),
+      ]);
+      return { underlying, quote, gas, blockNumber };
+    },
+  });
+  const portfolio = portfolioQuery.data;
+  const emptyBalance = (token: Token, available: bigint) => ({ token: { ...token, address: token.address! }, available, requestPremium: 0n, refundablePremium: 0n, openCollateral: 0n, activeCollateral: 0n, reclaimable: 0n, totalTracked: available });
+  const ticketPortfolio: Portfolio | undefined = portfolio ?? (tradeBalances.data && market.data ? {
+    complete: true, blockNumber: tradeBalances.data.blockNumber, timestamp: market.data.timestamp, gas: tradeBalances.data.gas,
+    tokens: [emptyBalance(net.underlying, tradeBalances.data.underlying), emptyBalance(net.quote, tradeBalances.data.quote)], positions: [], requests: [],
+  } : undefined);
   const rowFor = (token: Token) => portfolio?.tokens.find(row => row.token.address.toLowerCase() === token.address?.toLowerCase());
-  const balances = { data: portfolio ? { underlying: rowFor(net.underlying)?.available ?? 0n, quote: rowFor(net.quote)?.available ?? 0n, gas: portfolio.gas } : undefined, isError: market.isError };
-  const now = market.data
-    ? market.data.timestamp +
-      BigInt(Math.max(0, Math.floor((clock - market.data.loadedAt) / 1000)))
+  const balances = { data: portfolio ? { underlying: rowFor(net.underlying)?.available ?? 0n, quote: rowFor(net.quote)?.available ?? 0n, gas: portfolio.gas } : tradeBalances.data, isError: portfolioQuery.isError || tradeBalances.isError };
+  const snapshotTimestamp = market.data?.timestamp ?? portfolio?.timestamp;
+  const snapshotLoadedAt = market.data?.loadedAt ?? portfolioQuery.dataUpdatedAt;
+  const now = snapshotTimestamp
+    ? snapshotTimestamp +
+      BigInt(Math.max(0, Math.floor((clock - snapshotLoadedAt) / 1000)))
     : BigInt(Math.floor(clock / 1000));
-  const positions = market.data?.snapshots.find(snapshot => snapshot.market.id === marketId)?.positions ?? [];
+  const positions = market.data?.positions ?? [];
   const detail =
     selected && isAddress(selected)
       ? (tab === "mine" ? portfolio?.positions ?? [] : positions).find(
@@ -588,7 +561,7 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
       </div>
     </TradeTicket>
   );
-  const requestRows = market.data?.snapshots.find(s => s.market.id === marketId)?.requests ?? [];
+  const requestRows = market.data?.requests ?? [];
   const selectedRequest = requestRows.find(r => r.id === selectedBid);
   const buyingAsk = tab === "market" && detail && isListed(detail, now) && optionSeller(detail).toLowerCase() !== address?.toLowerCase();
   const showOrder = !!resaleSelection || tab === "create" || (tab === "requests" && (!selectedRequest || selectedRequest.buyer.toLowerCase() !== address?.toLowerCase())) || !!buyingAsk;
@@ -596,7 +569,7 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
     seed={{ ...orderSeed, side: buyingAsk || tab === "requests" && !selectedRequest ? "buy" : "sell" }}
     resale={resaleSelection}
     quote={buyingAsk && detail ? { ask: detail } : selectedRequest ? { bid: selectedRequest } : undefined}
-    positions={positions} requests={requestRows} account={address} walletChainId={chainId} now={now} portfolio={portfolio}
+    positions={positions} requests={requestRows} account={address} walletChainId={chainId} now={now} portfolio={ticketPortfolio}
     canAct={canAct} busy={busy || pending.length > 0} unavailable={health.isError || market.isError} notification={notification}
     onClose={() => navigate("market")} onConnect={walletConnect} onRefresh={() => { void health.refetch(); void market.refetch(); }}
     onDone={() => { navigate("mine"); setPortfolioScope("current"); }}
@@ -622,21 +595,22 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
       <div className={tab === "market" || tab === "create" || tab === "requests" ? "workspace-layout" : "workspace-single"}>
       {(tab === "market" || tab === "create" || tab === "requests") && <MarketList markets={tradeMarkets} selected={marketId} disabled={busy || pending.length > 0} onSelect={id => openDetail(null, id)} />}
       <section className="market" id="market">
-        {(tab === "market" || tab === "create" || tab === "requests") && <OptionsChain version={net.version} key={marketId} account={address} positions={positions} requests={market.data?.snapshots.find(s => s.market.id === marketId)?.requests ?? []} now={now} selected={detail} symbol={net.underlying.symbol} quoteSymbol={net.quote.symbol} underlyingDecimals={net.underlying.decimals} quoteDecimals={net.quote.decimals}
+        {(tab === "market" || tab === "create" || tab === "requests") && <OptionsChain version={net.version} key={marketId} account={address} positions={positions} requests={requestRows} now={now} selected={detail} symbol={net.underlying.symbol} quoteSymbol={net.quote.symbol} underlyingDecimals={net.underlying.decimals} quoteDecimals={net.quote.decimals}
           loading={ready && (market.isFetching || health.isPending)} unavailable={!ready || health.isError || market.isError} configured={ready} disabled={busy || pending.length > 0}
           onSelect={option => { if (tab !== "market") navigate("market"); openDetail(option); }} onBid={id => { navigate("requests"); setSelectedBid(id); }}
+          onDepth={(kind, strikeTotal, expiry) => getBookDepthV4(client, activeMarket!, { optionType: kind, strikeTotal, expiry }, market.data?.blockNumber)}
           onRefresh={() => { void health.refetch(); void market.refetch(); }} onContext={rememberSeries} onCreate={(side, context) => { if (context) setOrderSeed({ side, ...context }); navigate(side === "buy" ? "requests" : "create"); }} />}
         {tab === "docs" ? <Docs onBack={closeDocs} />
-        : tab === "requests" && !showOrder ? <BuyRequests key={`${marketId}:${bidTicket.revision}`} selectedId={selectedBid} onClose={() => navigate("market")} notification={notification} net={net} account={address} now={now} requests={market.data?.snapshots.find(s => s.market.id === marketId)?.requests ?? []} canAct={canAct} busy={busy || pending.length > 0} unavailable={health.isError || market.isError} onRefresh={() => { void health.refetch(); void market.refetch(); }} onOption={option => { navigate("market"); openDetail(option); }} onRun={async (prepare, success) => { setNoticeScope("global"); return run(async () => executePrepared(await prepare()), success); }} />
+        : tab === "requests" && !showOrder ? <BuyRequests key={`${marketId}:${bidTicket.revision}`} selectedId={selectedBid} onClose={() => navigate("market")} notification={notification} net={net} account={address} now={now} requests={requestRows} canAct={canAct} busy={busy || pending.length > 0} unavailable={health.isError || market.isError} onRefresh={() => { void health.refetch(); void market.refetch(); }} onOption={option => { navigate("market"); openDetail(option); }} onRun={async (prepare, success) => { setNoticeScope("global"); return run(async () => executePrepared(await prepare()), success); }} />
         : tab === "activity" ? <ActivityTable transactions={transactions.filter(t => t.chainId === chain.id && t.account.toLowerCase() === address?.toLowerCase())} explorer={explorer} />
         : tab === "mine" ? <>
-          <BalanceTables markets={marketRecords} portfolio={portfolio} stale={health.isError || market.isError} />
+          <BalanceTables markets={marketRecords} portfolio={portfolio} stale={health.isError || portfolioQuery.isError} />
           {!!portfolio?.requests.length && <section className="request-portfolio"><h2>Your bids</h2><p>Reserved premiums for your buy orders.</p>{portfolio.requests.map(r => <div className="request-portfolio-row" data-request={String(r.id)} key={`${r.marketId}:${r.id}`}><span>{r.marketId} · {r.optionType === 0 ? "Call" : "Put"} order #{String(r.id)} · {r.state === 1 ? (marketRecords.find(m => m.marketId === r.marketId)?.version === 4 ? "Executed" : "Accepted") : r.state === 2 ? "Canceled" : r.acceptUntil <= now ? "Recover premium" : marketRecords.find(m => m.marketId === r.marketId)?.version === 4 ? "Open" : "Awaiting writer"}</span><button className="button" disabled={busy || pending.length > 0} onClick={() => { openDetail(null, r.marketId); navigate("requests"); setSelectedBid(r.id); }}>Manage bid</button></div>)}</section>}
-          <div className="position-toolbar"><h2>Positions &amp; orders</h2><div className="filters"><label>Status<select aria-label="Position status" disabled={busy || pending.length > 0} value={portfolioScope} onChange={event => { openDetail(null); setPortfolioScope(event.target.value as typeof portfolioScope); }}><option value="current">Open positions &amp; orders</option><option value="history">Closed &amp; resold options</option></select></label><label>Type<select aria-label="Position type" disabled={busy || pending.length > 0} value={filter} onChange={event => { openDetail(null); setFilter(event.target.value as typeof filter); }}><option value="all">Calls &amp; puts</option><option value="call">Calls</option><option value="put">Puts</option></select></label><button className="icon-button" aria-label="Refresh portfolio" disabled={!ready || market.isFetching} onClick={() => { void health.refetch(); void market.refetch(); }}>↻</button></div></div>
+          <div className="position-toolbar"><h2>Positions &amp; orders</h2><div className="filters"><label>Status<select aria-label="Position status" disabled={busy || pending.length > 0} value={portfolioScope} onChange={event => { openDetail(null); setPortfolioScope(event.target.value as typeof portfolioScope); }}><option value="current">Open positions &amp; orders</option><option value="history">Closed &amp; resold options</option></select></label><label>Type<select aria-label="Position type" disabled={busy || pending.length > 0} value={filter} onChange={event => { openDetail(null); setFilter(event.target.value as typeof filter); }}><option value="all">Calls &amp; puts</option><option value="call">Calls</option><option value="put">Puts</option></select></label><button className="icon-button" aria-label="Refresh portfolio" disabled={!ready || portfolioQuery.isFetching} onClick={() => { void health.refetch(); void portfolioQuery.refetch(); }}>↻</button></div></div>
           {!address ? <div className="empty"><h3>Connect to see your options and collateral.</h3><p>Your positions across configured markets appear here.</p><button className="button dark" onClick={walletConnect}>Connect wallet</button></div>
           : !ready ? <div className="empty"><h3>Trading is not available on this network yet</h3><p>No contracts are configured. Positions will appear after a valid deployment is available.</p></div>
-          : health.isError || market.isError ? <div className="empty" role="alert"><h3>Could not refresh your portfolio</h3><p>Balances and positions may be outdated. Reconnect before trading.</p><button className="button" onClick={() => { void health.refetch(); void market.refetch(); }}>Retry connection</button></div>
-          : market.isPending ? <div className="empty" role="status">Loading positions…</div>
+          : health.isError || portfolioQuery.isError ? <div className="empty" role="alert"><h3>Could not refresh your portfolio</h3><p>Balances and positions may be outdated. Reconnect before trading.</p><button className="button" onClick={() => { void health.refetch(); void portfolioQuery.refetch(); }}>Retry connection</button></div>
+          : portfolioQuery.isPending ? <div className="empty" role="status">Loading positions…</div>
           : visible.length ? <PortfolioTable positions={visible} markets={marketRecords} marketId={marketId} account={address} now={now} displayAmount={displayAmount} onSelect={openDetail} selected={selected} detail={detailPanel} disabled={busy || pending.length > 0} />
           : <div className="empty"><h3>{portfolioScope === "history" ? "No closed positions yet." : "No open positions or orders."}</h3><p>Buy or sell from the option chain, or post your own price.</p><button className="button" onClick={() => navigate("market")}>Open option chain</button></div>}
           <details className="history-source"><summary>Source: onchain option contracts.</summary><p>Positions are reconstructed for your wallet across all configured markets, including activity from other devices. Closed options are exercised, canceled or reclaimed contracts; expired collateral remains open until reclaimed. This is not transaction-by-transaction history.</p></details>

@@ -74,16 +74,22 @@ contract MarketV4InvariantTest is StdInvariant, Test {
             totalStock+=s;totalUSD+=q;
         }
         assertEq(totalStock,30e18);assertEq(totalUSD,30_000e6);
+        uint256 expectedActive;
         for(uint8 kind;kind<2;kind++) {
-            bytes32 key=market.seriesKey(kind,1000,handler.expiry());uint64 bid;uint64 ask;
+            bytes32 key=market.seriesKey(kind,1000,handler.expiry());uint64 bid;uint64 ask;bool hasOpen;
             for(uint64 id=1;id<=market.orderCount();id++) {
                 Market.Order memory o=market.getOrder(id);
-                if(o.series!=key||o.state!=Market.OrderState.Open||block.timestamp>=handler.expiry()) continue;
+                if(o.series!=key||o.state!=Market.OrderState.Open) continue;
+                hasOpen=true;
+                if(block.timestamp>=handler.expiry()) continue;
                 if(o.buy) {if(bid==0||o.price>market.getOrder(bid).price) bid=id;}
                 else if(ask==0||o.price<market.getOrder(ask).price) ask=id;
             }
+            if(hasOpen) expectedActive++;
             assertEq(market.bestOrder(key,true),bid);assertEq(market.bestOrder(key,false),ask);
             if(bid!=0&&ask!=0) assertLt(market.getOrder(bid).price,market.getOrder(ask).price);
         }
+        assertEq(market.activeSeriesCount(),expectedActive);
+        assertEq(market.getBookPage(0,32).length,expectedActive);
     }
 }

@@ -163,6 +163,67 @@ contract MarketV4Test is Test {
         conserve();
     }
 
+    function testActiveBookPageAndDepthStayAggregated() public {
+        assertEq(market.activeSeriesCount(), 0);
+        uint64 expensive = place(alice, false, 1100, 0);
+        uint64 first = place(alice, false, 1000, 0);
+        place(carol, false, 1000, 0);
+        uint64 bid = place(bob, true, 900, 1);
+
+        assertEq(market.activeSeriesCount(), 2);
+        Market.BookRow[] memory rows = market.getBookPage(0, 32);
+        assertEq(rows.length, 2);
+        Market.BookRow memory call = rows[0].terms.kind == 0 ? rows[0] : rows[1];
+        assertEq(call.key, key(0));
+        assertEq(call.ask.price, 1000);
+        assertEq(call.ask.count, 2);
+        assertEq(call.ask.firstOrder, first);
+        assertEq(call.ask.owner, alice);
+        assertEq(call.ask.writer, alice);
+        assertEq(call.ask.option, address(option(first)));
+        assertFalse(call.ask.resale);
+
+        Market.Quote[] memory depth = market.getDepthPage(key(0), false, 0, 32);
+        assertEq(depth.length, 2);
+        assertEq(depth[0].price, 1000);
+        assertEq(depth[0].count, 2);
+        assertEq(depth[0].writer, alice);
+        assertEq(depth[1].firstOrder, expensive);
+
+        vm.prank(alice);
+        market.cancelOrder(first);
+        rows = market.getBookPage(0, 32);
+        call = rows[0].terms.kind == 0 ? rows[0] : rows[1];
+        assertEq(call.ask.count, 1);
+        assertEq(call.ask.owner, carol);
+
+        vm.prank(carol);
+        market.cancelOrder(call.ask.firstOrder);
+        vm.prank(alice);
+        market.cancelOrder(expensive);
+        assertEq(market.activeSeriesCount(), 1);
+        vm.prank(bob);
+        market.cancelOrder(bid);
+        assertEq(market.activeSeriesCount(), 0);
+        assertEq(market.getBookPage(0, 32).length, 0);
+        conserve();
+    }
+
+    function testCanceledSeriesChurnDoesNotGrowActiveBook() public {
+        for (uint32 i; i < 80; ++i) {
+            vm.prank(bob);
+            uint64 id = market.placeOrder(0, 30001 + i, expiry + i, true, 1 + i);
+            assertEq(market.activeSeriesCount(), 1);
+            vm.prank(bob);
+            market.cancelOrder(id);
+            assertEq(market.activeSeriesCount(), 0);
+        }
+        assertEq(market.getSeries(0, 64).length, 64);
+        assertEq(market.getSeries(64, 64).length, 16);
+        assertEq(market.getBookPage(0, 32).length, 0);
+        conserve();
+    }
+
     function testCancelMiddleHeadTailAndRefunds() public {
         uint64 a = place(bob, true, 1000, 0);
         uint64 b = place(bob, true, 1000, 0);
@@ -187,6 +248,10 @@ contract MarketV4Test is Test {
         vm.prank(bob);
         uint64 resale = market.placeResale(address(o), 800);
         assertEq(market.bestOrder(key(0), false), resale);
+        Market.BookRow[] memory rows = market.getBookPage(0, 32);
+        assertEq(rows[0].ask.owner, bob);
+        assertEq(rows[0].ask.writer, alice);
+        assertTrue(rows[0].ask.resale);
         place(carol, true, 1000, 0);
         assertEq(o.buyer(), carol);
         assertEq(o.writer(), alice);

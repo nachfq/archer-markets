@@ -31,7 +31,6 @@ with RPC **http://127.0.0.1:8545**, chain **31337**, currency **ETH**, using Anv
 
 Each player receives **100 of each stock** and **10,000 MockUSD** once. Rerunning the
 seed preserves trades and spent balances. Wallet menu faucets provide more mocks.
-V4 deploys alongside older markets and preserves their positions in Portfolio.
 
 ![The shared ticket, shown with a seeded ask](images/order-ticket-v4.png)
 

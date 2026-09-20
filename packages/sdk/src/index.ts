@@ -1,14 +1,14 @@
 import { BaseError, ContractFunctionRevertedError, decodeErrorResult, encodeFunctionData, erc20Abi, formatUnits, parseAbiItem, parseUnits, type Address, type Hash, type PublicClient } from 'viem';
 import { optionAbi, optionFactoryAbi, optionMarketV4Abi, optionV4Abi, erc20Abi as tokenErrorsAbi } from './abis.js';
 export * from './v4.js';
-import { getSnapshotV4, getOptionV4, prepareOrderV4, prepareResaleV4, prepareCancelV4 } from './v4.js';
+import { getSnapshotV4, getPortfolioSnapshotV4, getOptionV4, prepareOrderV4, prepareResaleV4, prepareCancelV4 } from './v4.js';
 export { optionAbi, optionFactoryAbi, optionMarketV4Abi, optionV4Abi } from './abis.js';
 export type ChainConfig = { chainId: number; name: string; rpcUrl: string; explorerUrl: string };
 export type TokenConfig = { address: Address; symbol: string; decimals: number; isMock: boolean; adapter?: 'erc20' | 'robinhood' };
 export type MarketConfig = { id: string; chainId: number; factory: Address; deploymentBlock: bigint; version?: 1 | 2 | 3 | 4; underlying: TokenConfig; quote: TokenConfig; sandbox: boolean };
 export type OptionTrade = { seller: Address; buyer: Address; price: bigint; blockNumber: bigint; transactionHash: Hash };
-export type Option = { orderId?: bigint; address: Address; writer: Address; buyer: Address; underlyingAmount: bigint; strikeTotal: bigint; premium: bigint; expiry: bigint; optionType: number; state: number; resalePrice?: bigint; listingNonce?: bigint; trades?: OptionTrade[] };
-export type BuyRequest = { id: bigint; buyer: Address; optionType: number; underlyingAmount: bigint; strikeTotal: bigint; premium: bigint; expiry: bigint; acceptUntil: bigint; state: number; option: Address };
+export type Option = { orderId?: bigint; bookSize?: bigint; seriesKey?: Hash; address: Address; writer: Address; buyer: Address; underlyingAmount: bigint; strikeTotal: bigint; premium: bigint; expiry: bigint; optionType: number; state: number; resalePrice?: bigint; listingNonce?: bigint; trades?: OptionTrade[] };
+export type BuyRequest = { id: bigint; bookSize?: bigint; seriesKey?: Hash; buyer: Address; optionType: number; underlyingAmount: bigint; strikeTotal: bigint; premium: bigint; expiry: bigint; acceptUntil: bigint; state: number; option: Address };
 export type MarketSnapshot = { orders?: import('./v4.js').OrderV4[]; market: MarketConfig; blockNumber: bigint; blockHash: Hash; timestamp: bigint; positions: Option[]; requests?: BuyRequest[]; total: bigint };
 export type TokenBalance = { token: TokenConfig; available: bigint; requestPremium: bigint; refundablePremium: bigint; openCollateral: bigint; activeCollateral: bigint; reclaimable: bigint; totalTracked: bigint };
 export type Portfolio = { blockNumber: bigint; timestamp: bigint; gas: bigint; tokens: TokenBalance[]; positions: (Option & { marketId: string })[]; requests: (BuyRequest & { marketId: string })[]; complete: true };
@@ -76,8 +76,8 @@ export function maximumQuantity(available: bigint, kind: number, strikePerToken:
   const step = scale / gcd(scale, strikePerToken);
   return ((available * scale / strikePerToken) / step) * step;
 }
-export async function validateMarket(client: PublicClient, market: MarketConfig) {
-  if (await client.getChainId() !== market.chainId) throw new ProtocolError('WRONG_NETWORK', 'The RPC is on another network.', 'Use the RPC configured for this market.');
+const validations = new WeakMap<PublicClient, Map<string, Promise<void>>>();
+async function validateMarketFresh(client: PublicClient, market: MarketConfig) {
   const [code, underlying, quote, ud, qd] = await Promise.all([
     client.getCode({ address: market.factory }),
     client.readContract({ address: market.factory, abi: optionFactoryAbi, functionName: 'underlying' }),
@@ -87,6 +87,18 @@ export async function validateMarket(client: PublicClient, market: MarketConfig)
   ]);
   const version = market.version ?? 1;
   if (![1, 2, 3, 4].includes(version) || (version >= 2 && await client.readContract({ address: market.factory, abi: optionFactoryAbi, functionName: 'version' }) !== BigInt(version)) || !code || code === '0x' || underlying.toLowerCase() !== market.underlying.address.toLowerCase() || quote.toLowerCase() !== market.quote.address.toLowerCase() || ud !== market.underlying.decimals || qd !== market.quote.decimals) throw new ProtocolError('UNAVAILABLE', 'Deployment does not match the market configuration.', 'Check the network, factory, version and token metadata.');
+}
+export async function validateMarket(client: PublicClient, market: MarketConfig) {
+  if (await client.getChainId() !== market.chainId) throw new ProtocolError('WRONG_NETWORK', 'The RPC is on another network.', 'Use the RPC configured for this market.');
+  let cache = validations.get(client); if (!cache) { cache = new Map(); validations.set(client, cache); }
+  const key = `${market.chainId}:${market.factory.toLowerCase()}:${market.version ?? 1}`;
+  let validation = cache.get(key);
+  if (!validation) {
+    validation = validateMarketFresh(client, market);
+    cache.set(key, validation);
+    validation.catch(() => cache!.delete(key));
+  }
+  return validation;
 }
 async function parallelMap<T, R>(items: T[], fn: (item: T) => Promise<R>): Promise<R[]> {
   const results: R[] = [];
@@ -103,14 +115,14 @@ async function readOption(client: PublicClient, address: Address, blockNumber: b
   terms.set(address, Object.fromEntries(fixed.map(name => [name, option[name]])));
   return option;
 }
-export async function getMarkets(client: PublicClient, markets: MarketConfig[], account?: Address): Promise<MarketSnapshot[]> {
+export async function getMarkets(client: PublicClient, markets: MarketConfig[], _account?: Address): Promise<MarketSnapshot[]> {
   if (markets.some(m => m.chainId !== markets[0]?.chainId)) throw new ProtocolError('WRONG_NETWORK', 'Use one chain per client snapshot.', 'Create a separate client for each chain.');
   await Promise.all(markets.map(m => validateMarket(client, m)));
   const block = await client.getBlock({ blockTag: 'latest' });
   if (!block.hash || block.number === null) throw new Error('A mined block is required.');
   let cache = registries.get(client); if (!cache) { cache = new Map(); registries.set(client, cache); }
   return parallelMap(markets, async market => {
-    if (market.version === 4) return getSnapshotV4(client, market, {number:block.number!,hash:block.hash!,timestamp:block.timestamp}, account);
+    if (market.version === 4) return getSnapshotV4(client, market, {number:block.number!,hash:block.hash!,timestamp:block.timestamp});
     const key = `${market.chainId}:${market.factory.toLowerCase()}`;
     const total = await client.readContract({ address: market.factory, abi: optionFactoryAbi, functionName: 'optionCount', blockNumber: block.number });
     if (total > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('Registry exceeds supported client indexing range.');
@@ -194,7 +206,20 @@ export function summarizePortfolio(snapshots: MarketSnapshot[], account: Address
   return [...tokens.values()];
 }
 export async function getPortfolio(client: PublicClient, markets: MarketConfig[], account: Address, snapshots?: MarketSnapshot[]): Promise<Portfolio> {
-  const data = snapshots ?? await getMarkets(client, markets, account);
+  let base = snapshots;
+  if (!base) {
+    await Promise.all(markets.map(market => validateMarket(client, market)));
+    if (markets.some(market => market.version !== 4)) base = await getMarkets(client, markets);
+    else {
+      const block = await client.getBlock({ blockTag: 'latest' });
+      if (!block.hash || block.number === null) throw new Error('A mined block is required.');
+      base = markets.map(market => ({ market, total: 0n, positions: [], requests: [], blockNumber: block.number!, blockHash: block.hash!, timestamp: block.timestamp }));
+    }
+  }
+  const reference = base[0];
+  if (!reference) throw new Error('At least one market is required.');
+  const block = { number: reference.blockNumber, hash: reference.blockHash, timestamp: reference.timestamp };
+  const data = await parallelMap(base, snapshot => snapshot.market.version === 4 ? getPortfolioSnapshotV4(client, snapshot.market, account, block) : Promise.resolve(snapshot));
   if (!data.length || data.length !== markets.length || data.some((s, i) => s.market.factory.toLowerCase() !== markets[i].factory.toLowerCase() || s.market.chainId !== markets[i].chainId || s.blockHash !== data[0].blockHash)) throw new Error('A complete snapshot at one block is required.');
   const blockNumber = data[0].blockNumber;
   const balances = new Map<string, bigint>();

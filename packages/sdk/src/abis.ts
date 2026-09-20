@@ -1367,6 +1367,19 @@ export const optionMarketV4Abi = [
   },
   {
     "type": "function",
+    "name": "activeSeriesCount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "bestOrder",
     "inputs": [
       {
@@ -1401,6 +1414,143 @@ export const optionMarketV4Abi = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getBookPage",
+    "inputs": [
+      {
+        "name": "offset",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "limit",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "result",
+        "type": "tuple[]",
+        "internalType": "struct OptionMarketV4.BookRow[]",
+        "components": [
+          {
+            "name": "key",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "terms",
+            "type": "tuple",
+            "internalType": "struct OptionMarketV4.Series",
+            "components": [
+              {
+                "name": "kind",
+                "type": "uint8",
+                "internalType": "uint8"
+              },
+              {
+                "name": "strike",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "expiry",
+                "type": "uint64",
+                "internalType": "uint64"
+              }
+            ]
+          },
+          {
+            "name": "bid",
+            "type": "tuple",
+            "internalType": "struct OptionMarketV4.Quote",
+            "components": [
+              {
+                "name": "price",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "count",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "firstOrder",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "owner",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "writer",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "option",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "resale",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ]
+          },
+          {
+            "name": "ask",
+            "type": "tuple",
+            "internalType": "struct OptionMarketV4.Quote",
+            "components": [
+              {
+                "name": "price",
+                "type": "uint32",
+                "internalType": "uint32"
+              },
+              {
+                "name": "count",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "firstOrder",
+                "type": "uint64",
+                "internalType": "uint64"
+              },
+              {
+                "name": "owner",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "writer",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "option",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "resale",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -1447,6 +1597,77 @@ export const optionMarketV4Abi = [
             "name": "firstOrder",
             "type": "uint64",
             "internalType": "uint64"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getDepthPage",
+    "inputs": [
+      {
+        "name": "key",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "buy",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "afterPrice",
+        "type": "uint32",
+        "internalType": "uint32"
+      },
+      {
+        "name": "limit",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "result",
+        "type": "tuple[]",
+        "internalType": "struct OptionMarketV4.Quote[]",
+        "components": [
+          {
+            "name": "price",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "count",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "firstOrder",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "writer",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "option",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "resale",
+            "type": "bool",
+            "internalType": "bool"
           }
         ]
       }

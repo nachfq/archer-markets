@@ -64,6 +64,23 @@ contract OptionMarketV4 is ReentrancyGuard {
         uint64 firstOrder;
     }
 
+    struct Quote {
+        uint32 price;
+        uint64 count;
+        uint64 firstOrder;
+        address owner;
+        address writer;
+        address option;
+        bool resale;
+    }
+
+    struct BookRow {
+        bytes32 key;
+        Series terms;
+        Quote bid;
+        Quote ask;
+    }
+
     address public immutable underlying;
     address public immutable quote;
     uint256 public immutable unit;
@@ -74,6 +91,8 @@ contract OptionMarketV4 is ReentrancyGuard {
     mapping(uint64 => Order) private orders;
     mapping(bytes32 => Series) public series;
     bytes32[] private seriesIds;
+    bytes32[] private activeSeriesIds;
+    mapping(bytes32 => uint256) private activeSeriesIndexPlusOne;
     mapping(bytes32 => Book) private books;
     mapping(address => uint64[]) private userOrders;
     mapping(address => address[]) private userOptions;
@@ -146,6 +165,10 @@ contract OptionMarketV4 is ReentrancyGuard {
     function _append(uint64 id) private {
         Order storage o = orders[id];
         Book storage b = books[o.series];
+        if (activeSeriesIndexPlusOne[o.series] == 0) {
+            activeSeriesIds.push(o.series);
+            activeSeriesIndexPlusOne[o.series] = activeSeriesIds.length;
+        }
         Level storage l = b.levels[o.buy][o.price];
         if (l.count == 0) {
             if (o.buy) b.bids.set(o.price, true);
@@ -176,6 +199,22 @@ contract OptionMarketV4 is ReentrancyGuard {
         o.next = 0;
         o.state = state_;
         if (!o.buy) optionOrder[o.option] = 0;
+        Book storage b = books[o.series];
+        if (b.bids.best(true) == 0 && b.asks.best(false) == 0) _deactivateSeries(o.series);
+    }
+
+    function _deactivateSeries(bytes32 key) private {
+        uint256 indexPlusOne = activeSeriesIndexPlusOne[key];
+        if (indexPlusOne == 0) return;
+        uint256 index = indexPlusOne - 1;
+        uint256 last = activeSeriesIds.length - 1;
+        if (index != last) {
+            bytes32 moved = activeSeriesIds[last];
+            activeSeriesIds[index] = moved;
+            activeSeriesIndexPlusOne[moved] = index + 1;
+        }
+        activeSeriesIds.pop();
+        activeSeriesIndexPlusOne[key] = 0;
     }
 
     function bestOrder(bytes32 key, bool buy) public view returns (uint64) {
@@ -323,6 +362,52 @@ contract OptionMarketV4 is ReentrancyGuard {
         }
         assembly {
             mstore(result, n)
+        }
+    }
+
+    function _quote(bytes32 key, bool buy, uint32 price) private view returns (Quote memory result) {
+        if (price == 0 || series[key].expiry <= block.timestamp) return result;
+        Level storage level = books[key].levels[buy][price];
+        Order storage order = orders[level.head];
+        address writer = buy ? address(0) : order.resale ? OptionV4(order.option).writer() : order.owner;
+        return Quote(price, level.count, level.head, order.owner, writer, order.option, order.resale);
+    }
+
+    function getDepthPage(bytes32 key, bool buy, uint32 afterPrice, uint8 limit)
+        external
+        view
+        returns (Quote[] memory result)
+    {
+        if (limit == 0 || limit > 32) revert InvalidTerms();
+        result = new Quote[](limit);
+        uint256 n;
+        if (series[key].expiry > block.timestamp) {
+            PriceIndex.Tree storage tree = buy ? books[key].bids : books[key].asks;
+            uint32 price = afterPrice == 0 ? tree.best(buy) : tree.next(afterPrice, buy);
+            while (price != 0 && n < limit) {
+                result[n++] = _quote(key, buy, price);
+                price = tree.next(price, buy);
+            }
+        }
+        assembly {
+            mstore(result, n)
+        }
+    }
+
+    function activeSeriesCount() external view returns (uint256) {
+        return activeSeriesIds.length;
+    }
+
+    function getBookPage(uint256 offset, uint8 limit) external view returns (BookRow[] memory result) {
+        if (limit == 0 || limit > 32 || offset > activeSeriesIds.length) revert InvalidTerms();
+        uint256 end = activeSeriesIds.length - offset < limit ? activeSeriesIds.length : offset + limit;
+        result = new BookRow[](end - offset);
+        for (uint256 i = offset; i < end; ++i) {
+            bytes32 key = activeSeriesIds[i];
+            Book storage book = books[key];
+            uint32 bid = book.bids.best(true);
+            uint32 ask = book.asks.best(false);
+            result[i - offset] = BookRow(key, series[key], _quote(key, true, bid), _quote(key, false, ask));
         }
     }
 

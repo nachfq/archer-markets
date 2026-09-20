@@ -4,6 +4,35 @@ Current status: V4 is a local implementation of the human-approved single-token,
 onchain orderbook decision. Robinhood testnet remains undeployed. Earlier sections
 are historical evidence for their stated versions, not current public deployments.
 
+## V4 aggregate reads and Orca QA (2026-09-19)
+
+The market now maintains an active-series index and returns best bid/ask plus total
+contracts per price level. The Trade screen reads one market at a time, loads full
+depth only when a strike expands, and loads account history only in Portfolio. A
+manual connected refresh on the seeded Tesla market used four RPC calls. Clicking a
+strike now shows price levels only; order entry remains in the shared Buy/Sell ticket.
+
+Executed local evidence:
+
+- Orca bought one of three asks and sold a new call into one of three bids. Both
+  executed at the resting price and the displayed level changed from 3 to 2.
+- Orca showed no browser alerts or horizontal overflow at 390 × 844. The current
+  option-chain capture is in the [local walkthrough](../demo.md).
+- The full suite passed **162 tests** with one optional RPC-fork test skipped; typecheck
+  and the production build passed. Focused V4 tests passed 20/20, including active-index
+  churn, aggregate depth, resale writer identity, conservation and rollback cases.
+- The isolated V4 protocol/SDK acceptance passed. Its Playwright stage could not
+  start because this machine lacks the pinned Chromium executable; the two browser
+  transactions above were therefore run manually through Orca.
+- A read-only Robinhood testnet check reached chain 46630 and the configured TSLA
+  contract. The configured deployer had zero test ETH and zero TSLA, so no public
+  deployment or transaction was attempted. The website manifest still has no factory.
+
+The deployed market runtime is 23,348 bytes, below the 24,576-byte EVM limit but with
+little room for more protocol features. Expired, unreclaimed series remain in the
+active index as empty rows until an owner recovers an order. Trade reads stay bounded
+and paginated; Portfolio cost still grows with that account's durable history.
+
 ## V4 — single-token onchain orderbook (2026-09-16)
 
 Implemented by `/root`, without delegated review. Each series uses a four-level
@@ -11,7 +40,8 @@ sparse bitmap for prices and a linked FIFO at each occupied price. A transaction
 creates at most one fully collateralized independent option and fills at most one
 resting order. Resales join the same book. Matching, cancellation and exercise update
 the index atomically; there is no privileged matcher, keeper, oracle or upgrade admin.
-The Solidity market runtime is 20,915 bytes; an option runtime is 5,592 bytes.
+The Solidity market runtime at this iteration was 23,348 bytes; an option runtime is
+5,592 bytes.
 
 The SDK reads active depth and account history in pages at one block; paid premiums
 come from execution events. The UI has one limit ticket and aggregates equal-price
@@ -26,14 +56,14 @@ approvals. They are not Robinhood fee estimates or production benchmarks.
 
 | Operation | Gas |
 | --- | ---: |
-| First new ask in a new series | 1,751,562 |
-| Further new asks | 1,516,457–1,535,879 |
-| Buy crossing a primary ask | 314,200 |
-| Post resale | 211,998 |
-| Buy crossing a resale | 297,025 |
-| New sell crossing a funded bid | 1,571,235 |
-| Resting bid | 308,416–344,983 |
-| Cancel bid | 77,040 |
+| First new ask in a new series | 1,818,349 |
+| Further new asks | 1,518,624–1,538,046 |
+| Buy crossing a primary ask | 319,810 |
+| Post resale | 214,099 |
+| Buy crossing a resale | 302,635 |
+| New sell crossing a funded bid | 1,580,210 |
+| Resting bid | 310,583–394,670 |
+| Cancel bid | 86,345 |
 | Exercise call / put | 85,513 / 85,502 |
 
 `testGasBookDepth1And256` measures the best-quote lookup at **6,335 gas** for both
@@ -77,9 +107,10 @@ This is an internal PoC review, not an external security audit or proof of absen
 of vulnerabilities. Exact-transfer ERC20s are required; rebasing, fee tokens and
 issuer restrictions need separate compatibility work. Public Robinhood deployment,
 real Stock Token delivery and L3 fee measurements have not been executed for V4.
-Storage accumulates order and option history; matching remains bounded but large
-book snapshots still require many RPC reads. Self-trades reject the incoming order
-instead of skipping FIFO. Expired orders need individual owner recovery transactions.
+Storage accumulates order and option history. Trade snapshots use paginated aggregate
+reads, while account Portfolio reads still grow with that account's history. Self-trades
+reject the incoming order instead of skipping FIFO. Expired orders need individual
+owner recovery transactions.
 
 ## Human decisions
 
