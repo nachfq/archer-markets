@@ -1,5 +1,22 @@
 # Implementation record
 
+## MIT license and testnet funding check (2026-09-20)
+
+The human coordinator selected the MIT License for the repository. The canonical
+license text is now present at the repository root, and the root, SDK and frontend
+package metadata identify the same license. The packages remain marked private where
+applicable; licensing the source does not publish the repository or an npm package.
+
+A read-only Robinhood Chain Testnet check reached chain 46630 at block 122182387 and
+validated the configured TSLA token address, symbol and 18 decimals. The configured
+deployer `0x0297E58AebF9c7bDBb83959EaB1306E8AE2147FF` had zero test ETH and zero TSLA,
+so no deployment, faucet request or public transaction was attempted. No chain-46630
+deployment manifest exists, and the hosted frontend remains without a factory address.
+
+Validation for the licensing changes: `npm test` passed 69 tests with the optional
+Robinhood RPC-fork test skipped; `npm run typecheck`, frontend lint, `npm run build`
+and `git diff --check` passed. No contract, ABI or runtime behavior changed.
+
 ## V4-only active product cleanup (2026-09-20)
 
 The human coordinator removed backward compatibility as a product requirement. The

@@ -21,6 +21,7 @@ change. It does not state that the repository, contracts or V4 frontend are publ
   tests from the active tree; their dated research records remain archived here.
 - Added contributor and security guidance and pinned GitHub Actions to reviewed commit
   SHAs.
+- Added the MIT License selected by the human coordinator and aligned package metadata.
 - The validation results for the later V4-only cleanup are recorded in
   [the implementation record](implementation.md). No public transaction was sent.
 
@@ -28,14 +29,12 @@ change. It does not state that the repository, contracts or V4 frontend are publ
 
 Before changing visibility:
 
-1. Choose an explicit source license, or intentionally publish without granting a
-   reuse license. This is a human legal/product decision.
-2. Move or delete the remote archive and feature branches. A public repository makes
+1. Move or delete the remote archive and feature branches. A public repository makes
    every remote branch visible; the archive is currently kept only while the repository
    is private.
-3. Confirm that the release notes, repository description and test-only limitations
+2. Confirm that the release notes, repository description and test-only limitations
    still match the selected revision.
-4. Change visibility only with explicit human approval, enable GitHub private
+3. Change visibility only with explicit human approval, enable GitHub private
    vulnerability reporting, then test a fresh anonymous clone, relative links,
    documented commands and release access.
 
