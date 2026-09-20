@@ -1,0 +1,139 @@
+{
+  "31337": {
+    "chainId": 31337,
+    "name": "Local Anvil",
+    "explorerUrl": "",
+    "underlying": {
+      "address": "0x2e983a1ba5e8b38aaaec4b440b9ddcfbf72e15d1",
+      "symbol": "mTSLA",
+      "decimals": 18,
+      "isMock": true
+    },
+    "quote": {
+      "address": "0x663f3ad617193148711d28f5334ee4ed07016602",
+      "symbol": "MockUSD",
+      "decimals": 6,
+      "isMock": true
+    },
+    "factory": "0x8438ad1c834623cff278ab6829a248e37c2d7e3f",
+    "deploymentBlock": "3",
+    "version": 4,
+    "legacy": false,
+    "tickSize": "10000",
+    "marketId": "tesla",
+    "label": "Mock Tesla / MockUSD",
+    "sandbox": true,
+    "markets": [
+      {
+        "marketId": "nvidia",
+        "label": "Mock NVIDIA / MockUSD",
+        "sandbox": true,
+        "factory": "0x6e989c01a3e3a94c973a62280a72ec335598490e",
+        "deploymentBlock": "5",
+        "underlying": {
+          "address": "0xbc9129dc0487fc2e169941c75aabc539f208fb01",
+          "symbol": "mNVDA",
+          "decimals": 18,
+          "isMock": true
+        },
+        "quote": {
+          "address": "0x663f3ad617193148711d28f5334ee4ed07016602",
+          "symbol": "MockUSD",
+          "decimals": 6,
+          "isMock": true
+        },
+        "version": 4,
+        "legacy": false,
+        "tickSize": "10000"
+      },
+      {
+        "marketId": "apple",
+        "label": "Mock Apple / MockUSD",
+        "sandbox": true,
+        "factory": "0x94b75aa39bec4cb15e7b9593c315af203b7b847f",
+        "deploymentBlock": "7",
+        "underlying": {
+          "address": "0xf6168876932289d073567f347121a267095f3dd6",
+          "symbol": "mAAPL",
+          "decimals": 18,
+          "isMock": true
+        },
+        "quote": {
+          "address": "0x663f3ad617193148711d28f5334ee4ed07016602",
+          "symbol": "MockUSD",
+          "decimals": 6,
+          "isMock": true
+        },
+        "version": 4,
+        "legacy": false,
+        "tickSize": "10000"
+      },
+      {
+        "marketId": "amazon",
+        "label": "Mock Amazon / MockUSD",
+        "sandbox": true,
+        "factory": "0x8cdbd76bb6cf0293e07deeeed460cf579873af44",
+        "deploymentBlock": "9",
+        "underlying": {
+          "address": "0x13d69cf7d6ce4218f646b759dcf334d82c023d8e",
+          "symbol": "mAMZN",
+          "decimals": 18,
+          "isMock": true
+        },
+        "quote": {
+          "address": "0x663f3ad617193148711d28f5334ee4ed07016602",
+          "symbol": "MockUSD",
+          "decimals": 6,
+          "isMock": true
+        },
+        "version": 4,
+        "legacy": false,
+        "tickSize": "10000"
+      },
+      {
+        "marketId": "microsoft",
+        "label": "Mock Microsoft / MockUSD",
+        "sandbox": true,
+        "factory": "0x6cffa31dd31cf649fb24ac7cefe87579324bd89c",
+        "deploymentBlock": "11",
+        "underlying": {
+          "address": "0xe7c2a73131dd48d8ac46dcd7ab80c8cbee5b410a",
+          "symbol": "mMSFT",
+          "decimals": 18,
+          "isMock": true
+        },
+        "quote": {
+          "address": "0x663f3ad617193148711d28f5334ee4ed07016602",
+          "symbol": "MockUSD",
+          "decimals": 6,
+          "isMock": true
+        },
+        "version": 4,
+        "legacy": false,
+        "tickSize": "10000"
+      }
+    ],
+    "rpcUrl": "http://127.0.0.1:8545"
+  },
+  "46630": {
+    "chainId": 46630,
+    "name": "Robinhood Testnet",
+    "rpcUrl": "https://rpc.testnet.chain.robinhood.com",
+    "explorerUrl": "https://explorer.testnet.chain.robinhood.com",
+    "factory": null,
+    "deploymentBlock": null,
+    "underlying": {
+      "address": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+      "symbol": "TSLA",
+      "decimals": 18,
+      "isMock": false
+    },
+    "quote": {
+      "address": null,
+      "symbol": "MockUSD",
+      "decimals": 6,
+      "isMock": true
+    },
+    "version": 4
+  }
+}

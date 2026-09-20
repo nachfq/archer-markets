@@ -1,0 +1,52 @@
+{
+  "name": "archer-markets",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "contracts:deps": "node scripts/install-contracts.mjs",
+    "contracts:build": "node scripts/foundry.mjs forge build",
+    "contracts:test": "node scripts/foundry.mjs forge test",
+    "abi": "node scripts/export-abis.mjs",
+    "build": "npm run contracts:build && npm run abi && npm run sdk:build && npm --prefix web run build",
+    "test": "npm run contracts:test && node --test scripts/*.test.mjs && npm run sdk:test && npm --prefix web test",
+    "anvil": "node scripts/foundry.mjs anvil",
+    "deploy:local": "npm run contracts:build && npm run abi && npm run sdk:build && node scripts/deploy.mjs local",
+    "deploy:testnet": "npm run contracts:build && npm run abi && npm run sdk:build && node --env-file-if-exists=.env scripts/deploy.mjs testnet",
+    "check:testnet": "node --env-file-if-exists=.env scripts/check-testnet.mjs",
+    "check:stylus": "node scripts/check-stylus.mjs",
+    "wallet:testnet": "node scripts/create-testnet-wallet.mjs",
+    "verify:testnet": "node --env-file-if-exists=.env scripts/verify-testnet.mjs",
+    "seed:local": "node scripts/demo-v4.mjs --seed-only",
+    "demo:local": "npm run contracts:build && npm run abi && npm run sdk:build && node scripts/demo-v4.mjs",
+    "seed:testnet": "node --env-file-if-exists=.env scripts/seed.mjs testnet",
+    "test:e2e": "node scripts/e2e.mjs",
+    "test:browser": "node scripts/browser-smoke.mjs",
+    "dev": "npm --prefix web run dev",
+    "dev:local": "VITE_CHAIN_ID=31337 npm --prefix web run dev",
+    "typecheck": "npm run sdk:build && npm --prefix web run typecheck",
+    "sdk:build": "npm run build --workspace @stock-options-lab/sdk",
+    "sdk:test": "npm run sdk:build && npm run test --workspace @stock-options-lab/sdk",
+    "test:sdk:e2e": "node packages/sdk/examples/lifecycle.mjs deployments/31337.json",
+    "test:acceptance": "node scripts/acceptance-local.mjs",
+    "test:browser:requests": "node scripts/browser-requests.mjs",
+    "wallet:fund:local": "node scripts/fund-local-wallets.mjs",
+    "test:demo": "node scripts/demo-seed-check.mjs",
+    "demo:legacy": "npm run contracts:build && npm run abi && npm run sdk:build && node scripts/demo-local.mjs",
+    "test:acceptance:v4": "node scripts/acceptance-v4.mjs",
+    "test:e2e:v4": "node scripts/smoke-v4.mjs"
+  },
+  "dependencies": {
+    "viem": "2.56.3",
+    "@stock-options-lab/sdk": "file:packages/sdk"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  },
+  "workspaces": [
+    "packages/*"
+  ]
+}

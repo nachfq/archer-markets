@@ -1,0 +1,101 @@
+{
+  "date": "2026-09-16",
+  "environment": "Isolated Docker Anvil, chain 31337, mock assets",
+  "publicTransactions": false,
+  "formalAudit": false,
+  "checks": {
+    "unitAndFuzzPassed": 158,
+    "optionalRobinhoodForkSkipped": 1,
+    "typecheck": "passed",
+    "lint": "passed",
+    "build": "passed",
+    "legacyAcceptance": "passed",
+    "legacyBrowserScenarios": 13,
+    "v4Acceptance": "passed",
+    "v4BrowserScenarios": [
+      "Desktop buy through ask uses the same ticket; aggregate best price, FIFO and price improvement",
+      "Portfolio resale uses the same ticket with immutable series and no new collateral",
+      "Funded bid cancellation refunds its escrow",
+      "Mobile bid click presets the same sell ticket and matches a funded put",
+      "Exercise delivers stock and atomically removes the holder resale",
+      "Mobile ticket fits; price precision, edited terms and changed chain invalidate confirmation"
+    ],
+    "v4Seed": {
+      "result": "passed",
+      "publicTransactions": false,
+      "markets": 5,
+      "playerOptions": 0,
+      "idempotent": true,
+      "receiptRecovery": true,
+      "legacyCollateralPreserved": true,
+      "uncrossedBooks": true,
+      "aggregatedLevels": true
+    },
+    "productionDependencyAdvisories": {
+      "root": 0,
+      "web": 0
+    }
+  },
+  "gasTransactions": [
+    {
+      "action": "Limit order",
+      "gas": "1751562",
+      "hash": "0xe0974af98de2fdc65365c7a33df77fdad3638d8aa65c1b4ed1327277e558e8c2"
+    },
+    {
+      "action": "Limit order",
+      "gas": "1516457",
+      "hash": "0x4ea74b3c755d5470e2c93d5fbfdae3a0d874f7dc8a0f878911520cc225104569"
+    },
+    {
+      "action": "Limit order",
+      "gas": "1535879",
+      "hash": "0xb0164fcb001df02d5aedbc73fe64af11d3751193ab93047b51d8ee33ff301630"
+    },
+    {
+      "action": "Limit order",
+      "gas": "314200",
+      "hash": "0x5fea6cf77b19621d2173c51fada5606cb9bb1f683669e875e211154a5ff1ad89"
+    },
+    {
+      "action": "Resale order",
+      "gas": "211998",
+      "hash": "0xa5cd26bc8e062cc6e64db32092eabe3e1fca4de3afefc4c99734e4e98090fedc"
+    },
+    {
+      "action": "Limit order",
+      "gas": "297025",
+      "hash": "0x1fbfb4f4ac6799eb8d470e508e6326e505c0fdccd953bb09110505a7eee661f7"
+    },
+    {
+      "action": "exercise",
+      "gas": "85513",
+      "hash": "0x6e4bbb8b537a0465cbe5a22eb4d0f3b8a5af9c311f3a23e667e5255eb135670d"
+    },
+    {
+      "action": "Limit order",
+      "gas": "344983",
+      "hash": "0x2f4034475a32160a40b3efa3df125eec2c21d5927f3d78918b46b7a33090fdf2"
+    },
+    {
+      "action": "Limit order",
+      "gas": "1571235",
+      "hash": "0xc0e4fd0eff8c1383aa6c555ed4055957cc9c9478b996138f21d3cf113355b259"
+    },
+    {
+      "action": "exercise",
+      "gas": "85502",
+      "hash": "0xb430ac99e93924ce23307be1a6d7475a23f3f90c0181879c05ac11f581012580"
+    },
+    {
+      "action": "Limit order",
+      "gas": "308416",
+      "hash": "0xab84a3269689c88ad2fba6b55840b2bbef28f378a49d50ed06549504bc1503cd"
+    },
+    {
+      "action": "Cancel order",
+      "gas": "77040",
+      "hash": "0xc7d24cb6530f20c30872c8ab6f1deae80d3b387bc6739c94b113668043aa190c"
+    }
+  ]
+}
