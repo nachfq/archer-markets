@@ -1,6 +1,6 @@
 # Open House Singapore submission path
 
-Updated September 20, 2026. This records the completed V4 public testnet release and the
+Updated September 21, 2026. This records the completed V4 public testnet release and the
 remaining path to a reviewable submission. It is not evidence of a competition result.
 
 ## Positioning
@@ -22,9 +22,10 @@ on an Arbitrum chain; Robinhood Chain is an eligible target.
    Testnet, use native Stock Tokens and USDG, and expose illustrative public liquidity.
 3. **Complete:** the transaction-enabled frontend is hosted publicly on Railway and has
    been used with a real wallet to post orders.
-4. **Remaining:** record one complete public two-wallet match and physical exercise with
-   exact fee, collateral and token balance reconciliation. A cancellation and resale are
-   useful secondary evidence, not substitutes for the core lifecycle.
+4. **Complete:** one coordinated, public two-wallet AMD call matched and exercised with
+   exact fee, collateral and token balance reconciliation. This demonstrates the call
+   lifecycle, not independent adoption. Public put exercise, cancellation and resale
+   would be useful secondary evidence but are not prerequisites for this claim.
 5. **Remaining:** publish the reviewed repository, verify a clean anonymous checkout,
    and submit a short demo, architecture diagram, exact revision, explorer links,
    reproduction commands and concise security limitations.

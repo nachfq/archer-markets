@@ -55,12 +55,36 @@ and ends with the
 [`PLTR` put ask](https://explorer.testnet.chain.robinhood.com/tx/0x4565541954449f8888cd44c107fdc3a951a0da5c10e3e92dd6fa9f859726a7a4).
 At block `122211653`, the five books contained 17 open orders in total: these 12
 fixture orders plus five orders posted independently by the coordinator. No order had
-executed or been cancelled, so this is public liquidity evidence rather than a completed
-two-wallet lifecycle.
+executed or been cancelled at that block. The AMD call bid subsequently executed; this
+table records the originally posted fixture, not current orderbook depth.
 
 All five market contracts and representative call and put option instances are source
 verified on the explorer. The verification record is generated locally and remains
 ignored because it contains operational evidence, not frontend configuration.
+
+## Public AMD call lifecycle
+
+On September 21, 2026, the coordinator's wallet wrote one AMD call against the
+deployer's resting bid in the [AMD market](https://explorer.testnet.chain.robinhood.com/address/0xdb3d2f3e97b38c84ca313e9fdcc5c89859901bd3).
+The option covers exactly `1 AMD`, has a `40 USDG` strike and expires on December 18,
+2026 at 20:00 UTC. The wallets were controlled as part of a coordinated test; this is
+not evidence of independent users or product-market fit.
+
+| Step | Public transaction | Verified result |
+| --- | --- | --- |
+| Resting bid | [`0xe52b...45d9`](https://explorer.testnet.chain.robinhood.com/tx/0xe52befe408eca3a00bda8cd7ae0c6d7cb44243b5b7b5650ebabd5fca45845d9e) | Deployer reserved `1.011 USDG`: `1 USDG` maximum premium plus `0.011 USDG` fee. |
+| Match | [`0x8ce0...24c3`](https://explorer.testnet.chain.robinhood.com/tx/0x8ce053ee3b3c73069f0033d79c0c4e6d7e8f99577212ef6321a92148baa524c3) | Writer deposited `1 AMD` in a new independent [option](https://explorer.testnet.chain.robinhood.com/address/0x4281e7e8ED897D7BD48820D4E994173C14695906). Writer received `1 USDG` premium and `0.011 USDG` fee as the configured fee recipient. Deployer became holder. |
+| Approval | [`0xb52b...d19f`](https://explorer.testnet.chain.robinhood.com/tx/0xb52b5aca131d56b28dd574ad950574a843a081272282a98af6afa8acd626d19f) | Holder approved the option to spend `40 USDG`; approval itself moved no tokens. |
+| Exercise | [`0x7642...b9df`](https://explorer.testnet.chain.robinhood.com/tx/0x7642328efd8a07b6c7917b15bad662265a8e4faefa061606f91a9014763bb9df) | Holder paid `40 USDG` directly to writer and received `1 AMD` from option collateral. Option state became `Exercised`; no exercise fee. |
+
+Historical token-balance reads around the match (blocks `122443738–122443739`)
+confirmed the writer moved from `5` to `4 AMD` and from `96.967` to `97.978 USDG`.
+The market's `1.011 USDG` bid reserve became zero while the new option received `1 AMD`.
+Around exercise (blocks `122445340–122445341`), the holder moved from `4` to `5 AMD`
+and from `173.934` to `133.934 USDG`; the writer moved from `97.978` to
+`137.978 USDG`, and the option's AMD balance fell from `1` to `0`. The separate
+deployer-owned AMD ask remained open. The tests prove this specific public call flow,
+not put exercise, resale, cancellation or external adoption.
 
 ## Hosted frontend
 
