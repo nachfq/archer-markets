@@ -11,3 +11,6 @@ until a valid deployment is configured.
 
 From the root: `npm test`, `npm run typecheck`, `npm --prefix web run lint`, `npm run build`.
 The isolated `npm run test:acceptance` also runs Anvil and browser flows.
+
+Railway staging follows the `staging` branch; production follows `main`. Merge
+frontend changes into `staging` by PR, then promote reviewed changes to `main` by PR.

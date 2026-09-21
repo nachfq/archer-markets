@@ -1,5 +1,16 @@
 # Implementation record
 
+## Transparent logo and staging branch (2026-09-21)
+
+The coordinator supplied a transparent replacement logo. The original PNG is stored
+at `web/public/logo.png`; a 256-pixel transparent mark at
+`web/public/archer-mark.png` is used for the application wordmark, favicon and Apple
+touch icon. The new asset path avoids reusing the cached earlier favicon. The
+`staging` branch was created from the current `main` tree as a long-lived frontend
+review trunk. `npm test`, `npm run typecheck`, `npm run build` and frontend lint
+passed locally. This change does not alter contracts, ABIs, deployment manifests or
+production. No independent user validation is claimed.
+
 ## Cleaner frontend staging (2026-09-21)
 
 A frontend-only branch simplifies the option chain, order ticket, option review and
