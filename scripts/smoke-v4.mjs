@@ -1,7 +1,7 @@
 // Isolated Anvil integration: SDK preparation, onchain execution and conservation.
 import assert from 'node:assert/strict';
 import { createPublicClient, http, encodeFunctionData, erc20Abi, parseAbi, decodeEventLog } from 'viem';
-import { prepareOrderV4, prepareResaleV4, prepareCancelV4, prepareExercise, simulatePrepared, getMarkets, getPortfolio, getOrderV4, optionMarketV4Abi, optionV4Abi } from '@stock-options-lab/sdk';
+import { feeForV4, prepareOrderV4, prepareResaleV4, prepareCancelV4, prepareExercise, simulatePrepared, getMarkets, getPortfolio, getOrderV4, optionMarketV4Abi, optionV4Abi } from '@stock-options-lab/sdk';
 import { readJson, saveJson } from './config.mjs';
 const rpc = process.env.ANVIL_RPC_URL;
 assert(rpc && ['localhost', '127.0.0.1'].includes(new URL(rpc).hostname) && new URL(rpc).port !== '8545');
@@ -9,7 +9,7 @@ const c = createPublicClient({ transport: http(rpc), pollingInterval: 25, cacheT
 assert.equal(await c.getChainId(), 31337);
 assert.match(await c.request({ method: 'web3_clientVersion' }), /anvil/i);
 const record = await readJson(process.env.DEMO_MANIFEST);
-const m = { ...record, id: record.marketId, deploymentBlock: BigInt(record.deploymentBlock) };
+const m = { ...record, id: record.marketId, deploymentBlock: BigInt(record.deploymentBlock), baseFee: BigInt(record.baseFee) };
 assert.equal(m.version, 4);
 const a = (await c.request({ method: 'eth_accounts' })).slice(6, 9);
 const read = (address, abi, functionName, args = []) => c.readContract({ address, abi, functionName, args });
@@ -42,7 +42,7 @@ for (const actor of a)
         await tx(actor, token.address, faucet, 'faucet');
 const balance = (token, actor) => read(token.address, erc20Abi, 'balanceOf', [actor]);
 async function totals() {
-    const n = await read(m.factory, optionMarketV4Abi, 'optionCount'), addresses = [...a, m.factory];
+    const n = await read(m.factory, optionMarketV4Abi, 'optionCount'), addresses = [...new Set([...a, m.factory, m.feeRecipient])];
     for (let i = 0n; i < n; i++)
         addresses.push(await read(m.factory, optionMarketV4Abi, 'options', [i]));
     return Promise.all([m.underlying, m.quote].map(async (t) => (await Promise.all(addresses.map(x => balance(t, x)))).reduce((x, y) => x + y, 0n)));
@@ -62,7 +62,8 @@ let logs = await execute(await order(a[1], true, 11000000n));
 let fill = logs.find(e => e.eventName === 'OrderExecuted').args;
 assert.equal(fill.resting, 2n);
 assert.equal(fill.price, 900);
-assert.equal(buyerBefore - await balance(m.quote, a[1]), 9000000n);
+assert.equal(fill.fee, feeForV4(m, 9000000n));
+assert.equal(buyerBefore - await balance(m.quote, a[1]), 9000000n + fill.fee);
 assert.equal((await getOrderV4(c, m, 3n)).state, 1);
 const owned = fill.option;
 assert.equal((await getPortfolio(c, [m], a[1])).bids.find(r => r.id === 4n).premium, 9000000n);
@@ -88,7 +89,7 @@ const id = logs.find(e => e.eventName === 'OrderPosted').args.id;
 await execute(await prepareCancelV4(c, m, a[1], id));
 assert.equal(await balance(m.quote, a[1]), buyerBefore);
 assert.deepEqual(await totals(), initial);
-assert.equal(await balance(m.quote, m.factory), await read(m.factory, optionMarketV4Abi, 'reservedPremium'));
+assert.equal(await balance(m.quote, m.factory), await read(m.factory, optionMarketV4Abi, 'reservedPremium') + await read(m.factory, optionMarketV4Abi, 'reservedFees'));
 snapshot = (await getMarkets(c, [m], a[2]))[0];
 const portfolio = await getPortfolio(c, [m], a[2], [snapshot]);
 assert(portfolio.positions.some(p => p.address.toLowerCase() === owned.toLowerCase() && p.state === 2));

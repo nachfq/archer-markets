@@ -19,6 +19,9 @@
     "deploymentBlock": "3",
     "version": 4,
     "tickSize": "10000",
+    "feeRecipient": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+    "baseFee": "10000",
+    "feeBps": 10,
     "marketId": "tesla",
     "label": "Mock Tesla / MockUSD",
     "sandbox": true,
@@ -42,7 +45,10 @@
           "isMock": true
         },
         "version": 4,
-        "tickSize": "10000"
+        "tickSize": "10000",
+        "feeRecipient": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "baseFee": "10000",
+        "feeBps": 10
       },
       {
         "marketId": "apple",
@@ -63,7 +69,10 @@
           "isMock": true
         },
         "version": 4,
-        "tickSize": "10000"
+        "tickSize": "10000",
+        "feeRecipient": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "baseFee": "10000",
+        "feeBps": 10
       },
       {
         "marketId": "amazon",
@@ -84,7 +93,10 @@
           "isMock": true
         },
         "version": 4,
-        "tickSize": "10000"
+        "tickSize": "10000",
+        "feeRecipient": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "baseFee": "10000",
+        "feeBps": 10
       },
       {
         "marketId": "microsoft",
@@ -105,18 +117,18 @@
           "isMock": true
         },
         "version": 4,
-        "tickSize": "10000"
+        "tickSize": "10000",
+        "feeRecipient": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "baseFee": "10000",
+        "feeBps": 10
       }
     ],
     "rpcUrl": "http://127.0.0.1:8545"
   },
   "46630": {
     "chainId": 46630,
-    "name": "Robinhood Testnet",
-    "rpcUrl": "https://rpc.testnet.chain.robinhood.com",
+    "name": "Robinhood Chain Testnet",
     "explorerUrl": "https://explorer.testnet.chain.robinhood.com",
-    "factory": null,
-    "deploymentBlock": null,
     "underlying": {
       "address": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
       "symbol": "TSLA",
@@ -124,11 +136,119 @@
       "isMock": false
     },
     "quote": {
-      "address": null,
-      "symbol": "MockUSD",
+      "address": "0x7E955252E15c84f5768B83c41a71F9eba181802F",
+      "symbol": "USDG",
       "decimals": 6,
-      "isMock": true
+      "isMock": false
     },
-    "version": 4
+    "factory": "0xc8651e943aea1aeed398bd3beee7143475c6b40d",
+    "deploymentBlock": "122200158",
+    "version": 4,
+    "tickSize": "10000",
+    "feeRecipient": "0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0",
+    "baseFee": "10000",
+    "feeBps": 10,
+    "marketId": "primary",
+    "label": "TSLA / USDG",
+    "sandbox": false,
+    "markets": [
+      {
+        "marketId": "amd",
+        "label": "AMD / USDG",
+        "sandbox": false,
+        "factory": "0xdb3d2f3e97b38c84ca313e9fdcc5c89859901bd3",
+        "deploymentBlock": "122200168",
+        "underlying": {
+          "address": "0x71178BAc73cBeb415514eB542a8995b82669778d",
+          "symbol": "AMD",
+          "decimals": 18,
+          "isMock": false
+        },
+        "quote": {
+          "address": "0x7E955252E15c84f5768B83c41a71F9eba181802F",
+          "symbol": "USDG",
+          "decimals": 6,
+          "isMock": false
+        },
+        "version": 4,
+        "tickSize": "10000",
+        "feeRecipient": "0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0",
+        "baseFee": "10000",
+        "feeBps": 10
+      },
+      {
+        "marketId": "amazon",
+        "label": "AMZN / USDG",
+        "sandbox": false,
+        "factory": "0x51464d6e700d0b8476cbd94eeda3f4bd5bfbab55",
+        "deploymentBlock": "122200178",
+        "underlying": {
+          "address": "0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02",
+          "symbol": "AMZN",
+          "decimals": 18,
+          "isMock": false
+        },
+        "quote": {
+          "address": "0x7E955252E15c84f5768B83c41a71F9eba181802F",
+          "symbol": "USDG",
+          "decimals": 6,
+          "isMock": false
+        },
+        "version": 4,
+        "tickSize": "10000",
+        "feeRecipient": "0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0",
+        "baseFee": "10000",
+        "feeBps": 10
+      },
+      {
+        "marketId": "netflix",
+        "label": "NFLX / USDG",
+        "sandbox": false,
+        "factory": "0x8d4c2d2ca3ac8ceec8e294f5d28e947b87240dd9",
+        "deploymentBlock": "122200186",
+        "underlying": {
+          "address": "0x3b8262A63d25f0477c4DDE23F83cfe22Cb768C93",
+          "symbol": "NFLX",
+          "decimals": 18,
+          "isMock": false
+        },
+        "quote": {
+          "address": "0x7E955252E15c84f5768B83c41a71F9eba181802F",
+          "symbol": "USDG",
+          "decimals": 6,
+          "isMock": false
+        },
+        "version": 4,
+        "tickSize": "10000",
+        "feeRecipient": "0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0",
+        "baseFee": "10000",
+        "feeBps": 10
+      },
+      {
+        "marketId": "palantir",
+        "label": "PLTR / USDG",
+        "sandbox": false,
+        "factory": "0x39e2a162874970e4ca133f473179a675658ce7a1",
+        "deploymentBlock": "122200199",
+        "underlying": {
+          "address": "0x1FBE1a0e43594b3455993B5dE5Fd0A7A266298d0",
+          "symbol": "PLTR",
+          "decimals": 18,
+          "isMock": false
+        },
+        "quote": {
+          "address": "0x7E955252E15c84f5768B83c41a71F9eba181802F",
+          "symbol": "USDG",
+          "decimals": 6,
+          "isMock": false
+        },
+        "version": 4,
+        "tickSize": "10000",
+        "feeRecipient": "0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0",
+        "baseFee": "10000",
+        "feeBps": 10
+      }
+    ],
+    "rpcUrl": "https://rpc.testnet.chain.robinhood.com"
   }
 }

@@ -19,6 +19,7 @@ contract OptionMarketV4 is ReentrancyGuard {
     error OrderUnavailable();
     error SelfTrade();
     error OptionExpired();
+    error InvalidFee();
     error UnsupportedTokenTransfer();
 
     enum OrderState {
@@ -83,10 +84,15 @@ contract OptionMarketV4 is ReentrancyGuard {
 
     address public immutable underlying;
     address public immutable quote;
+    address public immutable feeRecipient;
     uint256 public immutable unit;
     uint256 public immutable tickSize;
+    uint256 public immutable baseFee;
+    uint16 public immutable feeBps;
+    uint16 public constant MAX_FEE_BPS = 100;
     uint256 public constant version = 4;
     uint256 public reservedPremium;
+    uint256 public reservedFees;
     uint64 public orderCount;
     mapping(uint64 => Order) private orders;
     mapping(bytes32 => Series) public series;
@@ -116,20 +122,30 @@ contract OptionMarketV4 is ReentrancyGuard {
         address indexed option,
         address buyer,
         address seller,
-        uint32 price
+        uint32 price,
+        uint256 fee
     );
     event OrderCanceled(uint64 indexed id);
     event OptionCreated(address indexed option, address indexed writer, uint8 optionType);
 
-    constructor(address underlying_, address quote_) {
+    constructor(address underlying_, address quote_, address feeRecipient_, uint256 baseFee_, uint16 feeBps_) {
         if (underlying_ == quote_ || underlying_.code.length == 0 || quote_.code.length == 0) revert InvalidPair();
         uint8 ud = IERC20Metadata(underlying_).decimals();
         uint8 qd = IERC20Metadata(quote_).decimals();
         if (ud > 77 || qd < 2 || qd > 18) revert InvalidPair();
+        if (feeRecipient_ == address(0) || baseFee_ > 10 ** qd || feeBps_ > MAX_FEE_BPS) revert InvalidFee();
         underlying = underlying_;
         quote = quote_;
+        feeRecipient = feeRecipient_;
         unit = 10 ** ud;
         tickSize = 10 ** (qd - 2);
+        baseFee = baseFee_;
+        feeBps = feeBps_;
+    }
+
+    /// @notice Buyer fee for an executed premium or a bid limit, in quote-token units.
+    function feeFor(uint256 payment) public view returns (uint256) {
+        return baseFee + payment * feeBps / 10_000;
     }
 
     function seriesKey(uint8 kind, uint32 strike, uint64 expiry) public pure returns (bytes32) {
@@ -264,8 +280,10 @@ contract OptionMarketV4 is ReentrancyGuard {
         } else {
             if (buy) {
                 uint256 premium = uint256(price) * tickSize;
+                uint256 fee = feeFor(premium);
                 reservedPremium += premium;
-                _transfer(quote, msg.sender, address(this), premium);
+                reservedFees += fee;
+                _transfer(quote, msg.sender, address(this), premium + fee);
             }
             _append(id);
         }
@@ -297,14 +315,19 @@ contract OptionMarketV4 is ReentrancyGuard {
         if (bid.owner == ask.owner || bid.owner == p.writer()) revert SelfTrade();
         uint32 price = b.price;
         uint256 payment = uint256(price) * tickSize;
+        uint256 fee = feeFor(payment);
         _remove(resting, OrderState.Executed);
         a.state = OrderState.Executed;
         bid.option = ask.option;
-        if (!a.buy) reservedPremium -= payment;
+        if (!a.buy) {
+            reservedPremium -= payment;
+            reservedFees -= fee;
+        }
         p.fill(bid.owner, payment);
         _remember(bid.owner, ask.option);
         _transfer(quote, a.buy ? bid.owner : address(this), ask.owner, payment);
-        emit OrderExecuted(incoming, resting, ask.option, bid.owner, ask.owner, price);
+        _transfer(quote, a.buy ? bid.owner : address(this), feeRecipient, fee);
+        emit OrderExecuted(incoming, resting, ask.option, bid.owner, ask.owner, price, fee);
     }
 
     function cancelOrder(uint64 id) external nonReentrant {
@@ -314,8 +337,10 @@ contract OptionMarketV4 is ReentrancyGuard {
         _remove(id, OrderState.Canceled);
         if (o.buy) {
             uint256 refund = uint256(o.price) * tickSize;
+            uint256 fee = feeFor(refund);
             reservedPremium -= refund;
-            _transfer(quote, address(this), o.owner, refund);
+            reservedFees -= fee;
+            _transfer(quote, address(this), o.owner, refund + fee);
         } else if (!o.resale) {
             OptionV4(o.option).cancel();
         } else if (series[o.series].expiry > block.timestamp) {
@@ -335,6 +360,7 @@ contract OptionMarketV4 is ReentrancyGuard {
     }
 
     function _transfer(address token, address from, address to, uint256 amount) private {
+        if (amount == 0 || from == to) return;
         IERC20 t = IERC20(token);
         uint256 a = t.balanceOf(from);
         uint256 b = t.balanceOf(to);

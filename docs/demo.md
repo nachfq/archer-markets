@@ -50,7 +50,8 @@ until matched. Find it in Trade and Portfolio.
 
 As **anvil1**, select the same expiration and click that ask at strike 300. The same
 ticket opens. Set your buy limit to **12**: the estimate should show execution at **10**.
-Review and confirm. The transaction pays 10 to the writer and gives you the option.
+Review and confirm. The transaction pays 10 to the writer, pays the 0.02 protocol fee
+to the configured recipient and gives you the option.
 
 In **Portfolio**, expand it with **Review exercise**, then **Exercise option**. Approve
 300 MockUSD if prompted and exercise before expiration.
@@ -58,7 +59,8 @@ In **Portfolio**, expand it with **Review exercise**, then **Exercise option**. 
 | Wallet | Final stock change | Final MockUSD change |
 | --- | --- | --- |
 | anvil0 / writer | −1 mTSLA | +310 |
-| anvil1 / holder | +1 mTSLA | −310 |
+| anvil1 / holder | +1 mTSLA | −310.02 |
+| protocol fee recipient | — | +0.02 |
 
 ETH gas is separate. The option appears under **Closed & resold options → Exercised**.
 Buying alone does not deliver stock.
@@ -66,10 +68,10 @@ Buying alone does not deliver stock.
 ## Try the other paths
 
 - **Bid first:** as anvil1, Buy a Put at strike 300, premium 10 and a new expiration.
-  It reserves 10 MockUSD. As anvil0, click its bid to Sell: depositing 300 creates the
+  It reserves 10.02 MockUSD. As anvil0, click its bid to Sell: depositing 300 creates the
   option and pays the resting premium of 10. The buyer exercises by delivering 1 mTSLA.
 - **Cancel:** cancel an unmatched bid or unsold ask from Portfolio. Its reserved
-  premium or collateral returns. Sold options cannot be canceled by their writer.
+  premium and fee, or collateral, returns. Sold options cannot be canceled by their writer.
 - **Resell:** buy an option, then choose **Sell owned option** in Portfolio. Set a
   premium in the same ticket. It competes with new asks; no new collateral is deposited.
 - **Depth:** post two asks at the same price and series. Trade should show **2 contracts**.
@@ -79,7 +81,7 @@ Buying alone does not deliver stock.
 
 **Portfolio:** available balances, locked collateral, bids, holdings and contract details.
 **Activity:** submissions and receipt status from this browser. After expiration,
-recover unused collateral or bid premiums manually; neither is withdrawn automatically.
+recover unused collateral or bid funds manually; neither is withdrawn automatically.
 
 Ctrl+C stops Anvil and discards that container's chain. After a fresh start, rerun the
 seed; clear stale wallet activity if needed. Use `npm run dev:local` for chain 31337.

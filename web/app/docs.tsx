@@ -20,7 +20,7 @@ export const documentation = [
     "id": "collateral",
     "title": "Funds and collateral",
     "paragraphs": [
-      "An unmatched buy reserves its limit premium. Selling a new call deposits one stock token; a put deposits the strike payment. Incoming premium cannot fund that deposit. Buying gives the exercise right, not immediate stock delivery."
+      "A buyer pays the executed premium plus a protocol fee of 0.01 payment tokens + 0.10% of that premium. The seller receives the full premium. An unmatched buy reserves its limit premium plus the maximum fee; both return in full if the bid is canceled. Selling a new call deposits one stock token; a put deposits the strike payment. Incoming premium cannot fund that deposit. Buying gives the exercise right, not immediate stock delivery."
     ]
   },
   {
@@ -41,14 +41,14 @@ export const documentation = [
     "id": "expiration",
     "title": "Cancellation and expiration",
     "paragraphs": [
-      "Cancel an open bid for its reserved premium, or an unsold ask for its collateral. Removing a resale listing keeps your exercise right. Orders stop matching at expiration. Unused collateral and expired bid premiums require manual recovery."
+      "Cancel an open bid for its reserved premium and fee, or an unsold ask for its collateral. Removing a resale listing keeps your exercise right. Orders stop matching at expiration. Unused collateral and expired bid funds require manual recovery."
     ]
   },
   {
     "id": "portfolio",
     "title": "Portfolio and availability",
     "paragraphs": [
-      "Portfolio shows available funds, collateral, bids and positions; Activity tracks this browser\u2019s submissions. Local Anvil uses mock assets. Robinhood Chain Testnet is not deployed."
+      "Portfolio shows available funds, collateral, bids and positions; Activity tracks this browser\u2019s submissions. Local Anvil uses mock assets. Robinhood Chain Testnet uses native test assets with no monetary value."
     ]
   }
 ];

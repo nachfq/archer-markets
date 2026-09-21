@@ -17,11 +17,14 @@ export type Deployment = {
   explorerUrl: string;
   factory: Address | null;
   deploymentBlock: string | null;
+  feeRecipient: Address;
+  baseFee: string;
+  feeBps: number;
   marketId?: string;
   label?: string;
   sandbox?: boolean;
   version: 4;
-  markets?: Array<Pick<Deployment, "marketId" | "label" | "sandbox" | "factory" | "deploymentBlock" | "underlying" | "quote" | "version">>;
+  markets?: Array<Pick<Deployment, "marketId" | "label" | "sandbox" | "factory" | "deploymentBlock" | "feeRecipient" | "baseFee" | "feeBps" | "underlying" | "quote" | "version">>;
   underlying: Token;
   quote: Token;
 };
@@ -64,7 +67,7 @@ const curated = curatedMarkets(manifestMarkets, marketCatalog[deployment.chainId
 export const marketRecords = curated;
 export function asMarket(record: Deployment): MarketConfig | null {
   if (record.version !== 4 || !record.factory || !record.underlying.address || !record.quote.address || record.deploymentBlock === null) return null;
-  return { id: record.marketId ?? "primary", chainId: record.chainId, factory: record.factory, deploymentBlock: BigInt(record.deploymentBlock), version: 4, sandbox: record.sandbox ?? record.underlying.isMock,
+  return { id: record.marketId ?? "primary", chainId: record.chainId, factory: record.factory, deploymentBlock: BigInt(record.deploymentBlock), version: 4, feeRecipient: record.feeRecipient, baseFee: BigInt(record.baseFee), feeBps: record.feeBps, sandbox: record.sandbox ?? record.underlying.isMock,
     underlying: { ...record.underlying, address: record.underlying.address, adapter: record.underlying.isMock ? "erc20" : "robinhood" },
     quote: { ...record.quote, address: record.quote.address, adapter: "erc20" } };
 }

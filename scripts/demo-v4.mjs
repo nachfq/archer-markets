@@ -2,7 +2,7 @@
 // Local-only fixture generator. Accounts 0 and 1 receive tokens but never sign seed transactions.
 import { setTimeout as delay } from 'node:timers/promises';
 import { createPublicClient, createWalletClient, decodeEventLog, encodeDeployData, encodeFunctionData, erc20Abi, http } from 'viem';
-import { artifact, network, readJson, saveJson, publicDeployment, reportError } from './config.mjs';
+import { artifact, network, readJson, saveJson, publicDeployment, reportError, DEFAULT_BASE_FEE, DEFAULT_FEE_BPS } from './config.mjs';
 import { assertLocalDemo, demoStocks, demoOffers, demoBids, playerStockAmount, playerQuoteAmount, priceSnapshotDate } from './demo-config.mjs';
 try {
     const args = new Set(process.argv.slice(2));
@@ -134,8 +134,8 @@ try {
                 const r = await deploy(`${stock.id}:token`, 'MockEquity', [stock.name, stock.symbol]);
                 token = { address: r.contractAddress, symbol: stock.symbol, decimals: 18, isMock: true };
             }
-            const r = await deploy(`${stock.id}:factory`, 'OptionMarketV4', [token.address, quote.address]);
-            const market = { marketId: stock.id, label: `${stock.name} / MockUSD`, sandbox: true, version: 4, tickSize: '10000', factory: r.contractAddress, deploymentBlock: r.blockNumber.toString(), underlying: token, quote };
+            const r = await deploy(`${stock.id}:factory`, 'OptionMarketV4', [token.address, quote.address, actors[0], DEFAULT_BASE_FEE, DEFAULT_FEE_BPS]);
+            const market = { marketId: stock.id, label: `${stock.name} / MockUSD`, sandbox: true, version: 4, tickSize: '10000', factory: r.contractAddress, deploymentBlock: r.blockNumber.toString(), feeRecipient: actors[0], baseFee: DEFAULT_BASE_FEE.toString(), feeBps: DEFAULT_FEE_BPS, underlying: token, quote };
             const index = ledger.markets.findIndex(m => m.marketId === stock.id);
             if (index < 0)
                 ledger.markets.push(market);
@@ -169,6 +169,7 @@ try {
         while (await client.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [actor] }) < amount)
             await write(`${key}:fund:${n++}`, actor, token, faucetAbi, 'faucet');
     };
+    const feeFor = premium => DEFAULT_BASE_FEE + premium * BigInt(DEFAULT_FEE_BPS) / 10_000n;
     const event = (receipt, name) => receipt.logs.map(l => { try {
         return decodeEventLog({ abi: factoryAbi, ...l });
     }
@@ -202,8 +203,9 @@ try {
                 await write(`${offer.id}:cancel`, writer, market.factory, factoryAbi, 'cancelOrder', [BigInt(entry.orderId)]);
             if ((await read('state') === 0 || ledger.transactions[`${offer.id}:buy`]) && ['held', 'resale'].includes(offer.disposition) && !entry.acquired) {
                 if (!ledger.transactions[`${offer.id}:buy`]) {
-                    await ensureFunds(`${offer.id}:buyer`, buyer, quote.address, offer.premium);
-                    await write(`${offer.id}:buyer-approve`, buyer, quote.address, erc20Abi, 'approve', [market.factory, offer.premium]);
+                    const funds = offer.premium + feeFor(offer.premium);
+                    await ensureFunds(`${offer.id}:buyer`, buyer, quote.address, funds);
+                    await write(`${offer.id}:buyer-approve`, buyer, quote.address, erc20Abi, 'approve', [market.factory, funds]);
                 }
                 const r = await write(`${offer.id}:buy`, buyer, market.factory, factoryAbi, 'placeOrder', [offer.optionType, Number(offer.strikeTotal / 10000n), offer.expiry, true, Number(offer.premium / 10000n)]);
                 entry.acquired = event(r, 'OrderExecuted')?.args.option;
@@ -226,8 +228,9 @@ try {
                 continue;
             const buyer = accounts[r.buyerIndex];
             if (!ledger.transactions[`${r.id}:create`]) {
-                await ensureFunds(r.id, buyer, quote.address, r.premium);
-                await write(`${r.id}:approve`, buyer, quote.address, erc20Abi, 'approve', [market.factory, r.premium]);
+                const funds = r.premium + feeFor(r.premium);
+                await ensureFunds(r.id, buyer, quote.address, funds);
+                await write(`${r.id}:approve`, buyer, quote.address, erc20Abi, 'approve', [market.factory, funds]);
             }
             const receipt = await write(`${r.id}:create`, buyer, market.factory, factoryAbi, 'placeOrder', [r.optionType, Number(r.strikeTotal / 10000n), r.expiry, true, Number(r.premium / 10000n)]);
             const posted = event(receipt, 'OrderPosted');

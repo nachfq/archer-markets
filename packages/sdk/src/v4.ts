@@ -41,6 +41,7 @@ export const v4Tick = (decimals: number) => {
         throw new ProtocolError('INVALID_TERMS', 'Payment decimals must be between 2 and 18.', 'Use a compatible market.');
     return 10n ** BigInt(decimals - 2);
 };
+export const feeForV4 = (market: MarketConfig, payment: bigint) => market.baseFee + payment * BigInt(market.feeBps) / 10_000n;
 export function priceTicks(amount: bigint, decimals: number): number {
     const tick = v4Tick(decimals), ticks = amount / tick;
     if (amount <= 0n || amount % tick !== 0n || ticks > 0xffffffffn)
@@ -165,7 +166,7 @@ export async function getPortfolioSnapshotV4(c: PublicClient, m: MarketConfig, a
     }
     const paid = new Map<bigint, number>();
     const executed = [...orderMap.values()].filter(order => order.buy && order.state === 2).map(order => order.id);
-    const event = parseAbiItem('event OrderExecuted(uint64 indexed incoming, uint64 indexed resting, address indexed option, address buyer, address seller, uint32 price)');
+    const event = parseAbiItem('event OrderExecuted(uint64 indexed incoming, uint64 indexed resting, address indexed option, address buyer, address seller, uint32 price, uint256 fee)');
     for (let i = 0; i < executed.length; i += 64) for (const args of [{ incoming: executed.slice(i, i + 64) }, { resting: executed.slice(i, i + 64) }]) {
         const logs = await c.getLogs({ address: m.factory, event, args, fromBlock: m.deploymentBlock, toBlock: block.number, strict: true });
         for (const log of logs) { paid.set(log.args.incoming, log.args.price); paid.set(log.args.resting, log.args.price); }
@@ -189,7 +190,7 @@ export async function prepareOrderV4(c: PublicClient, m: MarketConfig, account: 
     const strike = priceTicks(terms.strikeTotal, m.quote.decimals), price = priceTicks(terms.premium, m.quote.decimals);
     if (![0, 1].includes(terms.optionType) || terms.expiry <= (await c.getBlock()).timestamp || terms.expiry >= 2n ** 64n)
         throw new ProtocolError('INVALID_TERMS', 'Choose a future expiration.', 'Check order terms.');
-    return prepare(c, m, account, 'Limit order', { to: m.factory, data: encodeFunctionData({ abi: optionMarketV4Abi, functionName: 'placeOrder', args: [terms.optionType, strike, terms.expiry, terms.buy, price] }) }, { token: terms.buy || terms.optionType === 1 ? m.quote : m.underlying, amount: terms.buy ? terms.premium : terms.optionType === 0 ? 10n ** BigInt(m.underlying.decimals) : terms.strikeTotal });
+    return prepare(c, m, account, 'Limit order', { to: m.factory, data: encodeFunctionData({ abi: optionMarketV4Abi, functionName: 'placeOrder', args: [terms.optionType, strike, terms.expiry, terms.buy, price] }) }, { token: terms.buy || terms.optionType === 1 ? m.quote : m.underlying, amount: terms.buy ? terms.premium + feeForV4(m, terms.premium) : terms.optionType === 0 ? 10n ** BigInt(m.underlying.decimals) : terms.strikeTotal });
 }
 export async function prepareResaleV4(c: PublicClient, m: MarketConfig, account: Address, option: Address, price: bigint) {
     requireV4(m);

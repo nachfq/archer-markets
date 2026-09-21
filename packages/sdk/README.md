@@ -23,16 +23,18 @@ const hash = await walletClient.sendTransaction(operation.request);
 // Await the receipt: OrderExecuted gives the actual price; OrderPosted means open.
 ```
 
-`market` needs `version: 4`, chain ID, factory, deployment block and token metadata.
+`market` needs `version: 4`, chain ID, factory, deployment block, token metadata and
+the immutable `feeRecipient`, `baseFee` and `feeBps` values.
 Each order covers exactly **one token**. Strike and premium are bigint base units,
 with 0.01 increments. A crossing limit fills one resting order at its price and FIFO
-priority; otherwise funds remain reserved. A simulation does not guarantee execution.
+priority; otherwise premium plus the maximum buyer fee remain reserved. The SDK includes
+that fee in balance and approval requirements. A simulation does not guarantee execution.
 
 - **Read:** `getMarkets(client, markets)`, `getPortfolio`, `getOption`.
   Portfolio reads include account holdings and history at one block using bounded pages.
 - **Book:** `getDepthV4`, `getOrderV4`, `getSeriesV4`.
 - **Manage:** `prepareResaleV4`, `prepareCancelV4`, `prepareExercise`, `prepareReclaim`.
-- **Errors:** `decodeProtocolError`; **amounts:** `parseAmount`, `priceTicks`.
+- **Errors:** `decodeProtocolError`; **amounts:** `parseAmount`, `priceTicks`, `feeForV4`.
 
 The book may select another eligible option in the same series. To edit a price,
 cancel and replace the order, losing FIFO priority. Fee/rebasing tokens are unsupported.

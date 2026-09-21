@@ -8,24 +8,30 @@ try {
   if (record.chainId !== 46630) throw new Error('Expected a Robinhood testnet manifest.');
   const factoryCode = await publicClient.getCode({ address: record.factory });
   if (!factoryCode || factoryCode === '0x') throw new Error('Factory is not deployed on this network.');
-  const jobs = [
-    [record.quote.address, 'src/MockUSD.sol:MockUSD', null],
-    [record.factory, 'src/OptionMarketV4.sol:OptionMarketV4', encodeAbiParameters(parseAbiParameters('address,address'), [record.underlying.address, record.quote.address])],
-  ];
+  const constructor = market => encodeAbiParameters(parseAbiParameters('address,address,address,uint256,uint16'), [market.underlying.address, market.quote.address, market.feeRecipient, BigInt(market.baseFee), market.feeBps]);
+  const markets = [record, ...(record.markets ?? [])];
+  const jobs = [[record.factory, 'src/OptionMarketV4.sol:OptionMarketV4', constructor(record)]];
+  if (record.quote.isMock) jobs.unshift([record.quote.address, 'src/MockUSD.sol:MockUSD', null]);
   for (const market of record.markets ?? []) {
     if (market.underlying.isMock) jobs.push([market.underlying.address, 'src/MockStock.sol:MockStock', null]);
-    jobs.push([market.factory, 'src/OptionMarketV4.sol:OptionMarketV4', encodeAbiParameters(parseAbiParameters('address,address'), [market.underlying.address, market.quote.address])]);
+    jobs.push([market.factory, 'src/OptionMarketV4.sol:OptionMarketV4', constructor(market)]);
   }
   const { abi: factoryAbi } = await artifact('OptionMarketV4');
   const { abi: optionAbi } = await artifact('OptionV4');
-  const count = await publicClient.readContract({ address: record.factory, abi: factoryAbi, functionName: 'optionCount' });
   const types = new Set();
-  for (let i = 0n; i < count && types.size < 2; i++) {
-    const address = await publicClient.readContract({ address: record.factory, abi: factoryAbi, functionName: 'options', args: [i] });
-    const fields = await Promise.all(['writer', 'underlying', 'quote', 'optionType', 'underlyingAmount', 'strikeTotal', 'premium', 'expiry'].map(functionName => publicClient.readContract({ address, abi: optionAbi, functionName })));
-    if (types.has(fields[3])) continue;
-    types.add(fields[3]);
-    jobs.push([address, 'src/OptionV4.sol:OptionV4', encodeAbiParameters(parseAbiParameters('address,address,address,uint256,uint8,uint256,uint256,uint64'), [fields[0],fields[1],fields[2],fields[4],fields[3],fields[5],fields[6],fields[7]])]);
+  for (const market of markets) {
+    const count = await publicClient.readContract({ address: market.factory, abi: factoryAbi, functionName: 'optionCount' });
+    for (let i = 0n; i < count && types.size < 2; i++) {
+      const address = await publicClient.readContract({ address: market.factory, abi: factoryAbi, functionName: 'options', args: [i] });
+      const fields = await Promise.all(
+        ['writer', 'underlying', 'quote', 'optionType', 'underlyingAmount', 'strikeTotal', 'premium', 'expiry']
+          .map(functionName => publicClient.readContract({ address, abi: optionAbi, functionName })),
+      );
+      if (types.has(fields[3])) continue;
+      types.add(fields[3]);
+      jobs.push([address, 'src/OptionV4.sol:OptionV4', encodeAbiParameters(parseAbiParameters('address,address,address,uint256,uint8,uint256,uint256,uint64'), [fields[0],fields[1],fields[2],fields[4],fields[3],fields[5],fields[6],fields[7]])]);
+    }
+    if (types.size === 2) break;
   }
   const verified = [];
   for (const [address, contract, constructor] of jobs) {
@@ -36,5 +42,6 @@ try {
     verified.push({ address, contract });
   }
   await saveJson('deployments/46630.verification.json', { verifiedAt: new Date().toISOString(), verified });
-  if (count === 0n) console.log('Factory and MockUSD verified. Run seed:testnet then verify:testnet again to verify sample call/put instances.');
+  if (types.size === 0) console.log('Markets verified. Seed testnet liquidity, then verify again to verify sample option instances.');
+  else if (types.size < 2) console.log('Markets and one option type verified. Seed the other option type, then verify again.');
 } catch (error) { reportError(error); }

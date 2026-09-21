@@ -18,7 +18,7 @@ export { erc20Abi as protocolErc20Abi, optionMarketV4Abi, optionV4Abi } from './
 
 export type ChainConfig = { chainId: number; name: string; rpcUrl: string; explorerUrl: string };
 export type TokenConfig = { address: Address; symbol: string; decimals: number; isMock: boolean; adapter?: 'erc20' | 'robinhood' };
-export type MarketConfig = { id: string; chainId: number; factory: Address; deploymentBlock: bigint; version: 4; underlying: TokenConfig; quote: TokenConfig; sandbox: boolean };
+export type MarketConfig = { id: string; chainId: number; factory: Address; deploymentBlock: bigint; version: 4; feeRecipient: Address; baseFee: bigint; feeBps: number; underlying: TokenConfig; quote: TokenConfig; sandbox: boolean };
 export type OptionTrade = { seller: Address; buyer: Address; price: bigint; blockNumber: bigint; transactionHash: Hash };
 export type Option = { orderId?: bigint; bookSize?: bigint; seriesKey?: Hash; address: Address; writer: Address; buyer: Address; underlyingAmount: bigint; strikeTotal: bigint; premium: bigint; expiry: bigint; optionType: number; state: number; resalePrice?: bigint; listingNonce?: bigint; trades?: OptionTrade[] };
 export type Bid = { id: bigint; bookSize?: bigint; seriesKey?: Hash; buyer: Address; optionType: number; underlyingAmount: bigint; strikeTotal: bigint; premium: bigint; expiry: bigint; state: number; option: Address };
@@ -86,15 +86,18 @@ export function parseAmount(value: string, decimals: number): bigint {
 
 const validations = new WeakMap<PublicClient, Map<string, Promise<void>>>();
 async function validateMarketFresh(client: PublicClient, market: MarketConfig) {
-  const [code, version, underlying, quote, underlyingDecimals, quoteDecimals] = await Promise.all([
+  const [code, version, underlying, quote, feeRecipient, baseFee, feeBps, underlyingDecimals, quoteDecimals] = await Promise.all([
     client.getCode({ address: market.factory }),
     client.readContract({ address: market.factory, abi: optionMarketV4Abi, functionName: 'version' }),
     client.readContract({ address: market.factory, abi: optionMarketV4Abi, functionName: 'underlying' }),
     client.readContract({ address: market.factory, abi: optionMarketV4Abi, functionName: 'quote' }),
+    client.readContract({ address: market.factory, abi: optionMarketV4Abi, functionName: 'feeRecipient' }),
+    client.readContract({ address: market.factory, abi: optionMarketV4Abi, functionName: 'baseFee' }),
+    client.readContract({ address: market.factory, abi: optionMarketV4Abi, functionName: 'feeBps' }),
     client.readContract({ address: market.underlying.address, abi: erc20Abi, functionName: 'decimals' }),
     client.readContract({ address: market.quote.address, abi: erc20Abi, functionName: 'decimals' }),
   ]);
-  if (market.version !== 4 || version !== 4n || !code || code === '0x' || underlying.toLowerCase() !== market.underlying.address.toLowerCase() || quote.toLowerCase() !== market.quote.address.toLowerCase() || underlyingDecimals !== market.underlying.decimals || quoteDecimals !== market.quote.decimals) {
+  if (market.version !== 4 || version !== 4n || !code || code === '0x' || underlying.toLowerCase() !== market.underlying.address.toLowerCase() || quote.toLowerCase() !== market.quote.address.toLowerCase() || feeRecipient.toLowerCase() !== market.feeRecipient.toLowerCase() || baseFee !== market.baseFee || feeBps !== market.feeBps || underlyingDecimals !== market.underlying.decimals || quoteDecimals !== market.quote.decimals) {
     throw new ProtocolError('UNAVAILABLE', 'Deployment does not match the V4 market configuration.', 'Check the network, market address and token metadata.');
   }
 }
@@ -152,9 +155,10 @@ export function summarizePortfolio(snapshots: MarketSnapshot[], account: Address
       seenBids.add(key);
       if (bid.state !== 0 || bid.buyer.toLowerCase() !== account.toLowerCase()) continue;
       const row = tokens.get(`${market.chainId}:${market.quote.address.toLowerCase()}`)!;
-      if (bid.expiry <= timestamp) row.refundableBidPremium += bid.premium;
-      else row.openBidPremium += bid.premium;
-      row.totalTracked += bid.premium;
+      const reserved = bid.premium + market.baseFee + bid.premium * BigInt(market.feeBps) / 10_000n;
+      if (bid.expiry <= timestamp) row.refundableBidPremium += reserved;
+      else row.openBidPremium += reserved;
+      row.totalTracked += reserved;
     }
     for (const position of positions) {
       const key = `${market.chainId}:${position.address.toLowerCase()}`;

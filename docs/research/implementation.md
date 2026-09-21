@@ -1,5 +1,177 @@
 # Implementation record
 
+## Public liquidity and explorer verification (2026-09-20)
+
+The disposable deployer posted 12 open orders through the production contracts: a
+two-sided call series for each of TSLA, AMD, AMZN, NFLX and PLTR, plus a two-sided PLTR
+put series. All fixture orders expire December 18, 2026 at 20:00 UTC. Prices are
+explicitly illustrative and do not represent market data, separate users or demand.
+The script is resumable and detected the two TSLA orders already mined before a transient
+RPC/network mismatch, then continued without duplicating them.
+
+At block `122211653`, all 12 fixture orders and the coordinator's five earlier TSLA
+orders were open; no execution or cancellation had occurred. The deployer retained
+`173.934 USDG`, approximately `0.00957824975` test ETH and four of each Stock Token.
+The books reserved `9 USDG` of bid premiums and `0.099 USDG` of maximum execution fees
+in aggregate. The fixture's five Stock Tokens and `20 USDG` backed six unsold option
+instances.
+
+Blockscout accepted and completed source verification for all five `OptionMarketV4`
+contracts and representative `OptionV4` instances. The verification tool now searches
+all configured markets for call and put examples instead of assuming both types exist in
+the primary market. Local liquidity and verification JSON remain ignored operational
+evidence; the public transaction links and limitations are recorded in the
+[testnet release](../testnet-release.md).
+
+## Railway testnet frontend release (2026-09-20)
+
+The frontend containing the chain-46630 deployment manifest was uploaded directly from
+the local workspace to the existing Railway `archer-markets` project without changing
+repository visibility. Railway deployment `ab955798-0f07-40b9-9f38-7fd339ad17fa`
+reached `SUCCESS` with image digest
+`sha256:657bfd01bd5bfeff960a14e7cc7e0560259bf1034a23b76355eb45ff42ee1435`.
+The public URL is <https://archer-markets.up.railway.app/>.
+
+The release uses one Node.js service with no database, volume or application secrets.
+Railpack installs the pinned npm dependencies, builds the SDK and Vinext frontend, and
+starts `vinext` on Railway's injected `PORT`. The root path is the deployment
+healthcheck. An external HTTPS request returned status 200 and rendered five markets
+with the deployed TSLA market address
+`0xc8651e943aea1aeed398bd3beee7143475c6b40d`. Bounded runtime logs showed the server
+listening successfully and no application failure.
+
+The existing Railway service initially carried an obsolete SDK-only build override;
+the first local upload did not produce a running deployment. The service configuration
+was corrected before the successful deployment. The deprecated `railway.json` format
+was migrated to `.railway/railway.ts`; `railway config plan` reports no drift from the
+live service. Final repository validation passed 81 tests, type checking and the
+production build; the optional Robinhood RPC-fork test remained skipped.
+
+## Robinhood Chain Testnet deployment (2026-09-20)
+
+Five `OptionMarketV4` contracts were deployed publicly on Robinhood Chain Testnet
+(chain 46630) from the local spare deployer
+`0x0297E58AebF9c7bDBb83959EaB1306E8AE2147FF`. The deployment used the native testnet
+Stock Tokens and existing USDG contract; it did not deploy or mint any token. Every
+market permanently sends its `0.01 USDG + 10 bps` execution fee to
+`0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0`.
+
+| Pair | Market contract | Deployment transaction |
+| --- | --- | --- |
+| TSLA / USDG | [`0xc8651e943aea1aeed398bd3beee7143475c6b40d`](https://explorer.testnet.chain.robinhood.com/address/0xc8651e943aea1aeed398bd3beee7143475c6b40d) | [`0x51b6...669f`](https://explorer.testnet.chain.robinhood.com/tx/0x51b6cbb4f070a1080398240df9def68c0b45036eb8f4c35ffc4232e6097d669f) |
+| AMD / USDG | [`0xdb3d2f3e97b38c84ca313e9fdcc5c89859901bd3`](https://explorer.testnet.chain.robinhood.com/address/0xdb3d2f3e97b38c84ca313e9fdcc5c89859901bd3) | [`0x22c3...6563`](https://explorer.testnet.chain.robinhood.com/tx/0x22c3146fb471062debfc2e970ed0ab6df29ba5d349edff0b6dfbd5ae64056563) |
+| AMZN / USDG | [`0x51464d6e700d0b8476cbd94eeda3f4bd5bfbab55`](https://explorer.testnet.chain.robinhood.com/address/0x51464d6e700d0b8476cbd94eeda3f4bd5bfbab55) | [`0x15e0...2977`](https://explorer.testnet.chain.robinhood.com/tx/0x15e0e552736d9b8d40e7bdcf537b95519fa525b195171c591d3899a257422977) |
+| NFLX / USDG | [`0x8d4c2d2ca3ac8ceec8e294f5d28e947b87240dd9`](https://explorer.testnet.chain.robinhood.com/address/0x8d4c2d2ca3ac8ceec8e294f5d28e947b87240dd9) | [`0x58f2...e3b2`](https://explorer.testnet.chain.robinhood.com/tx/0x58f2209080860d7f0585b7772d693afffec4260156812aaa9288a91f60b9e3b2) |
+| PLTR / USDG | [`0x39e2a162874970e4ca133f473179a675658ce7a1`](https://explorer.testnet.chain.robinhood.com/address/0x39e2a162874970e4ca133f473179a675658ce7a1) | [`0x8eb2...83af`](https://explorer.testnet.chain.robinhood.com/tx/0x8eb27b461a7448f719ce04d84d55d58e7c1aa8f931984c7693d7474bac3f83af) |
+
+Post-deployment RPC reads confirmed 24,018 runtime bytes, version 4, the intended
+underlying and shared USDG addresses, and the exact fee configuration on all five
+contracts. The private and browser deployment manifests now contain these addresses.
+The hosted frontend has not been redeployed, so this deployment alone does not change
+the currently hosted website.
+
+Validation after recording the deployment: `npm test` passed 81 tests across contracts,
+scripts, SDK and frontend, with the optional Robinhood RPC-fork test skipped;
+`npm run typecheck` and `npm run build` passed. These local checks were followed by the
+independent live RPC reads described above.
+
+## Air-gapped deployment path (2026-09-20)
+
+The coordinator's funded wallet uses AirGap Vault on an offline phone and MetaMask on
+an online phone. The attempted flow stopped during initial account pairing: MetaMask
+Mobile scanned the AirGap account QR and closed its scanner without importing the
+account. AirGap Vault therefore never received a contract creation request, and the
+approximately 25 KB initcode was not tested through the signing QR flow. MetaMask's
+[current hardware-wallet documentation](https://support.metamask.io/more-web3/wallets/hardware-wallet-hub)
+lists AirGap Vault for the browser extension but limits MetaMask Mobile hardware-wallet
+support to Keystone, Ledger and NGRAVE ZERO, while AirGap's
+[mobile guide](https://support.airgap.it/guides/metamask-mobile/) still claims MetaMask
+Mobile compatibility. No transaction was requested or broadcast.
+
+Deployment tooling now permits a disposable testnet deployer to differ from the
+immutable fee recipient. The existing ignored `.env` deployer is
+`0x0297E58AebF9c7bDBb83959EaB1306E8AE2147FF`; a read-only check found zero test ETH and
+zero project tokens. The planned recipient remains
+`0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0` for every market. A live RPC estimate at
+10,000,000 wei gas price measured 5,786,638 gas for one 25,497-byte TSLA market creation,
+or approximately 0.0002893319 test ETH for five equal-sized deployments before margin.
+Funding and deployment remain separate human-approved steps.
+
+## Immutable execution fee (2026-09-20)
+
+V4 now charges the buyer an immutable protocol fee only when an order executes. The
+testnet deployment parameters are `0.01 USDG + 10 bps` of the executed premium, paid
+to the deploying wallet. Sellers receive the full resting premium. A resting bid
+escrows its limit premium and maximum fee; cancellation returns both, while a
+price-improved execution charges the fee on the lower executed premium. Primary sales
+and resales use the same calculation. Creating or canceling an ask, exercising and
+reclaiming collateral do not pay a protocol fee.
+
+Every market records the recipient, base fee and basis points as constructor
+immutables. There is no owner method that can raise or redirect them. Constructor
+guards cap the base at one whole quote token and the percentage at 100 bps. The SDK
+includes the maximum fee in balance and allowance checks, portfolio accounting includes
+refundable fee reserves, and the UI shows premium, fee and buyer total before signing.
+The planned five testnet markets all use
+`0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0` as recipient.
+
+Validation for this iteration:
+
+- `npm test`: 78 passed across contracts, scripts, SDK and frontend; the optional
+  Robinhood RPC-fork test was skipped because no fork URL was supplied.
+- Fee-specific unit and invariant coverage checks direct execution, resting-bid
+  escrow, full cancellation refunds, primary and resale conservation, configuration
+  caps, and atomic rollback when the fee transfer fails. The invariant ran 128 times
+  over 8,192 calls.
+- `npm run typecheck` and `npm run build`: passed after regenerating the V4 ABI.
+- `npm run test:acceptance`: passed on an isolated Docker/Anvil chain, including the
+  protocol/SDK lifecycle, browser wallet flow and the full five-market fixture seed.
+  Evidence is local and records `publicTransactions: false`.
+- The deployed runtime is 24,018 bytes, 558 bytes below the EVM runtime limit. This is
+  deployable but leaves little room for further contract features without refactoring.
+
+No Robinhood testnet transaction was sent and no public deployment manifest exists.
+
+## Interactive testnet deployment signer (2026-09-20)
+
+The deployment tooling can now use an explicitly selected, funded MetaMask account
+without receiving or storing its private key. A loopback-only page checks the expected
+account and chain 46630, prepares each deployment, and validates every mined transaction
+against its exact creation bytecode before recording it. Five wallet confirmations
+deploy one `OptionMarketV4` per native testnet Stock Token—TSLA, AMD, AMZN, NFLX and
+PLTR—all sharing the existing testnet USDG contract. The flow does not deploy tokens or
+a mock practice market. The normal private and public manifests are written only after
+every market's pair and version are read back successfully. Partial public receipt
+evidence is retained if the user stops between confirmations or final validation fails.
+
+The selected wallet `0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0` was checked
+read-only at block 122183808 and held 0.01 test ETH, 5 each of TSLA, AMD, AMZN, NFLX and
+PLTR, and no USDG. No transaction was sent during that balance check. Testnet USDG is configured separately from the
+production address as `0x7E955252E15c84f5768B83c41a71F9eba181802F`; the tooling
+requires live bytecode, symbol `USDG` and six decimals before offering a deployment.
+
+Validation before presenting the signer: the script passed Node syntax and missing-
+argument failure checks; `npm test` passed 70 tests with the optional Robinhood RPC-
+fork test skipped; typecheck, frontend lint, the production build and
+`git diff --check` passed. These checks did not request a wallet signature.
+
+## MIT license and testnet funding check (2026-09-20)
+
+The human coordinator selected the MIT License for the repository. The canonical
+license text is now present at the repository root, and the root, SDK and frontend
+package metadata identify the same license. The packages remain marked private where
+applicable; licensing the source does not publish the repository or an npm package.
+
+A read-only Robinhood Chain Testnet check reached chain 46630 at block 122182387 and
+validated the configured TSLA token address, symbol and 18 decimals. The configured
+deployer `0x0297E58AebF9c7bDBb83959EaB1306E8AE2147FF` had zero test ETH and zero TSLA,
+so no deployment, faucet request or public transaction was attempted. No chain-46630
+deployment manifest exists, and the hosted frontend remains without a factory address.
+
+Validation for the licensing changes: `npm test` passed 69 tests with the optional
+Robinhood RPC-fork test skipped; `npm run typecheck`, frontend lint, `npm run build`
+and `git diff --check` passed. No contract, ABI or runtime behavior changed.
+
 ## V4-only active product cleanup (2026-09-20)
 
 The human coordinator removed backward compatibility as a product requirement. The

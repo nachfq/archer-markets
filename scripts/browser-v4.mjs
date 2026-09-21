@@ -21,6 +21,7 @@ assert.notEqual(new URL(rpc).port, '8545', 'Use an isolated Anvil node.');
 const evidence = { publicTransactions: false, chainId: 31337, factory: m.factory, scenarios: [], transactions: [], startedAt: new Date().toISOString() };
 const read = (address, abi, functionName, args = []) => client.readContract({ address, abi, functionName, args });
 const balance = (token, account) => read(token.address, erc20Abi, 'balanceOf', [account]);
+const feeFor = premium => BigInt(m.baseFee) + premium * BigInt(m.feeBps) / 10_000n;
 const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}) });
 const errors = [];
 async function walletPage(account, width = 1440) {
@@ -118,10 +119,10 @@ try {
     await expect(buyer.getByText('Estimated: executes now')).toBeVisible();
     const before = await balance(m.quote, accounts[7]);
     await confirm(buyer, 'Buy');
-    assert.equal(before - await balance(m.quote, accounts[7]), 9000000n);
+    assert.equal(before - await balance(m.quote, accounts[7]), 9000000n + feeFor(9000000n));
     assert.equal((await order(2n)).state, 2);
     assert.equal((await order(3n)).state, 1);
-    await expect(buyer.getByText(/Executed 1 contract at 9 MockUSD\./)).toBeVisible();
+    await expect(buyer.getByText(/Executed 1 contract at 9 MockUSD; protocol fee 0\.019 MockUSD\./)).toBeVisible();
     evidence.scenarios.push('Desktop buy through ask uses the same ticket; aggregate best price, FIFO and price improvement');
     const option = (await order(2n)).option;
     await buyer.locator(`[data-offer="${option}"]`).click();
@@ -136,7 +137,7 @@ try {
     const bidId = await count();
     assert.equal((await order(bidId)).state, 1);
     await buyer.locator(`[data-bid="${bidId}"]`).getByRole('button', { name: 'Manage bid' }).click();
-    await buyer.getByRole('button', { name: 'Cancel bid & recover premium' }).click();
+    await buyer.getByRole('button', { name: 'Cancel bid & recover funds' }).click();
     await expect.poll(async () => (await order(bidId)).state).toBe(3);
     evidence.scenarios.push('Funded bid cancellation refunds its escrow');
     await newOrder(buyer, 'Buy', '2', 1);

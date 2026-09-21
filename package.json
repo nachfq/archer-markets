@@ -2,6 +2,7 @@
   "name": "archer-markets",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "engines": {
     "node": ">=22.13.0"
@@ -16,6 +17,7 @@
     "anvil": "node scripts/foundry.mjs anvil",
     "deploy:local": "npm run contracts:build && npm run abi && npm run sdk:build && node scripts/deploy.mjs local",
     "deploy:testnet": "npm run contracts:build && npm run abi && npm run sdk:build && node --env-file-if-exists=.env scripts/deploy.mjs testnet",
+    "deploy:testnet:wallet": "npm run contracts:build && node --env-file-if-exists=.env scripts/deploy-testnet-wallet.mjs",
     "check:testnet": "node --env-file-if-exists=.env scripts/check-testnet.mjs",
     "check:stylus": "node scripts/check-stylus.mjs",
     "wallet:testnet": "node scripts/create-testnet-wallet.mjs",
@@ -23,6 +25,7 @@
     "seed:local": "node scripts/demo-v4.mjs --seed-only",
     "demo:local": "npm run contracts:build && npm run abi && npm run sdk:build && node scripts/demo-v4.mjs",
     "seed:testnet": "node --env-file-if-exists=.env scripts/seed.mjs testnet",
+    "liquidity:testnet": "node --env-file-if-exists=.env scripts/seed-testnet-liquidity.mjs",
     "test:e2e": "node scripts/smoke-v4.mjs",
     "dev": "npm --prefix web run dev",
     "dev:local": "VITE_CHAIN_ID=31337 npm --prefix web run dev",
@@ -34,11 +37,12 @@
     "test:demo": "node scripts/seed-check-v4.mjs"
   },
   "dependencies": {
-    "viem": "2.56.3",
-    "@stock-options-lab/sdk": "file:packages/sdk"
+    "@stock-options-lab/sdk": "file:packages/sdk",
+    "viem": "2.56.3"
   },
   "devDependencies": {
-    "@playwright/test": "1.63.0"
+    "@playwright/test": "1.63.0",
+    "railway": "3.11.0"
   },
   "workspaces": [
     "packages/*"

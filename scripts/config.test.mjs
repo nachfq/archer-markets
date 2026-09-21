@@ -1,10 +1,72 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { clients, network, publicDeployment } from './config.mjs';
+import vm from 'node:vm';
+import { clients, network, publicDeployment, quoteAddress, stockMarkets, feeRecipientAddress, TESTNET_QUOTE, DEFAULT_BASE_FEE, DEFAULT_FEE_BPS } from './config.mjs';
+import { deploymentHtml, publicDeploymentStep } from './deploy-testnet-wallet.mjs';
 
 test('deployment tooling rejects unsupported networks including mainnet', () => {
   for (const mode of ['mainnet', '4663', '', undefined]) assert.throws(() => network(mode), /Mainnet is not supported/);
+});
+
+test('testnet USDG has an explicit default and validates overrides', () => {
+  const saved = process.env.RH_QUOTE_ADDRESS;
+  try {
+    delete process.env.RH_QUOTE_ADDRESS;
+    assert.equal(quoteAddress(), TESTNET_QUOTE);
+    process.env.RH_QUOTE_ADDRESS = '0x0000000000000000000000000000000000000001';
+    assert.equal(quoteAddress(), '0x0000000000000000000000000000000000000001');
+    process.env.RH_QUOTE_ADDRESS = 'not-an-address';
+    assert.throws(() => quoteAddress());
+  } finally {
+    if (saved === undefined) delete process.env.RH_QUOTE_ADDRESS;
+    else process.env.RH_QUOTE_ADDRESS = saved;
+  }
+});
+
+test('testnet markets use five distinct Stock Tokens against shared USDG', () => {
+  const markets = stockMarkets();
+  assert.deepEqual(markets.map(market => market.symbol), ['TSLA', 'AMD', 'AMZN', 'NFLX', 'PLTR']);
+  assert.equal(new Set(markets.map(market => market.address.toLowerCase())).size, 5);
+  assert.equal(new Set(markets.map(market => market.marketId)).size, 5);
+});
+
+test('deployment fee defaults stay minimal and explicit', () => {
+  assert.equal(DEFAULT_BASE_FEE, 10_000n);
+  assert.equal(DEFAULT_FEE_BPS, 10);
+});
+
+test('fee recipient defaults to deployer and accepts an explicit treasury', () => {
+  const saved = process.env.FEE_RECIPIENT_ADDRESS;
+  const deployer = '0x0297E58AebF9c7bDBb83959EaB1306E8AE2147FF';
+  try {
+    delete process.env.FEE_RECIPIENT_ADDRESS;
+    assert.equal(feeRecipientAddress(deployer), deployer);
+    process.env.FEE_RECIPIENT_ADDRESS = '0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0';
+    assert.equal(feeRecipientAddress(deployer), '0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0');
+  } finally {
+    if (saved === undefined) delete process.env.FEE_RECIPIENT_ADDRESS;
+    else process.env.FEE_RECIPIENT_ADDRESS = saved;
+  }
+});
+
+test('wallet deployment page ships executable button JavaScript', () => {
+  const page = deploymentHtml({ account: '0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0', token: 'test-token' });
+  const script = page.match(/<script>([\s\S]*)<\/script>/)?.[1];
+  assert(script);
+  assert.doesNotThrow(() => new vm.Script(script));
+  assert.match(page, /id="connect"/);
+  assert.match(page, /id="deploy"/);
+});
+
+test('wallet deployment plan never exposes non-JSON constructor arguments', () => {
+  const step = publicDeploymentStep(
+    { contract: 'OptionMarketV4', label: 'TSLA / USDG', args: ['0xstock', 10_000n, 10] },
+    '0xcreation',
+  );
+  assert.doesNotThrow(() => JSON.stringify(step));
+  assert.equal('args' in step, false);
+  assert.equal(step.data, '0xcreation');
 });
 
 test('an endpoint returning mainnet is rejected before obtaining a signing account', async () => {

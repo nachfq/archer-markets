@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { priceTicks, v4Tick, decodeProtocolError, getMarkets, optionMarketV4Abi } from '../dist/index.js';
+import { priceTicks, v4Tick, feeForV4, decodeProtocolError, getMarkets, optionMarketV4Abi } from '../dist/index.js';
 import { encodeErrorResult } from 'viem';
 test('V4 cent ticks preserve integer prices at each supported precision',()=>{
   for(let d=2;d<=18;d++) {
@@ -17,11 +17,16 @@ test('V4 self trade and stale order reverts are actionable',()=>{
     assert.equal(e.code,name==='SelfTrade'?'UNAUTHORIZED':'UNAVAILABLE');
   }
 });
+test('V4 fee uses exact integer quote units',()=>{
+  const market={baseFee:10_000n,feeBps:10};
+  assert.equal(feeForV4(market,9_000_000n),19_000n);
+  assert.equal(feeForV4(market,1n),10_000n);
+});
 test('V4 trade snapshots use one aggregate book read and preserve quoted size', async()=>{
   const address=n=>`0x${n.toString(16).padStart(40,'0')}`;
   const stock={address:address(1),symbol:'STOCK',decimals:18,isMock:true};
   const usd={address:address(2),symbol:'USD',decimals:6,isMock:true};
-  const market={id:'v4',chainId:31337,factory:address(3),deploymentBlock:1n,version:4,underlying:stock,quote:usd,sandbox:true};
+  const market={id:'v4',chainId:31337,factory:address(3),deploymentBlock:1n,version:4,feeRecipient:address(4),baseFee:10_000n,feeBps:10,underlying:stock,quote:usd,sandbox:true};
   const calls=[];
   const client={
     getChainId:async()=>{calls.push('chainId');return 31337;},
@@ -31,6 +36,9 @@ test('V4 trade snapshots use one aggregate book read and preserve quoted size', 
       calls.push(functionName);
       if(functionName==='underlying')return stock.address;
       if(functionName==='quote')return usd.address;
+      if(functionName==='feeRecipient')return market.feeRecipient;
+      if(functionName==='baseFee')return market.baseFee;
+      if(functionName==='feeBps')return market.feeBps;
       if(functionName==='decimals')return target===stock.address?18:6;
       if(functionName==='version')return 4n;
       if(functionName==='getBookPage')return [{

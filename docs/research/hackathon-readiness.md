@@ -1,7 +1,7 @@
 # Open House Singapore submission path
 
-Updated September 20, 2026. This is the engineering path from the V4 local PoC to a
-reviewable submission. It is not evidence of a public deployment or competition result.
+Updated September 20, 2026. This records the completed V4 public testnet release and the
+remaining path to a reviewable submission. It is not evidence of a competition result.
 
 ## Positioning
 
@@ -14,18 +14,20 @@ The implementation remains Solidity. The event accepts Solidity and requires dep
 on an Arbitrum chain; Robinhood Chain is an eligible target.
 [Official event listing](https://www.hackquest.io/hackathons/Arbitrum-Open-House-Singapore-Online-Buildathon).
 
-## Release sequence
+## Current release status
 
-1. **Release candidate:** make V4 the canonical branch, close repository quality gates,
-   run the V4 acceptance suite in private CI, and tag a release candidate.
-2. **Public repository:** review history, secrets, license, generated files and release
-   notes before changing visibility. Verify a clean anonymous checkout.
-3. **Robinhood testnet:** deploy and verify V4 with disposable wallets, then record a
-   two-wallet call, put, resale, cancellation and physical exercise with exact balances.
-4. **Public frontend:** publish only the manifest that passed testnet acceptance. Test
-   an anonymous browser, a real wallet, wrong-network recovery and explorer links.
-5. **Submission package:** publish a short demo, architecture diagram, exact revision,
-   contract addresses, reproduction commands and concise security limitations.
+1. **Complete:** V4 is canonical, licensed under MIT and covered by contract, invariant,
+   SDK and browser acceptance tests.
+2. **Complete:** five V4 markets are deployed and source verified on Robinhood Chain
+   Testnet, use native Stock Tokens and USDG, and expose illustrative public liquidity.
+3. **Complete:** the transaction-enabled frontend is hosted publicly on Railway and has
+   been used with a real wallet to post orders.
+4. **Remaining:** record one complete public two-wallet match and physical exercise with
+   exact fee, collateral and token balance reconciliation. A cancellation and resale are
+   useful secondary evidence, not substitutes for the core lifecycle.
+5. **Remaining:** publish the reviewed repository, verify a clean anonymous checkout,
+   and submit a short demo, architecture diagram, exact revision, explorer links,
+   reproduction commands and concise security limitations.
 
 The listing currently shows registration through October 2, 2026 and submission through
 October 4, 2026. Confirm the cutoff timezone and private form fields in the signed-in portal.

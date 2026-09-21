@@ -59,11 +59,14 @@ release candidate, then publish each layer in a controlled order.
 | Frontend publication | Public UI reads the verified manifest and safely handles unavailable transactions | Anonymous browser and real-wallet smoke tests pass |
 | Hackathon submission | Concise pitch, demo video, explorer links, repository and limitations tell one consistent story | Every submitted link works without private access |
 
-Phases are sequential. A public website is not published against an unverified manifest,
-and submission materials do not claim evidence from a later phase.
+The release candidate, Robinhood testnet deployment, explorer verification and public
+frontend are complete. A small public fixture provides visible liquidity across all five
+markets, but no public match or exercise has yet completed. Repository visibility and the
+submission package remain pending human approval.
 
-The V4 release-candidate gate passed on `v0.1.0-rc.1`. Repository cleanup and private
-publication preflight are in progress; visibility remains private. See the
+The V4 release-candidate gate passed on `v0.1.0-rc.1`; the later V4-only baseline is
+tagged `v0.1.0-rc.2`. Repository cleanup and private publication preflight are complete,
+while visibility remains private. See the
 [publication preflight](publication-preflight.md) for the final human decisions and
 visibility checkpoint.
 
