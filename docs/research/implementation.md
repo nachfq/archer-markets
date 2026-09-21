@@ -1,5 +1,33 @@
 # Implementation record
 
+## Robinhood Chain Testnet deployment (2026-09-20)
+
+Five `OptionMarketV4` contracts were deployed publicly on Robinhood Chain Testnet
+(chain 46630) from the local spare deployer
+`0x0297E58AebF9c7bDBb83959EaB1306E8AE2147FF`. The deployment used the native testnet
+Stock Tokens and existing USDG contract; it did not deploy or mint any token. Every
+market permanently sends its `0.01 USDG + 10 bps` execution fee to
+`0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0`.
+
+| Pair | Market contract | Deployment transaction |
+| --- | --- | --- |
+| TSLA / USDG | [`0xc8651e943aea1aeed398bd3beee7143475c6b40d`](https://explorer.testnet.chain.robinhood.com/address/0xc8651e943aea1aeed398bd3beee7143475c6b40d) | [`0x51b6...669f`](https://explorer.testnet.chain.robinhood.com/tx/0x51b6cbb4f070a1080398240df9def68c0b45036eb8f4c35ffc4232e6097d669f) |
+| AMD / USDG | [`0xdb3d2f3e97b38c84ca313e9fdcc5c89859901bd3`](https://explorer.testnet.chain.robinhood.com/address/0xdb3d2f3e97b38c84ca313e9fdcc5c89859901bd3) | [`0x22c3...6563`](https://explorer.testnet.chain.robinhood.com/tx/0x22c3146fb471062debfc2e970ed0ab6df29ba5d349edff0b6dfbd5ae64056563) |
+| AMZN / USDG | [`0x51464d6e700d0b8476cbd94eeda3f4bd5bfbab55`](https://explorer.testnet.chain.robinhood.com/address/0x51464d6e700d0b8476cbd94eeda3f4bd5bfbab55) | [`0x15e0...2977`](https://explorer.testnet.chain.robinhood.com/tx/0x15e0e552736d9b8d40e7bdcf537b95519fa525b195171c591d3899a257422977) |
+| NFLX / USDG | [`0x8d4c2d2ca3ac8ceec8e294f5d28e947b87240dd9`](https://explorer.testnet.chain.robinhood.com/address/0x8d4c2d2ca3ac8ceec8e294f5d28e947b87240dd9) | [`0x58f2...e3b2`](https://explorer.testnet.chain.robinhood.com/tx/0x58f2209080860d7f0585b7772d693afffec4260156812aaa9288a91f60b9e3b2) |
+| PLTR / USDG | [`0x39e2a162874970e4ca133f473179a675658ce7a1`](https://explorer.testnet.chain.robinhood.com/address/0x39e2a162874970e4ca133f473179a675658ce7a1) | [`0x8eb2...83af`](https://explorer.testnet.chain.robinhood.com/tx/0x8eb27b461a7448f719ce04d84d55d58e7c1aa8f931984c7693d7474bac3f83af) |
+
+Post-deployment RPC reads confirmed 24,018 runtime bytes, version 4, the intended
+underlying and shared USDG addresses, and the exact fee configuration on all five
+contracts. The private and browser deployment manifests now contain these addresses.
+The hosted frontend has not been redeployed, so this deployment alone does not change
+the currently hosted website.
+
+Validation after recording the deployment: `npm test` passed 81 tests across contracts,
+scripts, SDK and frontend, with the optional Robinhood RPC-fork test skipped;
+`npm run typecheck` and `npm run build` passed. These local checks were followed by the
+independent live RPC reads described above.
+
 ## Air-gapped deployment path (2026-09-20)
 
 The coordinator's funded wallet uses AirGap Vault on an offline phone and MetaMask on
