@@ -1,5 +1,29 @@
 # Implementation record
 
+## Railway testnet frontend release (2026-09-20)
+
+The frontend containing the chain-46630 deployment manifest was uploaded directly from
+the local workspace to the existing Railway `archer-markets` project without changing
+repository visibility. Railway deployment `ab955798-0f07-40b9-9f38-7fd339ad17fa`
+reached `SUCCESS` with image digest
+`sha256:657bfd01bd5bfeff960a14e7cc7e0560259bf1034a23b76355eb45ff42ee1435`.
+The public URL is <https://archer-markets.up.railway.app/>.
+
+The release uses one Node.js service with no database, volume or application secrets.
+Railpack installs the pinned npm dependencies, builds the SDK and Vinext frontend, and
+starts `vinext` on Railway's injected `PORT`. The root path is the deployment
+healthcheck. An external HTTPS request returned status 200 and rendered five markets
+with the deployed TSLA market address
+`0xc8651e943aea1aeed398bd3beee7143475c6b40d`. Bounded runtime logs showed the server
+listening successfully and no application failure.
+
+The existing Railway service initially carried an obsolete SDK-only build override;
+the first local upload did not produce a running deployment. The service configuration
+was corrected before the successful deployment. The deprecated `railway.json` format
+was migrated to `.railway/railway.ts`; `railway config plan` reports no drift from the
+live service. Final repository validation passed 81 tests, type checking and the
+production build; the optional Robinhood RPC-fork test remained skipped.
+
 ## Robinhood Chain Testnet deployment (2026-09-20)
 
 Five `OptionMarketV4` contracts were deployed publicly on Robinhood Chain Testnet

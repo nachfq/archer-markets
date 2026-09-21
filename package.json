@@ -36,11 +36,12 @@
     "test:demo": "node scripts/seed-check-v4.mjs"
   },
   "dependencies": {
-    "viem": "2.56.3",
-    "@stock-options-lab/sdk": "file:packages/sdk"
+    "@stock-options-lab/sdk": "file:packages/sdk",
+    "viem": "2.56.3"
   },
   "devDependencies": {
-    "@playwright/test": "1.63.0"
+    "@playwright/test": "1.63.0",
+    "railway": "3.11.0"
   },
   "workspaces": [
     "packages/*"
