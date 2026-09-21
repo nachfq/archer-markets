@@ -2,10 +2,16 @@
 
 ## Air-gapped deployment path (2026-09-20)
 
-The coordinator's funded wallet signs through an air-gapped QR flow. MetaMask prepared
-the contract creation request, but scanning its approximately 25 KB initcode closed the
-mobile scanner without producing a signature. This observation does not establish the
-exact device or protocol limit. No transaction was broadcast.
+The coordinator's funded wallet uses AirGap Vault on an offline phone and MetaMask on
+an online phone. The attempted flow stopped during initial account pairing: MetaMask
+Mobile scanned the AirGap account QR and closed its scanner without importing the
+account. AirGap Vault therefore never received a contract creation request, and the
+approximately 25 KB initcode was not tested through the signing QR flow. MetaMask's
+[current hardware-wallet documentation](https://support.metamask.io/more-web3/wallets/hardware-wallet-hub)
+lists AirGap Vault for the browser extension but limits MetaMask Mobile hardware-wallet
+support to Keystone, Ledger and NGRAVE ZERO, while AirGap's
+[mobile guide](https://support.airgap.it/guides/metamask-mobile/) still claims MetaMask
+Mobile compatibility. No transaction was requested or broadcast.
 
 Deployment tooling now permits a disposable testnet deployer to differ from the
 immutable fee recipient. The existing ignored `.env` deployer is
