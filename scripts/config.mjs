@@ -67,6 +67,7 @@ export async function mined(publicClient, hash) {
 export function stockAddress() { return getAddress(process.env.RH_STOCK_ADDRESS || TESTNET_STOCK); }
 export function stockMarkets() { return TESTNET_STOCKS.map((market, index) => ({ ...market, address: index === 0 ? stockAddress() : getAddress(market.address) })); }
 export function quoteAddress() { return getAddress(process.env.RH_QUOTE_ADDRESS || TESTNET_QUOTE); }
+export function feeRecipientAddress(fallback) { return getAddress(process.env.FEE_RECIPIENT_ADDRESS || fallback); }
 export function publicDeployment(record) {
   if (![31337, 46630].includes(record.chainId)) throw new Error('Unsupported deployment chain.');
   // Explicit allowlist: private provider endpoints, signing data, and receipts never go into browser config.

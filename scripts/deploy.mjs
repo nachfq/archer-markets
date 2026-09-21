@@ -1,10 +1,11 @@
 import { erc20Abi } from 'viem';
 import { access } from 'node:fs/promises';
-import { clients, artifact, atRoot, readJson, saveJson, quoteAddress, stockMarkets, mined, reportError, publicDeployment, DEFAULT_BASE_FEE, DEFAULT_FEE_BPS } from './config.mjs';
+import { clients, artifact, atRoot, readJson, saveJson, quoteAddress, stockMarkets, mined, reportError, publicDeployment, feeRecipientAddress, DEFAULT_BASE_FEE, DEFAULT_FEE_BPS } from './config.mjs';
 
 try {
   const mode = process.argv[2];
   const { chain, publicClient, walletClient, account, url } = await clients(mode);
+  const feeRecipient = feeRecipientAddress(account.address);
   const file = `deployments/${chain.id}.json`;
   try {
     await access(atRoot(file));
@@ -42,14 +43,14 @@ try {
   if (mode === 'testnet') {
     for (const spec of stockMarkets()) {
       const underlying = await token(spec.address, 18, spec.symbol);
-      const deployment = await deploy('OptionMarketV4', [underlying.address, quote.address, account.address, DEFAULT_BASE_FEE, DEFAULT_FEE_BPS], spec.marketId);
-      markets.push({ marketId: spec.marketId, label: `${underlying.symbol} / ${quote.symbol}`, sandbox: false, version: 4, tickSize: '10000', factory: deployment.address, deploymentBlock: deployment.blockNumber, feeRecipient: account.address, baseFee: DEFAULT_BASE_FEE.toString(), feeBps: DEFAULT_FEE_BPS, underlying, quote });
+      const deployment = await deploy('OptionMarketV4', [underlying.address, quote.address, feeRecipient, DEFAULT_BASE_FEE, DEFAULT_FEE_BPS], spec.marketId);
+      markets.push({ marketId: spec.marketId, label: `${underlying.symbol} / ${quote.symbol}`, sandbox: false, version: 4, tickSize: '10000', factory: deployment.address, deploymentBlock: deployment.blockNumber, feeRecipient, baseFee: DEFAULT_BASE_FEE.toString(), feeBps: DEFAULT_FEE_BPS, underlying, quote });
     }
   } else {
     for (const spec of [{ marketId: 'primary', label: 'MockSTOCK / MockUSD' }, { marketId: 'practice', label: 'Practice STOCK / MockUSD' }]) {
       const underlying = await token((await deploy('MockStock')).address, 18, 'MockSTOCK');
-      const deployment = await deploy('OptionMarketV4', [underlying.address, quote.address, account.address, DEFAULT_BASE_FEE, DEFAULT_FEE_BPS], spec.marketId);
-      markets.push({ marketId: spec.marketId, label: spec.label, sandbox: true, version: 4, tickSize: '10000', factory: deployment.address, deploymentBlock: deployment.blockNumber, feeRecipient: account.address, baseFee: DEFAULT_BASE_FEE.toString(), feeBps: DEFAULT_FEE_BPS, underlying, quote });
+      const deployment = await deploy('OptionMarketV4', [underlying.address, quote.address, feeRecipient, DEFAULT_BASE_FEE, DEFAULT_FEE_BPS], spec.marketId);
+      markets.push({ marketId: spec.marketId, label: spec.label, sandbox: true, version: 4, tickSize: '10000', factory: deployment.address, deploymentBlock: deployment.blockNumber, feeRecipient, baseFee: DEFAULT_BASE_FEE.toString(), feeBps: DEFAULT_FEE_BPS, underlying, quote });
     }
   }
   const [primary, ...additional] = markets;

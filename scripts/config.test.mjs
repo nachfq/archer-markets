@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import vm from 'node:vm';
-import { clients, network, publicDeployment, quoteAddress, stockMarkets, TESTNET_QUOTE, DEFAULT_BASE_FEE, DEFAULT_FEE_BPS } from './config.mjs';
+import { clients, network, publicDeployment, quoteAddress, stockMarkets, feeRecipientAddress, TESTNET_QUOTE, DEFAULT_BASE_FEE, DEFAULT_FEE_BPS } from './config.mjs';
 import { deploymentHtml, publicDeploymentStep } from './deploy-testnet-wallet.mjs';
 
 test('deployment tooling rejects unsupported networks including mainnet', () => {
@@ -34,6 +34,20 @@ test('testnet markets use five distinct Stock Tokens against shared USDG', () =>
 test('deployment fee defaults stay minimal and explicit', () => {
   assert.equal(DEFAULT_BASE_FEE, 10_000n);
   assert.equal(DEFAULT_FEE_BPS, 10);
+});
+
+test('fee recipient defaults to deployer and accepts an explicit treasury', () => {
+  const saved = process.env.FEE_RECIPIENT_ADDRESS;
+  const deployer = '0x0297E58AebF9c7bDBb83959EaB1306E8AE2147FF';
+  try {
+    delete process.env.FEE_RECIPIENT_ADDRESS;
+    assert.equal(feeRecipientAddress(deployer), deployer);
+    process.env.FEE_RECIPIENT_ADDRESS = '0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0';
+    assert.equal(feeRecipientAddress(deployer), '0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0');
+  } finally {
+    if (saved === undefined) delete process.env.FEE_RECIPIENT_ADDRESS;
+    else process.env.FEE_RECIPIENT_ADDRESS = saved;
+  }
 });
 
 test('wallet deployment page ships executable button JavaScript', () => {

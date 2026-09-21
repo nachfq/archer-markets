@@ -1,5 +1,21 @@
 # Implementation record
 
+## Air-gapped deployment path (2026-09-20)
+
+The coordinator's funded wallet signs through an air-gapped QR flow. MetaMask prepared
+the contract creation request, but scanning its approximately 25 KB initcode closed the
+mobile scanner without producing a signature. This observation does not establish the
+exact device or protocol limit. No transaction was broadcast.
+
+Deployment tooling now permits a disposable testnet deployer to differ from the
+immutable fee recipient. The existing ignored `.env` deployer is
+`0x0297E58AebF9c7bDBb83959EaB1306E8AE2147FF`; a read-only check found zero test ETH and
+zero project tokens. The planned recipient remains
+`0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0` for every market. A live RPC estimate at
+10,000,000 wei gas price measured 5,786,638 gas for one 25,497-byte TSLA market creation,
+or approximately 0.0002893319 test ETH for five equal-sized deployments before margin.
+Funding and deployment remain separate human-approved steps.
+
 ## Immutable execution fee (2026-09-20)
 
 V4 now charges the buyer an immutable protocol fee only when an order executes. The
