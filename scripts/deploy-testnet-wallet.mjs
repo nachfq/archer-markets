@@ -29,6 +29,8 @@ import {
 const EXPECTED_CHAIN_ID = 46630;
 const PUBLIC_RPC_URL = 'https://rpc.testnet.chain.robinhood.com';
 const EXPLORER_URL = 'https://explorer.testnet.chain.robinhood.com';
+const LISTEN_HOST = process.env.DEPLOY_LISTEN_HOST || '127.0.0.1';
+const PUBLIC_HOST = process.env.DEPLOY_PUBLIC_HOST || LISTEN_HOST;
 const marketAbi = parseAbi([
   'function underlying() view returns (address)',
   'function quote() view returns (address)',
@@ -293,14 +295,15 @@ async function main() {
   });
   await new Promise((resolve, reject) => {
     server.once('error', reject);
-    server.listen(4179, '127.0.0.1', resolve);
+    server.listen(4179, LISTEN_HOST, resolve);
   });
   console.log(`Wallet: ${account}`);
   console.log(`Balances: ${formatEther(eth)} testETH, ${formatUnits(quoteBalance, quoteDecimals)} ${quoteSymbol}`);
   console.log(`Stocks: ${stocks.map(stock => `${formatUnits(stock.balance, stock.decimals)} ${stock.symbol}`).join(', ')}`);
   console.log(`Quote: ${quote}`);
   console.log(`Fee: ${formatUnits(DEFAULT_BASE_FEE, quoteDecimals)} ${quoteSymbol} + ${DEFAULT_FEE_BPS} bps per execution -> ${account}`);
-  console.log(`Open http://127.0.0.1:4179/?token=${token}`);
+  console.log(`Open http://${PUBLIC_HOST}:4179/?token=${token}`);
+  if (LISTEN_HOST !== '127.0.0.1') console.log('LAN access is enabled temporarily. Stop this process after deployment.');
   console.log('The local signer never receives or stores the private key. Press Ctrl+C to cancel.');
 }
 
