@@ -1,10 +1,37 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { clients, network, publicDeployment } from './config.mjs';
+import { clients, network, publicDeployment, quoteAddress, stockMarkets, TESTNET_QUOTE, DEFAULT_BASE_FEE, DEFAULT_FEE_BPS } from './config.mjs';
 
 test('deployment tooling rejects unsupported networks including mainnet', () => {
   for (const mode of ['mainnet', '4663', '', undefined]) assert.throws(() => network(mode), /Mainnet is not supported/);
+});
+
+test('testnet USDG has an explicit default and validates overrides', () => {
+  const saved = process.env.RH_QUOTE_ADDRESS;
+  try {
+    delete process.env.RH_QUOTE_ADDRESS;
+    assert.equal(quoteAddress(), TESTNET_QUOTE);
+    process.env.RH_QUOTE_ADDRESS = '0x0000000000000000000000000000000000000001';
+    assert.equal(quoteAddress(), '0x0000000000000000000000000000000000000001');
+    process.env.RH_QUOTE_ADDRESS = 'not-an-address';
+    assert.throws(() => quoteAddress());
+  } finally {
+    if (saved === undefined) delete process.env.RH_QUOTE_ADDRESS;
+    else process.env.RH_QUOTE_ADDRESS = saved;
+  }
+});
+
+test('testnet markets use five distinct Stock Tokens against shared USDG', () => {
+  const markets = stockMarkets();
+  assert.deepEqual(markets.map(market => market.symbol), ['TSLA', 'AMD', 'AMZN', 'NFLX', 'PLTR']);
+  assert.equal(new Set(markets.map(market => market.address.toLowerCase())).size, 5);
+  assert.equal(new Set(markets.map(market => market.marketId)).size, 5);
+});
+
+test('deployment fee defaults stay minimal and explicit', () => {
+  assert.equal(DEFAULT_BASE_FEE, 10_000n);
+  assert.equal(DEFAULT_FEE_BPS, 10);
 });
 
 test('an endpoint returning mainnet is rejected before obtaining a signing account', async () => {

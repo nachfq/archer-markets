@@ -1,4 +1,4 @@
-import { decodeEventLog, parseAbi } from 'viem';
+import { decodeEventLog, erc20Abi, parseAbi } from 'viem';
 import { optionMarketV4Abi, prepareOrderV4 } from '@stock-options-lab/sdk';
 import { executeOperation, marketFromManifest } from './sdk-operation.mjs';
 import { clients, mined, readJson, saveJson, reportError } from './config.mjs';
@@ -14,7 +14,13 @@ try {
   const evidence = [];
   const expiry = (await actors[0].publicClient.getBlock()).timestamp + 7n * 24n * 60n * 60n;
   for (const actor of actors) {
-    await mined(actor.publicClient, await actor.walletClient.writeContract({ address: record.quote.address, abi: parseAbi(['function faucet()']), functionName: 'faucet' }));
+    if (record.quote.isMock) await mined(actor.publicClient, await actor.walletClient.writeContract({ address: record.quote.address, abi: parseAbi(['function faucet()']), functionName: 'faucet' }));
+    const [stockBalance, quoteBalance] = await Promise.all([
+      actor.publicClient.readContract({ address: record.underlying.address, abi: erc20Abi, functionName: 'balanceOf', args: [actor.account.address] }),
+      actor.publicClient.readContract({ address: record.quote.address, abi: erc20Abi, functionName: 'balanceOf', args: [actor.account.address] }),
+    ]);
+    if (stockBalance < 10n ** BigInt(record.underlying.decimals)) throw new Error(`${actor.account.address} needs at least 1 ${record.underlying.symbol} before seeding. No option transaction was sent for this actor.`);
+    if (quoteBalance < 250n * 10n ** BigInt(record.quote.decimals)) throw new Error(`${actor.account.address} needs at least 250 ${record.quote.symbol} before seeding. No option transaction was sent for this actor.`);
     for (const optionType of [0, 1]) {
       const strikeTotal = BigInt(optionType === 0 ? 300 : 250) * 10n ** 6n;
       const premium = BigInt(optionType === 0 ? 8 : 6) * 10n ** 6n;

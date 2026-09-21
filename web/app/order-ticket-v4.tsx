@@ -1,7 +1,7 @@
 "use client";
 import { useState, type ReactNode } from "react";
 import type { Address } from "viem";
-import { prepareOrderV4, prepareResaleV4, priceTicks, type Bid, type Portfolio, type PreparedOperation } from "@stock-options-lab/sdk";
+import { feeForV4, prepareOrderV4, prepareResaleV4, priceTicks, type Bid, type Portfolio, type PreparedOperation } from "@stock-options-lab/sdk";
 import { asMarket, client, type Deployment } from "../lib/config";
 import { expiration, isListed, optionPrice, optionSeller, units } from "../lib/options";
 import { suggestedExpirations, utcDeadline } from "../lib/expirations";
@@ -79,7 +79,9 @@ export default function OrderTicketV4(props: OrderTicketProps) {
     if (resale && (resale.buyer.toLowerCase() !== account?.toLowerCase() || resale.state !== 1 || (resale.resalePrice ?? 0n) > 0n))
         error = 'Only the holder can sell an unlisted, active option.';
     const token = side === 'buy' || kind === 1 ? net.quote : net.underlying;
-    const funding = resale ? 0n : terms ? (side === 'buy' ? terms.premium : kind === 0 ? terms.quantity : terms.strikeTotal) : undefined;
+    const maximumFee = terms && market && side === 'buy' ? feeForV4(market, terms.premium) : 0n;
+    const executionFee = crosses && bestPrice !== undefined && market && side === 'buy' ? feeForV4(market, bestPrice) : undefined;
+    const funding = resale ? 0n : terms ? (side === 'buy' ? terms.premium + maximumFee : kind === 0 ? terms.quantity : terms.strikeTotal) : undefined;
     const available = props.portfolio?.tokens.find(t => t.token.address.toLowerCase() === token.address?.toLowerCase())?.available;
     if (funding !== undefined && available !== undefined && funding > available)
         error = `Not enough ${token.symbol} for the required funds. Incoming premium cannot fund collateral.`;
@@ -108,13 +110,13 @@ export default function OrderTicketV4(props: OrderTicketProps) {
         {custom && <label>Expiration · local time<input type="datetime-local" aria-label="Custom order expiration" value={expiry} onChange={e => edit(() => setExpiry(e.target.value))}/></label>}
       </fieldset>
       <div className="order-execution"><strong>{crosses ? 'Estimated: executes now' : 'Estimated: rests in the book'}</strong><span>Best price, then oldest order. Your limit is enforced onchain.</span></div>
-      <dl className="order-totals"><div><dt>{side === 'buy' ? 'Maximum premium' : 'Minimum premium'}</dt><dd>{fmt(terms?.premium)}</dd></div><div><dt>Estimated execution premium</dt><dd>{crosses ? fmt(bestPrice) : 'Waiting for a match'}</dd></div><div><dt>{resale ? 'Additional collateral' : side === 'buy' ? 'Maximum funds required' : 'Collateral to deposit'}</dt><dd>{fmt(funding, token.symbol, token.decimals)}</dd></div><div><dt>Available</dt><dd>{account ? fmt(available, token.symbol, token.decimals) : 'Connect wallet'}</dd></div></dl>
+      <dl className="order-totals"><div><dt>{side === 'buy' ? 'Maximum premium' : 'Minimum premium'}</dt><dd>{fmt(terms?.premium)}</dd></div><div><dt>Estimated execution premium</dt><dd>{crosses ? fmt(bestPrice) : 'Waiting for a match'}</dd></div>{side === 'buy' && <div><dt>{crosses ? 'Execution fee' : 'Maximum fee reserved'}</dt><dd>{fmt(crosses ? executionFee : maximumFee)}</dd></div>}<div><dt>{resale ? 'Additional collateral' : side === 'buy' ? 'Maximum funds required' : 'Collateral to deposit'}</dt><dd>{fmt(funding, token.symbol, token.decimals)}</dd></div><div><dt>Available</dt><dd>{account ? fmt(available, token.symbol, token.decimals) : 'Connect wallet'}</dd></div></dl>
       <p className="fine">Exercise payment: {fmt(terms?.strikeTotal)}. Orders remain open until canceled or expiration. {side === 'sell' && !resale ? 'Stock backs a call; the full exercise payment backs a put.' : ''}</p>
       {props.notification}
       {!market && <p role="status">Preview only. A verified V4 deployment is required to trade.</p>}
       {props.unavailable && <div role="alert">Could not refresh this market.<button type="button" className="button" onClick={props.onRefresh}>Retry connection</button></div>}
       {error && <p className="banner error" role="alert">{error}</p>}
-      {reviewing && <label className="order-ack"><input type="checkbox" checked={ack} disabled={busy} onChange={e => setAck(e.target.checked)}/>I understand: one option, manual exercise before expiration, and no premium refund after purchase.</label>}
+      {reviewing && <label className="order-ack"><input type="checkbox" checked={ack} disabled={busy} onChange={e => setAck(e.target.checked)}/>I understand: one option, manual exercise before expiration, and the displayed protocol fee is charged only if the buy executes.</label>}
       <div className="order-footer"><strong>{side.toUpperCase()} 1 {net.underlying.symbol} · {kind === 0 ? 'CALL' : 'PUT'} · Strike {strike || '—'} · Limit {price || '—'}</strong>{!reviewing ? <button className="button dark" disabled={!valid || busy} type="submit">Review order</button> : !account ? <button className="button dark" type="button" onClick={props.onConnect}>Connect wallet</button> : <button className="button dark" type="button" disabled={!valid || busy || !props.canAct || !ack || available === undefined} onClick={confirm}>Confirm {side}</button>}</div>
     </form>
   </div></TradeTicket>;

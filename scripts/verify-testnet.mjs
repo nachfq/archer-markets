@@ -8,13 +8,12 @@ try {
   if (record.chainId !== 46630) throw new Error('Expected a Robinhood testnet manifest.');
   const factoryCode = await publicClient.getCode({ address: record.factory });
   if (!factoryCode || factoryCode === '0x') throw new Error('Factory is not deployed on this network.');
-  const jobs = [
-    [record.quote.address, 'src/MockUSD.sol:MockUSD', null],
-    [record.factory, 'src/OptionMarketV4.sol:OptionMarketV4', encodeAbiParameters(parseAbiParameters('address,address'), [record.underlying.address, record.quote.address])],
-  ];
+  const constructor = market => encodeAbiParameters(parseAbiParameters('address,address,address,uint256,uint16'), [market.underlying.address, market.quote.address, market.feeRecipient, BigInt(market.baseFee), market.feeBps]);
+  const jobs = [[record.factory, 'src/OptionMarketV4.sol:OptionMarketV4', constructor(record)]];
+  if (record.quote.isMock) jobs.unshift([record.quote.address, 'src/MockUSD.sol:MockUSD', null]);
   for (const market of record.markets ?? []) {
     if (market.underlying.isMock) jobs.push([market.underlying.address, 'src/MockStock.sol:MockStock', null]);
-    jobs.push([market.factory, 'src/OptionMarketV4.sol:OptionMarketV4', encodeAbiParameters(parseAbiParameters('address,address'), [market.underlying.address, market.quote.address])]);
+    jobs.push([market.factory, 'src/OptionMarketV4.sol:OptionMarketV4', constructor(market)]);
   }
   const { abi: factoryAbi } = await artifact('OptionMarketV4');
   const { abi: optionAbi } = await artifact('OptionV4');
@@ -36,5 +35,5 @@ try {
     verified.push({ address, contract });
   }
   await saveJson('deployments/46630.verification.json', { verifiedAt: new Date().toISOString(), verified });
-  if (count === 0n) console.log('Factory and MockUSD verified. Run seed:testnet then verify:testnet again to verify sample call/put instances.');
+  if (count === 0n) console.log('Factory verified. Run seed:testnet after funding collateral, then verify:testnet again to verify sample call/put instances.');
 } catch (error) { reportError(error); }

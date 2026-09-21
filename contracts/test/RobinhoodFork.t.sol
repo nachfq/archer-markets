@@ -24,7 +24,7 @@ contract RobinhoodForkTest is Test {
         assertEq(stock.decimals(), 18);
 
         MockUSD usd = new MockUSD();
-        OptionMarketV4 market = new OptionMarketV4(TSLA, address(usd));
+        OptionMarketV4 market = new OptionMarketV4(TSLA, address(usd), address(this), 10_000, 10);
         address writer = makeAddr("fork writer");
         address buyer = makeAddr("fork buyer");
         deal(TSLA, writer, 2e18);

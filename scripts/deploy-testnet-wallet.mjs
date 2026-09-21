@@ -16,10 +16,13 @@ import {
   clients,
   localAccount,
   publicDeployment,
+  quoteAddress,
   readJson,
   reportError,
   saveJson,
-  stockAddress,
+  stockMarkets,
+  DEFAULT_BASE_FEE,
+  DEFAULT_FEE_BPS,
 } from './config.mjs';
 
 const EXPECTED_CHAIN_ID = 46630;
@@ -29,6 +32,9 @@ const marketAbi = parseAbi([
   'function underlying() view returns (address)',
   'function quote() view returns (address)',
   'function version() view returns (uint256)',
+  'function feeRecipient() view returns (address)',
+  'function baseFee() view returns (uint256)',
+  'function feeBps() view returns (uint16)',
 ]);
 
 function html({ account, token }) {
@@ -46,8 +52,8 @@ function html({ account, token }) {
     main { border: 1px solid #334039; border-radius: 12px; padding: 28px; background: #151a17; }
     h1 { margin-top: 0; font-size: 1.6rem; } code { word-break: break-all; color: #8ee3aa; }
     button { font: inherit; padding: 10px 16px; margin: 8px 8px 8px 0; border: 0; border-radius: 7px; cursor: pointer; }
-    button:disabled { cursor: not-allowed; opacity: .45; } #deploy { background: #70db91; color: #08130c; font-weight: 700; }
-    #connect { background: #29352e; color: inherit; } #status { min-height: 4.5em; white-space: pre-wrap; }
+    button:disabled { cursor: not-allowed; opacity: .45; } #deploy, #connect { background: #70db91; color: #08130c; font-weight: 700; }
+    #deploy[hidden], #connect[hidden] { display: none; } #status { min-height: 4.5em; white-space: pre-wrap; }
     .warning { color: #ffd18a; } a { color: #8ee3aa; }
   </style>
 </head>
@@ -55,8 +61,9 @@ function html({ account, token }) {
   <h1>Deploy Archer Markets V4</h1>
   <p>Robinhood Chain Testnet only. Expected signer:</p>
   <p><code>${account}</code></p>
-  <p class="warning">Your wallet will show four contract deployments. Check chain 46630 and this account before approving each one.</p>
-  <button id="connect">Connect wallet</button><button id="deploy" disabled>Deploy next contract</button>
+  <p class="warning">MetaMask will show five contract deployments: one market per native testnet Stock Token, all quoted in USDG. Check chain 46630 and this account before approving each one.</p>
+  <p>Each market permanently charges buyers 0.01 USDG + 0.10% of the executed premium. Fees go to the expected signer above; there is no admin method to change them.</p>
+  <button id="connect">Connect MetaMask</button><button id="deploy" hidden>Deploy next stock market</button>
   <p id="status">No transaction has been requested.</p>
   <ol id="receipts"></ol>
 </main><script>
@@ -94,20 +101,21 @@ async function connect() {
   const state = await response.json();
   if (!response.ok) throw new Error(state.error);
   renderState(state);
-  deployButton.disabled = state.complete;
-  connectButton.textContent = 'Wallet connected';
+  connectButton.hidden = true;
+  deployButton.hidden = state.complete;
+  deployButton.disabled = false;
 }
 
 function renderState(state) {
   status.textContent = state.complete
     ? 'Deployment complete. The local and browser manifests were saved. You can close this page.'
-    : (state.receipts.length ? state.receipts.length + ' of 4 contracts deployed.' : 'Wallet verified. Ready for the first deployment.');
+    : (state.receipts.length ? state.receipts.length + ' of 5 stock markets deployed.' : 'Wallet verified. Ready to deploy the first stock market.');
   receiptList.replaceChildren(...state.receipts.map(item => {
     const li = document.createElement('li');
     const link = document.createElement('a');
     link.href = config.explorerUrl + '/tx/' + item.transactionHash;
     link.target = '_blank'; link.rel = 'noreferrer';
-    link.textContent = item.contract + ': ' + item.address;
+    link.textContent = item.label + ': ' + item.address;
     li.append(link); return li;
   }));
 }
@@ -126,7 +134,7 @@ deployButton.addEventListener('click', async () => {
     const response = await fetch('/api/next', { headers: { 'x-deployment-token': config.token } });
     const step = await response.json();
     if (!response.ok) throw new Error(step.error);
-    status.textContent = 'Confirm ' + step.contract + ' in your wallet…';
+    status.textContent = 'Confirm ' + step.label + ' in your wallet…';
     const transactionHash = await window.ethereum.request({ method: 'eth_sendTransaction', params: [{ from: selectedAccount, data: step.data }] });
     status.textContent = 'Waiting for ' + step.contract + ' to be mined…\n' + transactionHash;
     const saved = await fetch('/api/receipt', { method: 'POST', headers, body: JSON.stringify({ transactionHash }) });
@@ -171,58 +179,57 @@ async function main() {
     if (error.code !== 'ENOENT') throw error;
   }
 
-  const underlying = stockAddress();
-  const [underlyingCode, decimals, symbol, eth, stock] = await Promise.all([
-    publicClient.getCode({ address: underlying }),
-    publicClient.readContract({ address: underlying, abi: erc20Abi, functionName: 'decimals' }),
-    publicClient.readContract({ address: underlying, abi: erc20Abi, functionName: 'symbol' }),
+  const marketSpecs = stockMarkets();
+  const quote = quoteAddress();
+  const [quoteCode, quoteDecimals, quoteSymbol, eth, quoteBalance] = await Promise.all([
+    publicClient.getCode({ address: quote }),
+    publicClient.readContract({ address: quote, abi: erc20Abi, functionName: 'decimals' }),
+    publicClient.readContract({ address: quote, abi: erc20Abi, functionName: 'symbol' }),
     publicClient.getBalance({ address: account }),
-    publicClient.readContract({ address: underlying, abi: erc20Abi, functionName: 'balanceOf', args: [account] }),
+    publicClient.readContract({ address: quote, abi: erc20Abi, functionName: 'balanceOf', args: [account] }),
   ]);
-  if (!underlyingCode || underlyingCode === '0x') throw new Error('No stock contract at the configured address.');
-  if (decimals !== 18) throw new Error('Stock contract must use 18 decimals.');
+  if (!quoteCode || quoteCode === '0x') throw new Error('No quote contract at the configured address.');
+  if (quoteDecimals !== 6 || quoteSymbol !== 'USDG') throw new Error('Quote contract must identify as 6-decimal USDG.');
   if (eth === 0n) throw new Error(`No gas funds. Fund ${account} with Robinhood testnet ETH and retry.`);
+  const stocks = await Promise.all(marketSpecs.map(async spec => {
+    const [code, decimals, symbol, balance] = await Promise.all([
+      publicClient.getCode({ address: spec.address }),
+      publicClient.readContract({ address: spec.address, abi: erc20Abi, functionName: 'decimals' }),
+      publicClient.readContract({ address: spec.address, abi: erc20Abi, functionName: 'symbol' }),
+      publicClient.readContract({ address: spec.address, abi: erc20Abi, functionName: 'balanceOf', args: [account] }),
+    ]);
+    if (!code || code === '0x' || decimals !== 18 || symbol !== spec.symbol) throw new Error(`${spec.symbol} is not the expected 18-decimal Stock Token.`);
+    return { ...spec, decimals, balance };
+  }));
 
-  const artifacts = {
-    MockUSD: await artifact('MockUSD'),
-    MockStock: await artifact('MockStock'),
-    OptionMarketV4: await artifact('OptionMarketV4'),
-  };
+  const marketArtifact = await artifact('OptionMarketV4');
   const receipts = [];
-  const state = {};
   function next() {
-    if (receipts.length === 0) return { contract: 'MockUSD', args: [] };
-    if (receipts.length === 1) return { contract: 'OptionMarketV4', args: [underlying, state.quote] };
-    if (receipts.length === 2) return { contract: 'MockStock', args: [] };
-    if (receipts.length === 3) return { contract: 'OptionMarketV4', args: [state.practiceStock, state.quote] };
-    return null;
+    const spec = stocks[receipts.length];
+    return spec ? { contract: 'OptionMarketV4', marketId: spec.marketId, label: `${spec.symbol} / ${quoteSymbol}`, args: [spec.address, quote, account, DEFAULT_BASE_FEE, DEFAULT_FEE_BPS] } : null;
   }
-  function publicState() { return { complete: receipts.length === 4, receipts }; }
+  function publicState() { return { complete: receipts.length === stocks.length, receipts }; }
   function planned() {
     const step = next();
     if (!step) return null;
-    const item = artifacts[step.contract];
-    return { ...step, data: encodeDeployData({ abi: item.abi, bytecode: item.bytecode.object, args: step.args }) };
+    return { ...step, data: encodeDeployData({ abi: marketArtifact.abi, bytecode: marketArtifact.bytecode.object, args: step.args }) };
   }
   async function finalize() {
-    const [primaryUnderlying, primaryQuote, primaryVersion, practiceUnderlying, practiceQuote, practiceVersion] = await Promise.all([
-      publicClient.readContract({ address: state.factory, abi: marketAbi, functionName: 'underlying' }),
-      publicClient.readContract({ address: state.factory, abi: marketAbi, functionName: 'quote' }),
-      publicClient.readContract({ address: state.factory, abi: marketAbi, functionName: 'version' }),
-      publicClient.readContract({ address: state.practiceFactory, abi: marketAbi, functionName: 'underlying' }),
-      publicClient.readContract({ address: state.practiceFactory, abi: marketAbi, functionName: 'quote' }),
-      publicClient.readContract({ address: state.practiceFactory, abi: marketAbi, functionName: 'version' }),
-    ]);
-    if (!isAddressEqual(primaryUnderlying, underlying) || !isAddressEqual(primaryQuote, state.quote) || primaryVersion !== 4n) throw new Error('Primary market validation failed.');
-    if (!isAddressEqual(practiceUnderlying, state.practiceStock) || !isAddressEqual(practiceQuote, state.quote) || practiceVersion !== 4n) throw new Error('Practice market validation failed.');
-    const record = {
-      chainId: chain.id, name: chain.name, rpcUrl: chain.rpcUrls.default.http[0], explorerUrl: EXPLORER_URL,
-      underlying: { address: underlying, symbol, decimals: 18, isMock: false },
-      quote: { address: state.quote, symbol: 'MockUSD', decimals: 6, isMock: true },
-      factory: state.factory, deploymentBlock: receipts[1].blockNumber, version: 4, tickSize: '10000',
-      marketId: 'primary', label: 'TSLA / MockUSD', sandbox: false,
-      markets: [{ marketId: 'practice', label: 'Practice STOCK / MockUSD', sandbox: true, version: 4, tickSize: '10000', factory: state.practiceFactory, deploymentBlock: receipts[3].blockNumber, underlying: { address: state.practiceStock, symbol: 'MockSTOCK', decimals: 18, isMock: true }, quote: { address: state.quote, symbol: 'MockUSD', decimals: 6, isMock: true } }],
-    };
+    const markets = await Promise.all(stocks.map(async (spec, index) => {
+      const factory = receipts[index].address;
+      const [deployedUnderlying, deployedQuote, version, deployedRecipient, deployedBaseFee, deployedFeeBps] = await Promise.all([
+        publicClient.readContract({ address: factory, abi: marketAbi, functionName: 'underlying' }),
+        publicClient.readContract({ address: factory, abi: marketAbi, functionName: 'quote' }),
+        publicClient.readContract({ address: factory, abi: marketAbi, functionName: 'version' }),
+        publicClient.readContract({ address: factory, abi: marketAbi, functionName: 'feeRecipient' }),
+        publicClient.readContract({ address: factory, abi: marketAbi, functionName: 'baseFee' }),
+        publicClient.readContract({ address: factory, abi: marketAbi, functionName: 'feeBps' }),
+      ]);
+      if (!isAddressEqual(deployedUnderlying, spec.address) || !isAddressEqual(deployedQuote, quote) || version !== 4n || !isAddressEqual(deployedRecipient, account) || deployedBaseFee !== DEFAULT_BASE_FEE || deployedFeeBps !== DEFAULT_FEE_BPS) throw new Error(`${spec.symbol} market validation failed.`);
+      return { marketId: spec.marketId, label: `${spec.symbol} / ${quoteSymbol}`, sandbox: false, version: 4, tickSize: '10000', factory, deploymentBlock: receipts[index].blockNumber, feeRecipient: account, baseFee: DEFAULT_BASE_FEE.toString(), feeBps: DEFAULT_FEE_BPS, underlying: { address: spec.address, symbol: spec.symbol, decimals: 18, isMock: false }, quote: { address: quote, symbol: quoteSymbol, decimals: 6, isMock: false } };
+    }));
+    const [primary, ...additional] = markets;
+    const record = { chainId: chain.id, name: chain.name, rpcUrl: chain.rpcUrls.default.http[0], explorerUrl: EXPLORER_URL, ...primary, markets: additional };
     await saveJson(manifestPath, { ...record, deployer: account, receipts });
     const browserManifestPath = 'web/lib/generated/deployments.json';
     const manifest = await readJson(browserManifestPath);
@@ -262,16 +269,12 @@ async function main() {
         if (!isAddressEqual(transaction.from, account)) throw new Error('Transaction signer does not match the expected wallet.');
         if (transaction.to !== null || transaction.input.toLowerCase() !== step.data.toLowerCase()) throw new Error('Mined transaction does not match the planned contract deployment.');
         if (!receipt.contractAddress) throw new Error('Deployment receipt has no contract address.');
-        const item = { contract: step.contract, address: receipt.contractAddress, transactionHash, blockNumber: receipt.blockNumber.toString() };
+        const item = { contract: step.contract, marketId: step.marketId, label: step.label, address: receipt.contractAddress, transactionHash, blockNumber: receipt.blockNumber.toString() };
         receipts.push(item);
-        if (receipts.length === 1) state.quote = item.address;
-        if (receipts.length === 2) state.factory = item.address;
-        if (receipts.length === 3) state.practiceStock = item.address;
-        if (receipts.length === 4) state.practiceFactory = item.address;
         await saveJson(`deployments/${chain.id}.partial.json`, { chainId: chain.id, deployer: account, receipts });
-        if (receipts.length === 4) await finalize();
+        if (receipts.length === stocks.length) await finalize();
         response.setHeader('content-type', 'application/json'); response.end(JSON.stringify(publicState()));
-        if (receipts.length === 4) setTimeout(() => server.close(), 1500);
+        if (receipts.length === stocks.length) setTimeout(() => server.close(), 1500);
         return;
       }
       response.statusCode = 404; response.end('Not found');
@@ -286,7 +289,10 @@ async function main() {
     server.listen(4179, '127.0.0.1', resolve);
   });
   console.log(`Wallet: ${account}`);
-  console.log(`Balances: ${formatEther(eth)} testETH, ${formatUnits(stock, decimals)} ${symbol}`);
+  console.log(`Balances: ${formatEther(eth)} testETH, ${formatUnits(quoteBalance, quoteDecimals)} ${quoteSymbol}`);
+  console.log(`Stocks: ${stocks.map(stock => `${formatUnits(stock.balance, stock.decimals)} ${stock.symbol}`).join(', ')}`);
+  console.log(`Quote: ${quote}`);
+  console.log(`Fee: ${formatUnits(DEFAULT_BASE_FEE, quoteDecimals)} ${quoteSymbol} + ${DEFAULT_FEE_BPS} bps per execution -> ${account}`);
   console.log(`Open http://127.0.0.1:4179/?token=${token}`);
   console.log('The local signer never receives or stores the private key. Press Ctrl+C to cancel.');
 }

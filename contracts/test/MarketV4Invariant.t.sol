@@ -55,7 +55,7 @@ contract V4Handler is Test {
 contract MarketV4InvariantTest is StdInvariant, Test {
     Market market;MockStock stock;MockUSD usd;V4Handler handler;
     function setUp() public {
-        stock=new MockStock();usd=new MockUSD();market=new Market(address(stock),address(usd));handler=new V4Handler(market,stock,usd);
+        stock=new MockStock();usd=new MockUSD();market=new Market(address(stock),address(usd),address(this),10_000,10);handler=new V4Handler(market,stock,usd);
         bytes4[] memory selectors=new bytes4[](5);
         selectors[0]=handler.place.selector;selectors[1]=handler.cancel.selector;selectors[2]=handler.resale.selector;selectors[3]=handler.settle.selector;selectors[4]=handler.advance.selector;
         targetSelector(FuzzSelector({addr:address(handler),selectors:selectors}));targetContract(address(handler));
@@ -64,7 +64,8 @@ contract MarketV4InvariantTest is StdInvariant, Test {
         uint256 reserved;uint256 totalStock=stock.balanceOf(address(market));uint256 totalUSD=usd.balanceOf(address(market));
         for(uint256 i;i<3;i++) {totalStock+=stock.balanceOf(handler.actors(i));totalUSD+=usd.balanceOf(handler.actors(i));}
         for(uint64 id=1;id<=market.orderCount();id++) {Market.Order memory o=market.getOrder(id);if(o.buy&&o.state==Market.OrderState.Open) reserved+=uint256(o.price)*10000;}
-        assertEq(market.reservedPremium(),reserved);assertEq(usd.balanceOf(address(market)),reserved);
+        uint256 fees;for(uint64 id=1;id<=market.orderCount();id++) {Market.Order memory o=market.getOrder(id);if(o.buy&&o.state==Market.OrderState.Open) fees+=market.feeFor(uint256(o.price)*10000);}
+        assertEq(market.reservedPremium(),reserved);assertEq(market.reservedFees(),fees);assertEq(usd.balanceOf(address(market)),reserved+fees);
         for(uint256 i;i<market.optionCount();i++) {
             OptionV4 o=OptionV4(market.options(i));uint256 s=stock.balanceOf(address(o));uint256 q=usd.balanceOf(address(o));
             assertEq(o.underlyingAmount(),1e18);assertTrue(o.funded());
@@ -73,7 +74,7 @@ contract MarketV4InvariantTest is StdInvariant, Test {
             if(o.state()==OptionV4.State.Active) assertTrue(o.buyer()!=o.writer());
             totalStock+=s;totalUSD+=q;
         }
-        assertEq(totalStock,30e18);assertEq(totalUSD,30_000e6);
+        assertEq(totalStock,30e18);assertEq(totalUSD+usd.balanceOf(address(this)),30_000e6);
         uint256 expectedActive;
         for(uint8 kind;kind<2;kind++) {
             bytes32 key=market.seriesKey(kind,1000,handler.expiry());uint64 bid;uint64 ask;bool hasOpen;

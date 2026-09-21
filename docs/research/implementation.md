@@ -1,22 +1,60 @@
 # Implementation record
 
+## Immutable execution fee (2026-09-20)
+
+V4 now charges the buyer an immutable protocol fee only when an order executes. The
+testnet deployment parameters are `0.01 USDG + 10 bps` of the executed premium, paid
+to the deploying wallet. Sellers receive the full resting premium. A resting bid
+escrows its limit premium and maximum fee; cancellation returns both, while a
+price-improved execution charges the fee on the lower executed premium. Primary sales
+and resales use the same calculation. Creating or canceling an ask, exercising and
+reclaiming collateral do not pay a protocol fee.
+
+Every market records the recipient, base fee and basis points as constructor
+immutables. There is no owner method that can raise or redirect them. Constructor
+guards cap the base at one whole quote token and the percentage at 100 bps. The SDK
+includes the maximum fee in balance and allowance checks, portfolio accounting includes
+refundable fee reserves, and the UI shows premium, fee and buyer total before signing.
+The planned five testnet markets all use
+`0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0` as recipient.
+
+Validation for this iteration:
+
+- `npm test`: 78 passed across contracts, scripts, SDK and frontend; the optional
+  Robinhood RPC-fork test was skipped because no fork URL was supplied.
+- Fee-specific unit and invariant coverage checks direct execution, resting-bid
+  escrow, full cancellation refunds, primary and resale conservation, configuration
+  caps, and atomic rollback when the fee transfer fails. The invariant ran 128 times
+  over 8,192 calls.
+- `npm run typecheck` and `npm run build`: passed after regenerating the V4 ABI.
+- `npm run test:acceptance`: passed on an isolated Docker/Anvil chain, including the
+  protocol/SDK lifecycle, browser wallet flow and the full five-market fixture seed.
+  Evidence is local and records `publicTransactions: false`.
+- The deployed runtime is 24,018 bytes, 558 bytes below the EVM runtime limit. This is
+  deployable but leaves little room for further contract features without refactoring.
+
+No Robinhood testnet transaction was sent and no public deployment manifest exists.
+
 ## Interactive testnet deployment signer (2026-09-20)
 
-The deployment tooling can now use an explicitly selected, funded browser wallet
+The deployment tooling can now use an explicitly selected, funded MetaMask account
 without receiving or storing its private key. A loopback-only page checks the expected
-account and chain 46630, prepares one deployment at a time, and validates each mined
-transaction against its exact creation bytecode before recording it. Four separate
-wallet confirmations deploy MockUSD, the TSLA V4 market, MockStock and the practice V4
-market. The normal private and public manifests are written only after both markets are
-read back successfully. Partial public receipt evidence is retained if the user stops
-between confirmations.
+account and chain 46630, prepares each deployment, and validates every mined transaction
+against its exact creation bytecode before recording it. Five wallet confirmations
+deploy one `OptionMarketV4` per native testnet Stock Token—TSLA, AMD, AMZN, NFLX and
+PLTR—all sharing the existing testnet USDG contract. The flow does not deploy tokens or
+a mock practice market. The normal private and public manifests are written only after
+every market's pair and version are read back successfully. Partial public receipt
+evidence is retained if the user stops between confirmations or final validation fails.
 
 The selected wallet `0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0` was checked
-read-only at block 122183808 and held 0.01 test ETH and 5 TSLA. No transaction was sent
-during that balance check.
+read-only at block 122183808 and held 0.01 test ETH, 5 each of TSLA, AMD, AMZN, NFLX and
+PLTR, and no USDG. No transaction was sent during that balance check. Testnet USDG is configured separately from the
+production address as `0x7E955252E15c84f5768B83c41a71F9eba181802F`; the tooling
+requires live bytecode, symbol `USDG` and six decimals before offering a deployment.
 
 Validation before presenting the signer: the script passed Node syntax and missing-
-argument failure checks; `npm test` passed 69 tests with the optional Robinhood RPC-
+argument failure checks; `npm test` passed 70 tests with the optional Robinhood RPC-
 fork test skipped; typecheck, frontend lint, the production build and
 `git diff --check` passed. These checks did not request a wallet signature.
 

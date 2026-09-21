@@ -11,7 +11,11 @@ export const marketCatalog: Record<number, CatalogEntry[]> = {
     { marketId: "practice", visible: true, underlying: { name: "Practice Stock", kind: "stock" }, quote: { name: "Mock US Dollar", kind: "stablecoin" } },
   ],
   46630: [
-    { marketId: "primary", visible: true, underlying: { name: "Tesla Stock Token", kind: "stock" }, quote: { name: "Mock US Dollar", kind: "stablecoin" } },
+    { marketId: "primary", visible: true, underlying: { name: "Tesla Stock Token", kind: "stock" }, quote: { name: "Global Dollar", kind: "stablecoin" } },
+    { marketId: "amd", visible: true, underlying: { name: "AMD Stock Token", kind: "stock" }, quote: { name: "Global Dollar", kind: "stablecoin" } },
+    { marketId: "amazon", visible: true, underlying: { name: "Amazon Stock Token", kind: "stock" }, quote: { name: "Global Dollar", kind: "stablecoin" } },
+    { marketId: "netflix", visible: true, underlying: { name: "Netflix Stock Token", kind: "stock" }, quote: { name: "Global Dollar", kind: "stablecoin" } },
+    { marketId: "palantir", visible: true, underlying: { name: "Palantir Stock Token", kind: "stock" }, quote: { name: "Global Dollar", kind: "stablecoin" } },
   ],
 };
 

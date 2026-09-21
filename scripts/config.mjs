@@ -6,6 +6,16 @@ import { mnemonicToAccount, privateKeyToAccount } from 'viem/accounts';
 
 export const root = fileURLToPath(new URL('../', import.meta.url));
 export const TESTNET_STOCK = '0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E';
+export const TESTNET_QUOTE = '0x7E955252E15c84f5768B83c41a71F9eba181802F';
+export const DEFAULT_BASE_FEE = 10_000n;
+export const DEFAULT_FEE_BPS = 10;
+export const TESTNET_STOCKS = [
+  { marketId: 'primary', name: 'Tesla', symbol: 'TSLA', address: TESTNET_STOCK },
+  { marketId: 'amd', name: 'AMD', symbol: 'AMD', address: '0x71178BAc73cBeb415514eB542a8995b82669778d' },
+  { marketId: 'amazon', name: 'Amazon', symbol: 'AMZN', address: '0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02' },
+  { marketId: 'netflix', name: 'Netflix', symbol: 'NFLX', address: '0x3b8262A63d25f0477c4DDE23F83cfe22Cb768C93' },
+  { marketId: 'palantir', name: 'Palantir Technologies', symbol: 'PLTR', address: '0x1FBE1a0e43594b3455993B5dE5Fd0A7A266298d0' },
+];
 const localMnemonic = 'test test test test test test test test test test test junk';
 export const localAccount = (index = 0) => mnemonicToAccount(localMnemonic, { addressIndex: index });
 export const atRoot = (...parts) => resolve(root, ...parts);
@@ -55,11 +65,13 @@ export async function mined(publicClient, hash) {
   return receipt;
 }
 export function stockAddress() { return getAddress(process.env.RH_STOCK_ADDRESS || TESTNET_STOCK); }
+export function stockMarkets() { return TESTNET_STOCKS.map((market, index) => ({ ...market, address: index === 0 ? stockAddress() : getAddress(market.address) })); }
+export function quoteAddress() { return getAddress(process.env.RH_QUOTE_ADDRESS || TESTNET_QUOTE); }
 export function publicDeployment(record) {
   if (![31337, 46630].includes(record.chainId)) throw new Error('Unsupported deployment chain.');
   // Explicit allowlist: private provider endpoints, signing data, and receipts never go into browser config.
-  const { chainId, name, explorerUrl, underlying, quote, factory, deploymentBlock, marketId, label, sandbox, tickSize } = record;
-  return { chainId, name, explorerUrl, underlying, quote, factory, deploymentBlock, version: 4, tickSize, ...(marketId ? { marketId, label, sandbox } : {}), ...(record.markets ? { markets: record.markets.map(({ marketId, label, sandbox, factory, deploymentBlock, underlying, quote, tickSize }) => ({ marketId, label, sandbox, factory, deploymentBlock, underlying, quote, version: 4, tickSize })) } : {}),
+  const { chainId, name, explorerUrl, underlying, quote, factory, deploymentBlock, marketId, label, sandbox, tickSize, feeRecipient, baseFee, feeBps } = record;
+  return { chainId, name, explorerUrl, underlying, quote, factory, deploymentBlock, version: 4, tickSize, feeRecipient, baseFee, feeBps, ...(marketId ? { marketId, label, sandbox } : {}), ...(record.markets ? { markets: record.markets.map(({ marketId, label, sandbox, factory, deploymentBlock, underlying, quote, tickSize, feeRecipient, baseFee, feeBps }) => ({ marketId, label, sandbox, factory, deploymentBlock, underlying, quote, version: 4, tickSize, feeRecipient, baseFee, feeBps })) } : {}),
     rpcUrl: chainId === 31337 ? 'http://127.0.0.1:8545' : 'https://rpc.testnet.chain.robinhood.com' };
 }
 export function reportError(error) {

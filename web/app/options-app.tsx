@@ -50,7 +50,7 @@ import {
   units,
   type Position,
 } from "../lib/options";
-import { optionMarketV4Abi, getMarkets, getPortfolio, getBookDepthV4, validateMarket, decodeProtocolError, prepareOrderV4, prepareExercise, prepareCancelV4, prepareReclaim, simulatePrepared, ProtocolError, type Portfolio, type PreparedOperation } from "@stock-options-lab/sdk";
+import { optionMarketV4Abi, feeForV4, getMarkets, getPortfolio, getBookDepthV4, validateMarket, decodeProtocolError, prepareOrderV4, prepareExercise, prepareCancelV4, prepareReclaim, simulatePrepared, ProtocolError, type Portfolio, type PreparedOperation } from "@stock-options-lab/sdk";
 import { readTransactions, writeTransactions, type TransactionRecord } from "../lib/transactions";
 import { utcDeadline } from "../lib/expirations";
 
@@ -331,7 +331,7 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
       if (log.address.toLowerCase() !== net.factory?.toLowerCase()) continue;
       try {
         const event = decodeEventLog({ abi: optionMarketV4Abi, ...log });
-        if (event.eventName === "OrderExecuted") confirmedOrder.current = `Executed 1 contract at ${units(BigInt(event.args.price) * 10n ** BigInt(net.quote.decimals - 2), net.quote.decimals)} ${net.quote.symbol}.`;
+        if (event.eventName === "OrderExecuted") confirmedOrder.current = `Executed 1 contract at ${units(BigInt(event.args.price) * 10n ** BigInt(net.quote.decimals - 2), net.quote.decimals)} ${net.quote.symbol}; protocol fee ${units(event.args.fee, net.quote.decimals)} ${net.quote.symbol}.`;
         if (event.eventName === "OrderPosted") confirmedOrder.current = `Order #${event.args.id} is open in the book at ${units(BigInt(event.args.price) * 10n ** BigInt(net.quote.decimals - 2), net.quote.decimals)} ${net.quote.symbol}.`;
       } catch { /* Ignore token and option events. */ }
     }
@@ -509,13 +509,15 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
     requestAnimationFrame(() => { window.scrollTo(0, previous.scroll); if (previous.focus?.id) document.getElementById(previous.focus.id)?.focus({ preventScroll: true }); });
   }
   const exerciseWarning = <><FontIcon name="triangle-exclamation" /> <span>Manual exercise. An unused right expires without payout or premium refund. <a id="manual-exercise-link" href="?view=docs#manual-exercise" aria-disabled={busy} onClick={event => { event.preventDefault(); openDocs("manual-exercise"); }}>How manual exercise works</a></span></>;
+  const detailFee = detail && activeMarket ? feeForV4(activeMarket, optionPrice(detail)) : 0n;
+  const detailBuyerTotal = detail ? optionPrice(detail) + detailFee : 0n;
   const detailPanel = (
     <TradeTicket inline={tab === "mine"} title={detail ? `${detail.optionType === 0 ? "Call" : "Put"} · ${detail.writer.toLowerCase() === address?.toLowerCase() ? "Manage written option" : detail.state === 0 ? "Review purchase" : "Review position"}` : "Review option"} busy={busy} onClose={() => openDetail(null)}>
       <div className="detail">
       {detail ? <>
         <div className="section-head"><div className="asset-cell"><AssetLogo presentation={assetPresentation(net, "underlying")} /><div><h2 id="option-review-heading" tabIndex={-1}>{assetPresentation(net, "underlying").name} · {net.underlying.symbol}</h2><small className="detail-role">{detail.writer.toLowerCase() === address?.toLowerCase() ? "You wrote this option" : detail.buyer.toLowerCase() === address?.toLowerCase() ? "You bought this option" : `Written by ${short(detail.writer)}`}</small></div></div><span className="pill">{status(detail, now)}</span></div>
         <div className="review-grid">
-          <div className="purchase-cost"><span className="term-label">01 · {isListed(detail, now) ? (optionSeller(detail).toLowerCase() === address?.toLowerCase() ? "You receive when purchased" : "You pay to buy this option") : detail.trades?.length ? "Last purchase — total" : "Original option price"}</span><strong>{displayAmount(optionPrice(detail), net.quote)}</strong><small>One payment for {displayAmount(detail.underlyingAmount, net.underlying)}{detail.state === 1 && (detail.resalePrice ?? 0n) > 0n ? " · Resale" : ""}</small><p className="fine">Buys the right, not the tokens. Exercise payment and gas are separate.</p></div>
+          <div className="purchase-cost"><span className="term-label">01 · {isListed(detail, now) ? (optionSeller(detail).toLowerCase() === address?.toLowerCase() ? "You receive when purchased" : "Buyer total") : detail.trades?.length ? "Last premium" : "Original option price"}</span><strong>{displayAmount(isListed(detail, now) && optionSeller(detail).toLowerCase() !== address?.toLowerCase() ? detailBuyerTotal : optionPrice(detail), net.quote)}</strong><small>{isListed(detail, now) && optionSeller(detail).toLowerCase() !== address?.toLowerCase() ? `${displayAmount(optionPrice(detail), net.quote)} premium + ${displayAmount(detailFee, net.quote)} protocol fee` : `One premium for ${displayAmount(detail.underlyingAmount, net.underlying)}`}{detail.state === 1 && (detail.resalePrice ?? 0n) > 0n ? " · Resale" : ""}</small><p className="fine">The fee is charged only on execution. Exercise payment and gas are separate.</p></div>
           <div className="right-summary"><span className="term-label">02 · Buyer’s exercise right</span><h3>{detail.optionType === 0 ? "Right to buy" : "Right to sell"}</h3><p><strong>{displayAmount(detail.underlyingAmount, net.underlying)}</strong><br />for <strong>{displayAmount(detail.strikeTotal, net.quote)}</strong> total</p><p className="fine">Only at exercise: buyer delivers {displayAmount(detail.optionType === 0 ? detail.strikeTotal : detail.underlyingAmount, detail.optionType === 0 ? net.quote : net.underlying)} and receives {displayAmount(detail.optionType === 0 ? detail.underlyingAmount : detail.strikeTotal, detail.optionType === 0 ? net.underlying : net.quote)}.</p></div>
           <div className="deadline-summary"><span className="term-label">03 · Exercise before</span><strong>{utcDeadline(detail.expiry)}</strong><small>{new Date(Number(detail.expiry) * 1000).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" })} · local time</small><small>{remaining(detail.expiry, now)} · estimated</small></div>
         </div>
@@ -525,9 +527,9 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
         {ready && (health.isError || market.isError) && <div className="banner error" role="alert">Could not refresh this option. Trading is disabled until current data is available.<button className="button" onClick={() => { void health.refetch(); void market.refetch(); }}>Retry connection</button></div>}
         {noticeScope === "trade" && notification}
         <div className="review-bottom">
-          {actions(detail, address, now).some(action => ["buy", "buyResale"].includes(action)) && <label className="exercise-ack"><input type="checkbox" checked={acceptedFor === acknowledgment(detail)} disabled={busy} onChange={event => setAcceptedFor(event.target.checked ? acknowledgment(detail) : "")} /><span>I understand that I must exercise before the deadline or lose the right and the premium.</span></label>}
+          {actions(detail, address, now).some(action => ["buy", "buyResale"].includes(action)) && <label className="exercise-ack"><input type="checkbox" checked={acceptedFor === acknowledgment(detail)} disabled={busy} onChange={event => setAcceptedFor(event.target.checked ? acknowledgment(detail) : "")} /><span>I understand the manual exercise deadline and the displayed execution fee.</span></label>}
           <div className="detail-actions">
-            {actions(detail, address, now).map(action => <button className="button dark" key={action} disabled={!canAct || market.isError || (["buy", "buyResale"].includes(action) && acceptedFor !== acknowledgment(detail))} onClick={() => transact(detail, action)}>{busy ? "Processing…" : ["buy", "buyResale"].includes(action) ? `Buy ${detail.optionType === 0 ? "call" : "put"} · ${displayAmount(optionPrice(detail), net.quote)}` : actionNames[action]}</button>)}
+            {actions(detail, address, now).map(action => <button className="button dark" key={action} disabled={!canAct || market.isError || (["buy", "buyResale"].includes(action) && acceptedFor !== acknowledgment(detail))} onClick={() => transact(detail, action)}>{busy ? "Processing…" : ["buy", "buyResale"].includes(action) ? `Buy ${detail.optionType === 0 ? "call" : "put"} · ${displayAmount(detailBuyerTotal, net.quote)} total` : actionNames[action]}</button>)}
             {!address && <button className="button dark" onClick={walletConnect}>Connect wallet to continue</button>}
             {operationSucceeded && <button className="button" onClick={() => navigate("mine")}>View portfolio</button>}
           </div>

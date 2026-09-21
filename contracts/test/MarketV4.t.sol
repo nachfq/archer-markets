@@ -77,6 +77,7 @@ contract MarketV4Test is Test {
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
     address carol = makeAddr("carol");
+    address treasury = makeAddr("treasury");
     uint64 expiry;
 
     function setUp() public {
@@ -84,7 +85,7 @@ contract MarketV4Test is Test {
         expiry = uint64(block.timestamp + 7 days);
         stock = new MockStock();
         usd = new MockUSD();
-        market = new Market(address(stock), address(usd));
+        market = new Market(address(stock), address(usd), treasury, 10_000, 10);
         address[3] memory actors = [alice, bob, carol];
         for (uint256 i; i < 3; ++i) {
             deal(address(stock), actors[i], 1000e18);
@@ -110,7 +111,8 @@ contract MarketV4Test is Test {
     }
 
     function conserve() internal view {
-        uint256 q = usd.balanceOf(alice) + usd.balanceOf(bob) + usd.balanceOf(carol) + usd.balanceOf(address(market));
+        uint256 q = usd.balanceOf(alice) + usd.balanceOf(bob) + usd.balanceOf(carol) + usd.balanceOf(treasury)
+            + usd.balanceOf(address(market));
         uint256 s =
             stock.balanceOf(alice) + stock.balanceOf(bob) + stock.balanceOf(carol) + stock.balanceOf(address(market));
         for (uint256 i; i < market.optionCount(); ++i) {
@@ -119,7 +121,7 @@ contract MarketV4Test is Test {
         }
         assertEq(q, 3e30);
         assertEq(s, 3000e18);
-        assertEq(usd.balanceOf(address(market)), market.reservedPremium());
+        assertEq(usd.balanceOf(address(market)), market.reservedPremium() + market.reservedFees());
     }
 
     function testFuzzBothDirectionsExerciseConserve(bool put, bool bidFirst, uint32 priceSeed) public {
@@ -135,7 +137,8 @@ contract MarketV4Test is Test {
         assertEq(o.premium(), uint256(p) * 10000);
         assertEq(market.bestOrder(key(kind), true), 0);
         assertEq(market.bestOrder(key(kind), false), 0);
-        assertEq(usd.balanceOf(bob), 1e30 - uint256(p) * 10000);
+        uint256 premium = uint256(p) * 10000;
+        assertEq(usd.balanceOf(bob), 1e30 - premium - market.feeFor(premium));
         conserve();
         vm.startPrank(bob);
         stock.approve(address(o), 1e18);
@@ -268,9 +271,106 @@ contract MarketV4Test is Test {
         vm.prank(bob);
         market.placeResale(address(o), 1100);
         assertEq(o.buyer(), carol);
-        assertEq(usd.balanceOf(bob), 1e30 + 2e6);
+        assertEq(usd.balanceOf(bob), 1e30 + 2e6 - market.feeFor(10e6));
         assertEq(market.reservedPremium(), 0);
+        assertEq(market.reservedFees(), 0);
         conserve();
+    }
+
+    function testFeeChargesBuyerAndPaysTreasuryOnlyOnExecution() public {
+        uint256 buyerBefore = usd.balanceOf(bob);
+        uint256 sellerBefore = usd.balanceOf(alice);
+        uint256 payment = 10e6;
+        uint256 fee = market.feeFor(payment);
+        assertEq(fee, 20_000);
+
+        place(alice, false, 1000, 0);
+        place(bob, true, 1200, 0);
+
+        assertEq(usd.balanceOf(bob), buyerBefore - payment - fee);
+        assertEq(usd.balanceOf(alice), sellerBefore + payment);
+        assertEq(usd.balanceOf(treasury), fee);
+        assertEq(usd.balanceOf(address(market)), 0);
+        conserve();
+    }
+
+    function testOpenBidReservesAndCancellationRefundsPremiumAndFee() public {
+        uint256 before = usd.balanceOf(bob);
+        uint256 payment = 10e6;
+        uint256 fee = market.feeFor(payment);
+        uint64 id = place(bob, true, 1000, 0);
+
+        assertEq(market.reservedPremium(), payment);
+        assertEq(market.reservedFees(), fee);
+        assertEq(usd.balanceOf(address(market)), payment + fee);
+        assertEq(usd.balanceOf(treasury), 0);
+
+        vm.prank(bob);
+        market.cancelOrder(id);
+        assertEq(usd.balanceOf(bob), before);
+        assertEq(market.reservedPremium(), 0);
+        assertEq(market.reservedFees(), 0);
+        assertEq(usd.balanceOf(treasury), 0);
+        conserve();
+    }
+
+    function testFeeTransferFailureRollsBackMatchAndEscrow() public {
+        uint64 bid = place(bob, true, 1000, 0);
+        uint256 payment = 10e6;
+        uint256 fee = market.feeFor(payment);
+        vm.mockCallRevert(
+            address(usd), abi.encodeWithSelector(IERC20.transfer.selector, treasury, fee), "fee transfer failed"
+        );
+
+        vm.expectRevert();
+        place(alice, false, 900, 0);
+
+        assertEq(market.orderCount(), bid);
+        assertEq(uint8(market.getOrder(bid).state), uint8(Market.OrderState.Open));
+        assertEq(market.bestOrder(key(0), true), bid);
+        assertEq(market.reservedPremium(), payment);
+        assertEq(market.reservedFees(), fee);
+        assertEq(market.optionCount(), 0);
+        conserve();
+    }
+
+    function testIncomingBuyerFeeFailureRollsBackPaymentAndAsk() public {
+        uint64 ask = place(alice, false, 1000, 0);
+        uint256 payment = 10e6;
+        uint256 fee = market.feeFor(payment);
+        uint256 buyerBefore = usd.balanceOf(bob);
+        uint256 sellerBefore = usd.balanceOf(alice);
+        vm.mockCallRevert(
+            address(usd),
+            abi.encodeWithSelector(IERC20.transferFrom.selector, bob, treasury, fee),
+            "fee transfer failed"
+        );
+
+        vm.expectRevert();
+        place(bob, true, 1100, 0);
+
+        assertEq(market.orderCount(), ask);
+        assertEq(uint8(market.getOrder(ask).state), uint8(Market.OrderState.Open));
+        assertEq(market.bestOrder(key(0), false), ask);
+        assertEq(uint8(option(ask).state()), uint8(OptionV4.State.Open));
+        assertEq(usd.balanceOf(bob), buyerBefore);
+        assertEq(usd.balanceOf(alice), sellerBefore);
+        assertEq(usd.balanceOf(treasury), 0);
+        conserve();
+    }
+
+    function testFeeConfigurationIsCappedAndRecipientRequired() public {
+        assertEq(market.feeRecipient(), treasury);
+        assertEq(market.baseFee(), 10_000);
+        assertEq(market.feeBps(), 10);
+        assertEq(market.MAX_FEE_BPS(), 100);
+
+        vm.expectRevert(Market.InvalidFee.selector);
+        new Market(address(stock), address(usd), address(0), 10_000, 10);
+        vm.expectRevert(Market.InvalidFee.selector);
+        new Market(address(stock), address(usd), treasury, 1_000_001, 10);
+        vm.expectRevert(Market.InvalidFee.selector);
+        new Market(address(stock), address(usd), treasury, 10_000, 101);
     }
 
     function testExerciseRemovesListedAskAndCannotThenSell() public {
@@ -432,7 +532,7 @@ contract MarketV4Test is Test {
 
     function testTransferFeeAndReentryCannotCorruptBook() public {
         AdversarialToken bad = new AdversarialToken();
-        Market m = new Market(address(bad), address(usd));
+        Market m = new Market(address(bad), address(usd), treasury, 10_000, 10);
         bad.mint(alice, 100);
         vm.prank(alice);
         bad.approve(address(m), 100);

@@ -49,6 +49,6 @@ export function BalanceTables({ markets, portfolio, stale }: { markets: Deployme
         })}</tbody>
       </table></div>
     </section>)}
-    <p className="fine">Amounts are token units, not portfolio value. Total tracked includes collateral and reserved/refundable bid premiums; purchased rights appear below. Gas is separate in your wallet menu.</p>
+    <p className="fine">Amounts are token units, not portfolio value. Bid totals include premium plus the refundable fee reserve; purchased rights appear below. Gas is separate in your wallet menu.</p>
   </section>;
 }
