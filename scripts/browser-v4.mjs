@@ -97,13 +97,19 @@ async function newOrder(page, side, premium, kind = 0) {
 }
 async function confirm(page, side) {
     await page.getByRole('button', { name: 'Review order', exact: true }).click();
-    await page.getByRole('checkbox', { name: /I understand: one option/ }).check();
+    await page.getByRole('checkbox', { name: /I understand that exercise is manual/ }).check();
     await page.getByRole('button', { name: `Confirm ${side.toLowerCase()}`, exact: true }).click();
     await expect(page.getByRole('button', { name: 'Confirm ' + side.toLowerCase(), exact: true })).toHaveCount(0, { timeout: 60000 });
 }
 const expiry = ((await client.getBlock()).timestamp + 604800n) / 60n * 60n;
 try {
     const seller = await walletPage(accounts[6], 390), buyer = await walletPage(accounts[7]);
+    await buyer.getByRole('button', { name: 'How it works' }).click();
+    await expect(buyer.getByRole('heading', { name: 'One option. One Stock Token.' })).toBeVisible();
+    await expect(buyer.getByText('Nothing exercises automatically.')).toBeVisible();
+    await expect(buyer.getByText('A call contract holds the Stock Token; a put contract holds the strike payment.', { exact: false })).toBeVisible();
+    await buyer.getByRole('button', { name: 'Back to trading' }).click();
+    evidence.scenarios.push('Short guide states one-token coverage, manual exercise, and per-option collateral');
     for (const premium of ['10', '9', '9']) {
         await newOrder(seller, 'Sell', premium);
         await confirm(seller, 'Sell');
@@ -163,14 +169,14 @@ try {
     evidence.scenarios.push('Exercise delivers stock and atomically removes the holder resale');
     await newOrder(seller, 'Buy', '2', 1);
     await seller.getByRole('button', { name: 'Review order' }).click();
-    await seller.getByRole('checkbox', { name: /I understand: one option/ }).check();
+    await seller.getByRole('checkbox', { name: /I understand that exercise is manual/ }).check();
     await seller.getByLabel('Order premium').fill('3');
     await expect(seller.getByRole('button', { name: 'Review order' })).toBeVisible();
     await seller.getByLabel('Order premium').fill('0.001');
     await expect(seller.getByRole('button', { name: 'Review order' })).toBeDisabled();
     await seller.getByLabel('Order premium').fill('3');
     await seller.getByRole('button', { name: 'Review order' }).click();
-    await seller.getByRole('checkbox', { name: /I understand: one option/ }).check();
+    await seller.getByRole('checkbox', { name: /I understand that exercise is manual/ }).check();
     await seller.evaluate(() => window.__changeChain('0xb626'));
     await expect(seller.getByRole('button', { name: 'Review order' })).toBeVisible();
     assert(await seller.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));

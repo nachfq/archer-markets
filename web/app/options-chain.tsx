@@ -1,8 +1,8 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
-import { bookExpirations, openBids, orderBook, perToken, type Bid, type BookSide } from "../lib/chain";
-import { isListed, optionPrice, optionSeller, readableNumber, units, type Position } from "../lib/options";
+import { bookExpirations, orderBook, perToken, type Bid, type BookSide } from "../lib/chain";
+import { optionPrice, optionSeller, readableNumber, units, type Position } from "../lib/options";
 import { unitInput, type OrderSeed } from "../lib/order-ticket";
 import { utcDeadline } from "../lib/expirations";
 
@@ -67,7 +67,7 @@ export default function OptionsChain(props: Props) {
     }
   }
   return <section className="chain-panel" aria-label="Options chain">
-    <div className="chain-heading"><div><h2>Option chain</h2><p className="fine">{openBids(bids, now).length} bid series · {positions.filter(p => isListed(p, now)).length} ask series · Premiums in {quoteSymbol} per token</p></div><button className="button" aria-label="Refresh options" disabled={props.loading || !props.configured || props.disabled} onClick={props.onRefresh}>↻</button></div>
+    <div className="chain-heading"><div><h2>Option chain</h2><p className="fine">1 option = 1 {symbol} · Premiums in {quoteSymbol}</p></div><button className="button" aria-label="Refresh options" disabled={props.loading || !props.configured || props.disabled} onClick={props.onRefresh}>↻</button></div>
     <div className="chain-controls"><div className="expiration-navigation"><span className="term-label">Expiration · UTC</span><div className="expiration-strip" role="group" aria-label="Expiration">
       {dates.map(date => <button key={String(date)} data-expiration={String(date)} aria-pressed={date === expiry} title={utcDeadline(date)} onClick={() => { setChosenExpiry(date); setExpanded(null); props.onContext({ expiry: date, strike: undefined }); }}>
         <strong>{new Date(Number(date) * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}</strong><small>{utcDeadline(date).slice(11, 16)} UTC</small>
@@ -87,7 +87,6 @@ export default function OptionsChain(props: Props) {
       })}</tbody>
     </table></div>
     {!rows.length && !props.unavailable && <div className="chain-empty" role="status"><h3>{props.loading ? "Loading quotes…" : "No orders yet"}</h3><p>Post a bid to buy or an ask to sell a new option.</p><button className="button" disabled={props.disabled} onClick={() => props.onCreate("buy")}>Buy</button> <button className="button" disabled={props.disabled} onClick={() => props.onCreate("sell")}>Sell</button></div>}
-    <div className="chain-foot"><span>Click bid to sell · Click ask to buy</span><span>One contract per order · Onchain matching</span></div>
-    <details className="chain-disclosure"><summary>How to read this chain</summary><p>Bid is the highest buy limit; ask is the lowest sell limit. Counts combine orders at the same price. Each order trades one token, at the resting price with oldest-first priority. Unmatched orders remain open until canceled or expiration. Resales share the same book.</p></details>
+    <div className="chain-foot"><span>Select a bid to sell or an ask to buy.</span></div>
   </section>;
 }

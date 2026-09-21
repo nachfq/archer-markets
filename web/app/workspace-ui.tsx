@@ -20,7 +20,7 @@ export function WorkspaceHeader({ tab, disabled, environment, wallet, onNavigate
   return <header className="topbar">
     <Link className="wordmark" href="/" aria-label="Archer Markets">Archer<span>Markets</span></Link>
     <nav className="tabs" aria-label="Sections">
-      {([["market", "Trade"], ["mine", "Portfolio"], ["activity", "Activity"], ["docs", "Docs"]] as const).map(([key, label]) =>
+      {([["market", "Trade"], ["mine", "Portfolio"], ["activity", "Activity"], ["docs", "How it works"]] as const).map(([key, label]) =>
         <button key={key} aria-current={tab === key || (key === "market" && (tab === "create" || tab === "bids")) ? "page" : undefined}
           className={tab === key || (key === "market" && (tab === "create" || tab === "bids")) ? "active" : ""} disabled={disabled} onClick={() => onNavigate(key)}>{label}</button>)}
     </nav>
@@ -41,7 +41,7 @@ export function TradeTicket({ title, busy, onClose, children, inline = false }: 
   return <Drawer open modal={false} disablePointerDismissal onOpenChange={open => { if (!open && !busy) onClose(); }}>
     <DrawerContent className={`trade-sheet ${expanded ? "sheet-expanded" : ""}`} initialFocus={false} finalFocus={false}>
       <div className="sheet-handle" aria-hidden="true" />
-      <div className="ticket-heading"><div><DrawerTitle>{title}</DrawerTitle><DrawerDescription>Whole option · Exact totals · Gas is separate</DrawerDescription></div><div className="sheet-controls"><Button variant="ghost" aria-label={expanded ? "Reduce panel height" : "Expand panel height"} onClick={() => setExpanded(!expanded)}>{expanded ? "Reduce" : "Expand"}</Button><Button variant="outline" disabled={busy} onClick={onClose}>Close</Button></div></div>
+      <div className="ticket-heading"><div><DrawerTitle>{title}</DrawerTitle><DrawerDescription className="sr-only">Review option terms and actions</DrawerDescription></div><div className="sheet-controls"><Button variant="ghost" aria-label={expanded ? "Reduce panel height" : "Expand panel height"} onClick={() => setExpanded(!expanded)}>{expanded ? "Reduce" : "Expand"}</Button><Button variant="outline" disabled={busy} onClick={onClose}>Close</Button></div></div>
       <ScrollArea className="sheet-body">{children}</ScrollArea>
     </DrawerContent>
   </Drawer>;

@@ -12,8 +12,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const params = await searchParams;
   if (params.view === "docs") {
-    const title = "Documentation · Archer Markets";
-    const description = "Understand one-token options, collateral, manual American exercise, token delivery and testnet limitations.";
+    const title = "How it works · Archer Markets";
+    const description = "One Stock Token per option, collateral in its own smart contract, and exercise by the holder before expiration.";
     return { title, description, openGraph: { title, description }, twitter: { title, description } };
   }
   const selected = params.option;
@@ -88,5 +88,5 @@ export async function generateMetadata({
 export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { market, view } = await searchParams;
   const initialView = view === "docs" ? "docs" : view === "portfolio" ? "mine" : view === "write" ? "create" : view === "activity" ? "activity" : view === "bids" ? "bids" : "market";
-  return <OptionsApp initialMarketId={typeof market === "string" ? market : undefined} initialView={initialView} />;
+  return <OptionsApp initialMarketId={typeof market === "string" ? market : undefined} initialView={initialView} staging={process.env.RAILWAY_ENVIRONMENT_NAME === "staging"} />;
 }

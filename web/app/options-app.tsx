@@ -74,7 +74,7 @@ const remaining = (end: bigint, now: bigint) => {
 const gasAmount = (value: bigint) => { const scale = 10n ** 12n; return value > 0n && value < scale ? "<0.000001 ETH" : `${value % scale ? "≈ " : ""}${readableNumber(units(value / scale * scale, 18))} ETH`; };
 const errorText = (error: unknown) => { const parsed = decodeProtocolError(error); return `${parsed.message} ${parsed.nextAction}`; };
 
-function App({ initialMarketId, initialView }: { initialMarketId?: string; initialView?: WorkspaceTab }) {
+function App({ initialMarketId, initialView, staging = false }: { initialMarketId?: string; initialView?: WorkspaceTab; staging?: boolean }) {
   const [marketId, setMarketId] = useState(marketRecords.find(m => m.marketId === initialMarketId)?.marketId ?? marketRecords[0]?.marketId ?? "primary");
   const net = marketRecords.find(m => m.marketId === marketId) ?? marketRecords[0] ?? initialNet;
   const activeMarket = marketRecords.length ? asMarket(net) : null;
@@ -398,7 +398,7 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
     setNoticeScope("trade");
     await run(async () => {
       if (!activeMarket) throw new Error("Market is not configured.");
-      if (["buy", "buyResale"].includes(action) && acceptedFor !== acknowledgment(position)) throw new ProtocolError("INVALID_TERMS", "Acknowledge the manual exercise deadline and current price.", "Read and check the acknowledgment before buying.");
+      if (["buy", "buyResale"].includes(action) && acceptedFor !== acknowledgment(position)) throw new ProtocolError("INVALID_TERMS", "Acknowledge the manual exercise deadline.", "Read and check the acknowledgment before buying.");
       if (["buy", "buyResale"].includes(action)) {
         await executePrepared(await prepareOrderV4(client, activeMarket, address!, { optionType: position.optionType as 0 | 1, strikeTotal: position.strikeTotal, premium: optionPrice(position), expiry: position.expiry, buy: true }));
       } else if (action === "cancel") {
@@ -508,7 +508,7 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
     setTab(previous.tab);
     requestAnimationFrame(() => { window.scrollTo(0, previous.scroll); if (previous.focus?.id) document.getElementById(previous.focus.id)?.focus({ preventScroll: true }); });
   }
-  const exerciseWarning = <><FontIcon name="triangle-exclamation" /> <span>Manual exercise. An unused right expires without payout or premium refund. <a id="manual-exercise-link" href="?view=docs#manual-exercise" aria-disabled={busy} onClick={event => { event.preventDefault(); openDocs("manual-exercise"); }}>How manual exercise works</a></span></>;
+  const exerciseWarning = <><FontIcon name="triangle-exclamation" /> <span>Exercise is manual. Your right expires at the deadline. <a id="manual-exercise-link" href="?view=docs#manual-exercise" aria-disabled={busy} onClick={event => { event.preventDefault(); openDocs("manual-exercise"); }}>How it works</a></span></>;
   const detailFee = detail && activeMarket ? feeForV4(activeMarket, optionPrice(detail)) : 0n;
   const detailBuyerTotal = detail ? optionPrice(detail) + detailFee : 0n;
   const detailPanel = (
@@ -517,32 +517,31 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
       {detail ? <>
         <div className="section-head"><div className="asset-cell"><AssetLogo presentation={assetPresentation(net, "underlying")} /><div><h2 id="option-review-heading" tabIndex={-1}>{assetPresentation(net, "underlying").name} · {net.underlying.symbol}</h2><small className="detail-role">{detail.writer.toLowerCase() === address?.toLowerCase() ? "You wrote this option" : detail.buyer.toLowerCase() === address?.toLowerCase() ? "You bought this option" : `Written by ${short(detail.writer)}`}</small></div></div><span className="pill">{status(detail, now)}</span></div>
         <div className="review-grid">
-          <div className="purchase-cost"><span className="term-label">01 · {isListed(detail, now) ? (optionSeller(detail).toLowerCase() === address?.toLowerCase() ? "You receive when purchased" : "Buyer total") : detail.trades?.length ? "Last premium" : "Original option price"}</span><strong>{displayAmount(isListed(detail, now) && optionSeller(detail).toLowerCase() !== address?.toLowerCase() ? detailBuyerTotal : optionPrice(detail), net.quote)}</strong><small>{isListed(detail, now) && optionSeller(detail).toLowerCase() !== address?.toLowerCase() ? `${displayAmount(optionPrice(detail), net.quote)} premium + ${displayAmount(detailFee, net.quote)} protocol fee` : `One premium for ${displayAmount(detail.underlyingAmount, net.underlying)}`}{detail.state === 1 && (detail.resalePrice ?? 0n) > 0n ? " · Resale" : ""}</small><p className="fine">The fee is charged only on execution. Exercise payment and gas are separate.</p></div>
-          <div className="right-summary"><span className="term-label">02 · Buyer’s exercise right</span><h3>{detail.optionType === 0 ? "Right to buy" : "Right to sell"}</h3><p><strong>{displayAmount(detail.underlyingAmount, net.underlying)}</strong><br />for <strong>{displayAmount(detail.strikeTotal, net.quote)}</strong> total</p><p className="fine">Only at exercise: buyer delivers {displayAmount(detail.optionType === 0 ? detail.strikeTotal : detail.underlyingAmount, detail.optionType === 0 ? net.quote : net.underlying)} and receives {displayAmount(detail.optionType === 0 ? detail.underlyingAmount : detail.strikeTotal, detail.optionType === 0 ? net.underlying : net.quote)}.</p></div>
-          <div className="deadline-summary"><span className="term-label">03 · Exercise before</span><strong>{utcDeadline(detail.expiry)}</strong><small>{new Date(Number(detail.expiry) * 1000).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" })} · local time</small><small>{remaining(detail.expiry, now)} · estimated</small></div>
+          <div className="purchase-cost"><span className="term-label">{isListed(detail, now) ? (optionSeller(detail).toLowerCase() === address?.toLowerCase() ? "You receive" : "Buy for") : detail.trades?.length ? "Last premium" : "Option premium"}</span><strong>{displayAmount(isListed(detail, now) && optionSeller(detail).toLowerCase() !== address?.toLowerCase() ? detailBuyerTotal : optionPrice(detail), net.quote)}</strong>{isListed(detail, now) && optionSeller(detail).toLowerCase() !== address?.toLowerCase() && <small>{displayAmount(optionPrice(detail), net.quote)} premium + {displayAmount(detailFee, net.quote)} fee</small>}</div>
+          <div className="right-summary"><span className="term-label">{detail.optionType === 0 ? "Call · right to buy" : "Put · right to sell"}</span><p><strong>1 {net.underlying.symbol}</strong><br />for <strong>{displayAmount(detail.strikeTotal, net.quote)}</strong></p></div>
+          <div className="deadline-summary"><span className="term-label">Exercise before</span><strong>{utcDeadline(detail.expiry)}</strong><small>{remaining(detail.expiry, now)} · estimated</small></div>
         </div>
         <Alert className={`deadline-notice ${detail.expiry <= now && detail.state < 2 ? "urgent" : ""}`} role="note">{exerciseWarning}{detail.expiry <= now && detail.state < 2 && <strong>Expired: exercise is unavailable. The writer may reclaim collateral.</strong>}</Alert>
         {address && actions(detail, address, now).includes("exercise") && <section className="exercise-funding" aria-label="Funds for this option"><div className="funding-inline"><span>You deliver <strong>{displayAmount(detail.optionType === 0 ? detail.strikeTotal : detail.underlyingAmount, detail.optionType === 0 ? net.quote : net.underlying)}</strong></span><span>You receive <strong>{displayAmount(detail.optionType === 0 ? detail.underlyingAmount : detail.strikeTotal, detail.optionType === 0 ? net.underlying : net.quote)}</strong></span><span>Available to deliver <strong>{balances.data ? displayAmount(detail.optionType === 0 ? balances.data.quote : balances.data.underlying, detail.optionType === 0 ? net.quote : net.underlying) : "Loading…"}</strong></span></div></section>}
-        {detail.writer.toLowerCase() === address?.toLowerCase() && detail.state <= 1 && <p className="funding-inline">Collateral {displayAmount(detail.optionType === 0 ? detail.underlyingAmount : detail.strikeTotal, detail.optionType === 0 ? net.underlying : net.quote)} · {detail.state === 1 && detail.expiry > now ? "Locked until exercise or expiry; cancellation unavailable." : "Returned to your wallet when cancellation or reclaim confirms."}</p>}
+        {detail.state <= 1 && <p className="funding-inline">Held in this option contract: <strong>{displayAmount(detail.optionType === 0 ? detail.underlyingAmount : detail.strikeTotal, detail.optionType === 0 ? net.underlying : net.quote)}</strong> · {explorer(`address/${detail.address}`, "View contract")}</p>}
         {ready && (health.isError || market.isError) && <div className="banner error" role="alert">Could not refresh this option. Trading is disabled until current data is available.<button className="button" onClick={() => { void health.refetch(); void market.refetch(); }}>Retry connection</button></div>}
         {noticeScope === "trade" && notification}
         <div className="review-bottom">
-          {actions(detail, address, now).some(action => ["buy", "buyResale"].includes(action)) && <label className="exercise-ack"><input type="checkbox" checked={acceptedFor === acknowledgment(detail)} disabled={busy} onChange={event => setAcceptedFor(event.target.checked ? acknowledgment(detail) : "")} /><span>I understand the manual exercise deadline and the displayed execution fee.</span></label>}
+          {actions(detail, address, now).some(action => ["buy", "buyResale"].includes(action)) && <label className="exercise-ack"><input type="checkbox" checked={acceptedFor === acknowledgment(detail)} disabled={busy} onChange={event => setAcceptedFor(event.target.checked ? acknowledgment(detail) : "")} /><span>I understand exercise is manual and must happen before expiration.</span></label>}
           <div className="detail-actions">
             {actions(detail, address, now).map(action => <button className="button dark" key={action} disabled={!canAct || market.isError || (["buy", "buyResale"].includes(action) && acceptedFor !== acknowledgment(detail))} onClick={() => transact(detail, action)}>{busy ? "Processing…" : ["buy", "buyResale"].includes(action) ? `Buy ${detail.optionType === 0 ? "call" : "put"} · ${displayAmount(detailBuyerTotal, net.quote)} total` : actionNames[action]}</button>)}
             {!address && <button className="button dark" onClick={walletConnect}>Connect wallet to continue</button>}
             {operationSucceeded && <button className="button" onClick={() => navigate("mine")}>View portfolio</button>}
           </div>
         </div>
-        {detail.buyer.toLowerCase() === address?.toLowerCase() && detail.state === 1 && detail.expiry > now && <section className="resale-form"><p>Sell this option in the same orderbook. Its collateral remains locked.</p>{(detail.resalePrice ?? 0n) > 0n ? <Button disabled={!canAct} onClick={() => cancelResale(detail)}>Remove listing</Button> : <Button disabled={!canAct} onClick={() => { navigate("create"); setResaleSelection(detail); }}>Sell owned option</Button>}</section>}
+        {detail.buyer.toLowerCase() === address?.toLowerCase() && detail.state === 1 && detail.expiry > now && <section className="resale-form"><p>Resell this option; its collateral stays in the contract.</p>{(detail.resalePrice ?? 0n) > 0n ? <Button disabled={!canAct} onClick={() => cancelResale(detail)}>Remove listing</Button> : <Button disabled={!canAct} onClick={() => { navigate("create"); setResaleSelection(detail); }}>Sell owned option</Button>}</section>}
         {(detail.trades?.length ?? 0) > 0 && <details className="contract-details"><summary>Ownership &amp; payments</summary><ol className="ownership-history">{detail.trades!.map(trade => <li key={trade.transactionHash}><span>{short(trade.seller)} → {short(trade.buyer)}</span><strong>{displayAmount(trade.price, net.quote)}</strong><small>{explorer(`tx/${trade.transactionHash}`, `Block ${trade.blockNumber}`)}</small></li>)}</ol></details>}
-        <details className="contract-details"><summary>Contract details &amp; exercise funding</summary>
+        <details className="contract-details"><summary>Contract &amp; collateral</summary>
           <section className="collateral-location" aria-label="Option collateral"><span className="term-label">{detail.state <= 1 ? "Collateral deposited in this option" : "Collateral outcome"}</span><strong>{displayAmount(detail.optionType === 0 ? detail.underlyingAmount : detail.strikeTotal, detail.optionType === 0 ? net.underlying : net.quote)}</strong>
             <p>{detail.state === 2 ? "Delivered to the buyer when the option was exercised." : detail.state >= 3 ? "Returned to the writer. This option no longer holds its agreed collateral." : detail.expiry <= now ? "The deadline has passed. The writer can reclaim this collateral; it does not return automatically." : detail.state === 0 ? "Held in this option’s contract while it waits for a buyer. The writer can cancel to recover it." : "Held in this option’s contract to back the buyer’s exercise right. The writer cannot cancel a purchased option."}</p>
             <div className="escrow-address">Option contract {explorer(`address/${detail.address}`, short(detail.address))}<button type="button" className="text-button" onClick={async () => { setNoticeScope("trade"); try { await navigator.clipboard.writeText(detail.address); setNotice("Option contract address copied."); } catch { setError("Could not copy. Find the full address below."); } }}>Copy address</button></div>
           </section>
-          <p>At exercise, the buyer delivers {displayAmount(detail.optionType === 0 ? detail.strikeTotal : detail.underlyingAmount, detail.optionType === 0 ? net.quote : net.underlying)} and receives {displayAmount(detail.optionType === 0 ? detail.underlyingAmount : detail.strikeTotal, detail.optionType === 0 ? net.underlying : net.quote)}. Gas is separate. Buying a call reduces the same payment-token balance needed to exercise.</p>
-          <p>Exercise exchanges the complete option. Have the required tokens, approvals, and gas ready. A pending transaction does not reserve the right: execution must complete before the blockchain deadline.</p>
+          <p>The holder delivers {displayAmount(detail.optionType === 0 ? detail.strikeTotal : detail.underlyingAmount, detail.optionType === 0 ? net.quote : net.underlying)} at exercise. The transaction needs token approval and gas, and must confirm before expiration.</p>
           <p>Option contract <code>{detail.address}</code></p><p>Writer <code>{detail.writer}</code></p>
           <div className="filters"><button className="button" onClick={async () => { setNoticeScope("trade"); try { const link = new URL(window.location.href); link.searchParams.delete("view"); link.hash = ""; await navigator.clipboard.writeText(link.href); setNotice("Option link copied."); } catch { setError("Copy the link from your address bar."); } }}>Copy link</button>
         {detail.expiry > now && <button className="button calendar-button" onClick={() => {
@@ -573,7 +572,7 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
     onRun={async (prepare, success) => { setNoticeScope("trade"); return run(async () => executePrepared(await prepare()), success); }} />;
   return (
     <main className={`shell ${(tab === "market" && selected) || (tab === "create" || tab === "bids") ? "review-open" : ""}`}>
-      <WorkspaceHeader tab={tab} disabled={busy} environment={chain.id === 31337 ? "Local demo" : "Testnet"} onNavigate={navigate}
+      <WorkspaceHeader tab={tab} disabled={busy} environment={staging ? "Staging · Testnet" : chain.id === 31337 ? "Local demo" : "Testnet"} onNavigate={navigate}
         wallet={isConnected ? <WalletMenu label={short(address!)}>
           <div className="eyebrow">WALLET &amp; TEST FUNDS</div>
           <div className="wallet-row">{balances.data ? <><span>{displayAmount(balances.data.underlying, net.underlying)}</span><span>{displayAmount(balances.data.quote, net.quote)}</span><span>{gasAmount(balances.data.gas)}</span></> : <span>{ready ? "Loading balances…" : "No trading deployment configured."}</span>}
@@ -583,8 +582,8 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
           </div>
         </WalletMenu> : <button className="button dark" onClick={walletConnect}>Connect wallet</button>} />
       <section className="instrument-bar" aria-label="Selected market" data-market-id={marketId} data-market-factory={net.factory ?? ""}>
-        <div className="instrument-identity">{(tab === "market" || tab === "create" || tab === "bids") && <AssetLogo presentation={assetPresentation(net, "underlying")} />}<div><h1>{tab === "docs" ? "Documentation" : tab === "mine" ? "Portfolio" : tab === "activity" ? "Activity" : assetPresentation(net, "underlying").name} <span>{tab === "docs" ? "Know the mechanics" : tab === "mine" || tab === "activity" ? "All curated markets" : `/ ${net.quote.symbol}`}</span></h1><small>{tab === "market" || tab === "create" || tab === "bids" ? `${net.underlying.symbol} · ${marketId} · Fully collateralized options` : net.name}</small></div></div>
-        {(tab === "market" || tab === "create" || tab === "bids") && <div className="order-actions" role="group" aria-label="Post a new order"><span>Your own price</span><button className="button buy-order" disabled={busy || pending.length > 0} onClick={() => navigate("bids")}>Buy</button><button className="button sell-order" disabled={busy || pending.length > 0} onClick={() => navigate("create")}>Sell</button></div>}
+        <div className="instrument-identity">{(tab === "market" || tab === "create" || tab === "bids") && <AssetLogo presentation={assetPresentation(net, "underlying")} />}<div><h1>{tab === "docs" ? "How it works" : tab === "mine" ? "Portfolio" : tab === "activity" ? "Activity" : assetPresentation(net, "underlying").name} <span>{tab === "market" || tab === "create" || tab === "bids" ? `/ ${net.quote.symbol}` : ""}</span></h1><small>{tab === "market" || tab === "create" || tab === "bids" ? net.underlying.symbol : net.name}</small></div></div>
+        {(tab === "market" || tab === "create" || tab === "bids") && <div className="order-actions" role="group" aria-label="Post a new order"><button className="button buy-order" disabled={busy || pending.length > 0} onClick={() => navigate("bids")}>Buy</button><button className="button sell-order" disabled={busy || pending.length > 0} onClick={() => navigate("create")}>Sell</button></div>}
       </section>
       {wrongChain && <div className="banner warning"><span>Your wallet is on another network. Switch to {net.name} to trade.</span><button className="button" disabled={busy} onClick={switchNetwork}>Switch network</button></div>}
       {!showOrder && tab !== "bids" && !(selected && noticeScope === "trade" && (tab === "market" || (tab === "mine" && visible.some(p => p.address.toLowerCase() === selected.toLowerCase())))) && notification}
@@ -616,16 +615,16 @@ function App({ initialMarketId, initialView }: { initialMarketId?: string; initi
         {orderPanel}
       </section>
       </div>
-      <footer><span>Archer Markets · Fully collateralized options</span><span>{net.name} · Manual exercise · Physical token delivery</span></footer>
+      <footer><span>Archer Markets · {net.name} · Test assets only</span></footer>
     </main>
   );
 }
-export default function Home({ initialMarketId, initialView }: { initialMarketId?: string; initialView?: WorkspaceTab }) {
+export default function Home({ initialMarketId, initialView, staging }: { initialMarketId?: string; initialView?: WorkspaceTab; staging?: boolean }) {
   const [queryClient] = useState(() => new QueryClient());
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <App initialMarketId={initialMarketId} initialView={initialView} />
+        <App initialMarketId={initialMarketId} initialView={initialView} staging={staging} />
       </QueryClientProvider>
     </WagmiProvider>
   );

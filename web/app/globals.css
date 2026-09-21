@@ -403,12 +403,18 @@ footer { display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; 
 .docs-content section { padding:24px; border:1px solid var(--line); background:var(--panel); border-radius:8px; }
 .docs-content section:has(#manual-exercise) { border-top:3px solid var(--warning); }
 .docs-content section:has(#resale) { border-top:3px solid var(--accent); }
+.docs-principles { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.docs-principles > div { padding:16px; border:1px solid var(--line); border-radius:6px; background:var(--paper); }
+.docs-principles strong { display:block; margin-bottom:8px; }
+.docs-principles p { color:var(--muted); line-height:1.5; }
+.docs-content .docs-comparison { margin:18px 0; }
 @media(max-width:1200px) {
   .quote-columns,.chain-offer { grid-template-columns:minmax(0,.85fr) minmax(0,1fr) minmax(0,1.1fr); }
   .resale-form { grid-template-columns:1fr 1fr; }
   .resale-form > div:first-child { grid-column:1/-1; }
 }
 @media(max-width:767px) {
+  .docs-principles { grid-template-columns:1fr; }
   .trade-sheet .review-grid { grid-template-columns:1fr; }
   .trade-sheet .detail,.trade-sheet .create-note { padding:14px; }
   .trade-sheet { height:52dvh!important; max-height:calc(100dvh - 155px)!important; }

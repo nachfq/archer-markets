@@ -1,5 +1,19 @@
 # Implementation record
 
+## Cleaner frontend staging (2026-09-21)
+
+A frontend-only branch simplifies the option chain, order ticket, option review and
+in-app guide around three facts: one Stock Token per option, holder-initiated exercise
+before expiration, and one independently collateralized smart contract per option.
+Trade-time totals, fee disclosure and the exercise acknowledgment remain visible.
+Detailed contract and collateral information remains available on demand. Contracts,
+ABIs and the chain-46630 market manifest are unchanged.
+
+The proposed Railway staging environment uses the same testnet contracts as production
+but a separate frontend deployment and domain. This is a UI review environment, not
+a second contract release, security audit or evidence of independent user validation.
+
+
 ## Public AMD call match and exercise (2026-09-21)
 
 The coordinator's wallet `0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0` wrote a
