@@ -34,7 +34,8 @@ small,.fine,.eyebrow { font-size:14px; color:var(--muted); }
 .eyebrow { letter-spacing:1px; font-weight:500; }
 .shell { max-width:1720px; padding:0 24px; margin:auto; }
 .topbar { min-height:64px; display:flex; align-items:center; gap:32px; border-bottom:1px solid var(--line); }
-.wordmark { color:var(--ink); text-decoration:none; font-size:17px; font-weight:650; letter-spacing:-.5px; white-space:nowrap; }
+.wordmark { display:inline-flex; align-items:center; color:var(--ink); text-decoration:none; font-size:17px; font-weight:650; letter-spacing:-.5px; white-space:nowrap; }
+.wordmark-logo { width:36px; height:36px; margin-right:10px; border-radius:6px; flex:none; }
 .wordmark span { color:var(--accent); margin-left:4px; font-weight:400; }
 .environment-badge { color:var(--muted); font-size:14px; margin-left:auto; white-space:nowrap; }
 .environment-badge::before { content:""; display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--warning); margin-right:7px; vertical-align:middle; }

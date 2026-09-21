@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Fragment, useState, type ReactNode } from "react";
 import { Drawer, DrawerContent, DrawerTitle, DrawerDescription } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,7 @@ export function WorkspaceHeader({ tab, disabled, environment, wallet, onNavigate
   tab: WorkspaceTab; disabled: boolean; environment: string; wallet: ReactNode; onNavigate: (tab: WorkspaceTab) => void;
 }) {
   return <header className="topbar">
-    <Link className="wordmark" href="/" aria-label="Archer Markets">Archer<span>Markets</span></Link>
+    <Link className="wordmark" href="/" aria-label="Archer Markets"><Image className="wordmark-logo" src="/archer-mark.png" alt="" width={36} height={36} loading="eager" unoptimized />Archer<span>Markets</span></Link>
     <nav className="tabs" aria-label="Sections">
       {([["market", "Trade"], ["mine", "Portfolio"], ["activity", "Activity"], ["docs", "How it works"]] as const).map(([key, label]) =>
         <button key={key} aria-current={tab === key || (key === "market" && (tab === "create" || tab === "bids")) ? "page" : undefined}
