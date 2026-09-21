@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
+import vm from 'node:vm';
 import { clients, network, publicDeployment, quoteAddress, stockMarkets, TESTNET_QUOTE, DEFAULT_BASE_FEE, DEFAULT_FEE_BPS } from './config.mjs';
+import { deploymentHtml } from './deploy-testnet-wallet.mjs';
 
 test('deployment tooling rejects unsupported networks including mainnet', () => {
   for (const mode of ['mainnet', '4663', '', undefined]) assert.throws(() => network(mode), /Mainnet is not supported/);
@@ -32,6 +34,15 @@ test('testnet markets use five distinct Stock Tokens against shared USDG', () =>
 test('deployment fee defaults stay minimal and explicit', () => {
   assert.equal(DEFAULT_BASE_FEE, 10_000n);
   assert.equal(DEFAULT_FEE_BPS, 10);
+});
+
+test('wallet deployment page ships executable button JavaScript', () => {
+  const page = deploymentHtml({ account: '0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0', token: 'test-token' });
+  const script = page.match(/<script>([\s\S]*)<\/script>/)?.[1];
+  assert(script);
+  assert.doesNotThrow(() => new vm.Script(script));
+  assert.match(page, /id="connect"/);
+  assert.match(page, /id="deploy"/);
 });
 
 test('an endpoint returning mainnet is rejected before obtaining a signing account', async () => {

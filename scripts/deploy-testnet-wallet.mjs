@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { access } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import {
   encodeDeployData,
   erc20Abi,
@@ -37,7 +38,7 @@ const marketAbi = parseAbi([
   'function feeBps() view returns (uint16)',
 ]);
 
-function html({ account, token }) {
+export function deploymentHtml({ account, token }) {
   const values = JSON.stringify({ account, token, chainId: EXPECTED_CHAIN_ID, rpcUrl: PUBLIC_RPC_URL, explorerUrl: EXPLORER_URL });
   return `<!doctype html>
 <html lang="en">
@@ -136,7 +137,7 @@ deployButton.addEventListener('click', async () => {
     if (!response.ok) throw new Error(step.error);
     status.textContent = 'Confirm ' + step.label + ' in your wallet…';
     const transactionHash = await window.ethereum.request({ method: 'eth_sendTransaction', params: [{ from: selectedAccount, data: step.data }] });
-    status.textContent = 'Waiting for ' + step.contract + ' to be mined…\n' + transactionHash;
+    status.textContent = 'Waiting for ' + step.contract + ' to be mined…\\n' + transactionHash;
     const saved = await fetch('/api/receipt', { method: 'POST', headers, body: JSON.stringify({ transactionHash }) });
     const state = await saved.json();
     if (!saved.ok) throw new Error(state.error);
@@ -246,7 +247,7 @@ async function main() {
       const url = new URL(request.url, 'http://127.0.0.1');
       if (request.method === 'GET' && url.pathname === '/' && url.searchParams.get('token') === token) {
         response.setHeader('content-type', 'text/html; charset=utf-8');
-        response.end(html({ account, token }));
+        response.end(deploymentHtml({ account, token }));
         return;
       }
       if (request.headers['x-deployment-token'] !== token) throw new Error('Invalid local deployment token.');
@@ -297,4 +298,4 @@ async function main() {
   console.log('The local signer never receives or stores the private key. Press Ctrl+C to cancel.');
 }
 
-main().catch(reportError);
+if (process.argv[1] === fileURLToPath(import.meta.url)) main().catch(reportError);
