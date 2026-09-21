@@ -33,6 +33,35 @@ exercising, and reclaiming expired collateral do not pay a protocol fee.
 Live RPC reads after deployment confirmed version 4, 24,018 runtime bytes, the intended
 underlying and quote token for every market, and the exact fee configuration above.
 
+## Public liquidity fixture
+
+The disposable deployment account posted a small two-sided call market for every pair
+and a two-sided PLTR put market. All 12 fixture orders expire on December 18, 2026 at
+20:00 UTC. Their strikes and premiums are illustrative test values; they are not market
+data, price recommendations, simulated users or evidence of demand.
+
+| Pair | Series | Bid | Ask |
+| --- | --- | ---: | ---: |
+| TSLA / USDG | 50 call | 1 USDG | 2 USDG |
+| AMD / USDG | 40 call | 1 USDG | 2 USDG |
+| AMZN / USDG | 40 call | 1 USDG | 2 USDG |
+| NFLX / USDG | 30 call | 1 USDG | 2 USDG |
+| PLTR / USDG | 20 call | 1 USDG | 2 USDG |
+| PLTR / USDG | 20 put | 1 USDG | 2 USDG |
+
+The fixture begins with the
+[`TSLA` bid](https://explorer.testnet.chain.robinhood.com/tx/0x634bddb496ce0c4dc7fd4dc8f231ad01c5d86262108e7682a8b9f137600f3073)
+and ends with the
+[`PLTR` put ask](https://explorer.testnet.chain.robinhood.com/tx/0x4565541954449f8888cd44c107fdc3a951a0da5c10e3e92dd6fa9f859726a7a4).
+At block `122211653`, the five books contained 17 open orders in total: these 12
+fixture orders plus five orders posted independently by the coordinator. No order had
+executed or been cancelled, so this is public liquidity evidence rather than a completed
+two-wallet lifecycle.
+
+All five market contracts and representative call and put option instances are source
+verified on the explorer. The verification record is generated locally and remains
+ignored because it contains operational evidence, not frontend configuration.
+
 ## Hosted frontend
 
 The testnet frontend is available at
@@ -59,6 +88,6 @@ The release passed 81 contract, invariant, deployment-tool, SDK and frontend tes
 type checking and a production frontend build. The optional RPC-fork test was skipped;
 live post-deployment reads were executed independently against the public testnet RPC.
 
-The contracts are not audited. Markets begin empty, manual exercise is required, and
-the public RPC is rate-limited. No oracle settlement, AMM, centralized matcher or
-mainnet configuration is included.
+The contracts are not audited. Fixture liquidity is synthetic, manual exercise is
+required, and the public RPC is rate-limited. No oracle settlement, AMM, centralized
+matcher or mainnet configuration is included.

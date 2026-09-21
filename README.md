@@ -9,7 +9,8 @@ with no fee on cancellation or exercise.
 **Testnet release:** five V4 markets are live on Robinhood Chain Testnet (chain 46630)
 for TSLA, AMD, AMZN, NFLX and PLTR against USDG. These contracts use test assets with
 no monetary value. The [hosted testnet frontend](https://archer-markets.up.railway.app/)
-runs on Railway; hosting the app does not change the repository's visibility.
+runs on Railway and reads a small, explicitly illustrative public orderbook fixture;
+hosting the app does not change the repository's visibility.
 
 - [Robinhood Chain Testnet release](docs/testnet-release.md)
 - [How it works](docs/how-it-works.md)

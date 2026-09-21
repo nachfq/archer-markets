@@ -25,6 +25,7 @@
     "seed:local": "node scripts/demo-v4.mjs --seed-only",
     "demo:local": "npm run contracts:build && npm run abi && npm run sdk:build && node scripts/demo-v4.mjs",
     "seed:testnet": "node --env-file-if-exists=.env scripts/seed.mjs testnet",
+    "liquidity:testnet": "node --env-file-if-exists=.env scripts/seed-testnet-liquidity.mjs",
     "test:e2e": "node scripts/smoke-v4.mjs",
     "dev": "npm --prefix web run dev",
     "dev:local": "VITE_CHAIN_ID=31337 npm --prefix web run dev",

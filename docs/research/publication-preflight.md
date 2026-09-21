@@ -1,7 +1,8 @@
 # Repository publication preflight
 
-Updated September 20, 2026. This record covers preparation for a future visibility
-change. It does not state that the repository, contracts or V4 frontend are public.
+Updated September 20, 2026. This record covers preparation for a future repository
+visibility change. The repository remains private; the contracts and V4 frontend are
+already public testnet artifacts documented in the release record.
 
 ## Completed in the private repository
 
@@ -38,5 +39,6 @@ Before changing visibility:
    vulnerability reporting, then test a fresh anonymous clone, relative links,
    documented commands and release access.
 
-Robinhood Chain deployment, a transaction-enabled hosted frontend and hackathon
-submission remain separate later phases.
+Robinhood Chain deployment, source verification and the transaction-enabled hosted
+frontend are complete. Repository visibility and the hackathon submission remain
+separate later phases.

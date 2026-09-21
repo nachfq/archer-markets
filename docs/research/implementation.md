@@ -1,5 +1,28 @@
 # Implementation record
 
+## Public liquidity and explorer verification (2026-09-20)
+
+The disposable deployer posted 12 open orders through the production contracts: a
+two-sided call series for each of TSLA, AMD, AMZN, NFLX and PLTR, plus a two-sided PLTR
+put series. All fixture orders expire December 18, 2026 at 20:00 UTC. Prices are
+explicitly illustrative and do not represent market data, separate users or demand.
+The script is resumable and detected the two TSLA orders already mined before a transient
+RPC/network mismatch, then continued without duplicating them.
+
+At block `122211653`, all 12 fixture orders and the coordinator's five earlier TSLA
+orders were open; no execution or cancellation had occurred. The deployer retained
+`173.934 USDG`, approximately `0.00957824975` test ETH and four of each Stock Token.
+The books reserved `9 USDG` of bid premiums and `0.099 USDG` of maximum execution fees
+in aggregate. The fixture's five Stock Tokens and `20 USDG` backed six unsold option
+instances.
+
+Blockscout accepted and completed source verification for all five `OptionMarketV4`
+contracts and representative `OptionV4` instances. The verification tool now searches
+all configured markets for call and put examples instead of assuming both types exist in
+the primary market. Local liquidity and verification JSON remain ignored operational
+evidence; the public transaction links and limitations are recorded in the
+[testnet release](../testnet-release.md).
+
 ## Railway testnet frontend release (2026-09-20)
 
 The frontend containing the chain-46630 deployment manifest was uploaded directly from
