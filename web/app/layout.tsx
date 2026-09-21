@@ -34,6 +34,10 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase: origin,
     title,
     description,
+    icons: {
+      icon: [{ url: "/archer-mark.png", type: "image/png", sizes: "256x256" }],
+      apple: [{ url: "/archer-mark.png", type: "image/png", sizes: "256x256" }],
+    },
     ...(process.env.RAILWAY_ENVIRONMENT_NAME === "staging" ? { robots: { index: false, follow: false } } : {}),
     openGraph: {
       title,
