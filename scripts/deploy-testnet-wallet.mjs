@@ -151,6 +151,11 @@ deployButton.addEventListener('click', async () => {
 </script></body></html>`;
 }
 
+export function publicDeploymentStep(step, data) {
+  const { args: _args, ...publicStep } = step;
+  return { ...publicStep, data };
+}
+
 async function bodyJson(request) {
   let body = '';
   for await (const chunk of request) {
@@ -213,7 +218,8 @@ async function main() {
   function planned() {
     const step = next();
     if (!step) return null;
-    return { ...step, data: encodeDeployData({ abi: marketArtifact.abi, bytecode: marketArtifact.bytecode.object, args: step.args }) };
+    const data = encodeDeployData({ abi: marketArtifact.abi, bytecode: marketArtifact.bytecode.object, args: step.args });
+    return publicDeploymentStep(step, data);
   }
   async function finalize() {
     const markets = await Promise.all(stocks.map(async (spec, index) => {

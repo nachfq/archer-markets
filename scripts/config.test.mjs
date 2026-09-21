@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import vm from 'node:vm';
 import { clients, network, publicDeployment, quoteAddress, stockMarkets, TESTNET_QUOTE, DEFAULT_BASE_FEE, DEFAULT_FEE_BPS } from './config.mjs';
-import { deploymentHtml } from './deploy-testnet-wallet.mjs';
+import { deploymentHtml, publicDeploymentStep } from './deploy-testnet-wallet.mjs';
 
 test('deployment tooling rejects unsupported networks including mainnet', () => {
   for (const mode of ['mainnet', '4663', '', undefined]) assert.throws(() => network(mode), /Mainnet is not supported/);
@@ -43,6 +43,16 @@ test('wallet deployment page ships executable button JavaScript', () => {
   assert.doesNotThrow(() => new vm.Script(script));
   assert.match(page, /id="connect"/);
   assert.match(page, /id="deploy"/);
+});
+
+test('wallet deployment plan never exposes non-JSON constructor arguments', () => {
+  const step = publicDeploymentStep(
+    { contract: 'OptionMarketV4', label: 'TSLA / USDG', args: ['0xstock', 10_000n, 10] },
+    '0xcreation',
+  );
+  assert.doesNotThrow(() => JSON.stringify(step));
+  assert.equal('args' in step, false);
+  assert.equal(step.data, '0xcreation');
 });
 
 test('an endpoint returning mainnet is rejected before obtaining a signing account', async () => {
