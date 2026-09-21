@@ -9,9 +9,16 @@ Trade-time totals, fee disclosure and the exercise acknowledgment remain visible
 Detailed contract and collateral information remains available on demand. Contracts,
 ABIs and the chain-46630 market manifest are unchanged.
 
-The proposed Railway staging environment uses the same testnet contracts as production
-but a separate frontend deployment and domain. This is a UI review environment, not
-a second contract release, security audit or evidence of independent user validation.
+Railway staging at <https://archer-markets-staging.up.railway.app/> follows the
+`ui/clean-staging` branch; production continues to follow `main` at its original
+domain. The first staging deployment, `a61a2eb8-eb8f-4578-9314-307fddb52b93`,
+reached `SUCCESS`. HTTP reads returned 200 for both environments, showed the same
+TSLA market factory `0xc8651e943aea1aeed398bd3beee7143475c6b40d`, and found a
+staging-only label and `noindex` metadata. Desktop and mobile screenshots were
+reviewed locally; the mobile table of contents was removed in a follow-up UI
+revision. The full test suite, typecheck, build, lint and isolated browser/Anvil
+acceptance passed. This is a UI review environment, not a second contract release,
+security audit or evidence of independent user validation.
 
 
 ## Public AMD call match and exercise (2026-09-21)

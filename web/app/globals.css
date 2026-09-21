@@ -338,10 +338,8 @@ footer { display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; 
 .position-detail-row > td > div { width:min(1600px,calc(100vw - 70px)); max-width:100%; }
 .inline-ticket { position:static; margin:0; max-height:none; box-shadow:none; border:0; border-radius:0; }
 .inline-ticket .review-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
-.docs-layout { display:grid; grid-template-columns:250px minmax(0,800px); gap:48px; align-items:start; }
-.docs-toc { display:flex; flex-direction:column; gap:16px; position:sticky; top:24px; padding:20px; border:1px solid var(--line); border-radius:7px; background:var(--panel); }
-.docs-toc a { color:var(--muted); text-decoration:none; font-size:15px; }
-.docs-toc a:hover { color:var(--accent); }
+.docs-layout { max-width:1000px; margin:0 auto; }
+.docs-back { margin-bottom:18px; }
 .docs-intro { color:var(--muted); font-size:18px; margin-bottom:28px; }
 .docs-content section { padding:0 0 28px; margin-bottom:28px; border-bottom:1px solid var(--line); }
 .docs-content h2 { scroll-margin-top:24px; margin-bottom:16px; }
@@ -391,7 +389,6 @@ footer { display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; 
 .resale-form .detail-actions { flex-wrap:wrap; }
 .ownership-history { padding:0; list-style:none; }
 .ownership-history li { display:flex; flex-wrap:wrap; align-items:center; gap:20px; padding:10px 0; border-bottom:1px solid var(--line); }
-.docs-toc { top:88px; }
 .docs-content h2 { scroll-margin-top:100px; }
 .docs-hero { border:1px solid var(--line); border-left:3px solid var(--accent); background:linear-gradient(120deg,var(--selected),var(--panel)); padding:28px; border-radius:8px; margin-bottom:28px; }
 .docs-hero h2 { font-size:28px; margin:12px 0; }
@@ -445,8 +442,7 @@ footer { display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; 
   .market-list-items { display:flex; max-height:none; gap:8px; padding:4px 12px 12px; }
   .market-list-items button { width:240px; flex-shrink:0; }
   .market-list > p { display:none; }
-  .docs-layout { grid-template-columns:1fr; gap:24px; }
-  .docs-toc { position:static; }
+  .docs-layout { width:100%; }
 }
 @media(max-width:767px) {
   .tabs { gap:24px; }
