@@ -1,5 +1,36 @@
 # Implementation record
 
+## Public AMD call match and exercise (2026-09-21)
+
+The coordinator's wallet `0x20c81Db8F27F31fd39B5b23C1F38AD49CdBcA4E0` wrote a
+one-token AMD call into the disposable deployer's resting `1 USDG` bid. The
+[`OrderExecuted` transaction](https://explorer.testnet.chain.robinhood.com/tx/0x8ce053ee3b3c73069f0033d79c0c4e6d7e8f99577212ef6321a92148baa524c3)
+mined at block `122443739`. It created independent option
+`0x4281e7e8ED897D7BD48820D4E994173C14695906`, recorded the deployer as buyer,
+locked `1 AMD` from the writer, and transferred `1 USDG` premium plus `0.011 USDG`
+fee from the funded bid reserve to the coordinator's wallet. The coordinator was both
+writer and immutable fee recipient, so those two transfers reached the same address.
+Historical balance reads at blocks `122443738–122443739` confirmed the writer's AMD
+`5 → 4`, USDG `96.967 → 97.978`, market USDG `1.011 → 0` and option AMD `0 → 1`.
+The deployer's available wallet USDG did not change at match because the bid had
+reserved the buyer's `1.011 USDG` when it was posted.
+
+After checking option holder, writer, state, strike, expiry and payment balance, the
+deployer approved `40 USDG` to the option in
+[`0xb52b...d19f`](https://explorer.testnet.chain.robinhood.com/tx/0xb52b5aca131d56b28dd574ad950574a843a081272282a98af6afa8acd626d19f).
+The SDK prepared and simulated exercise, then
+[`0x7642...b9df`](https://explorer.testnet.chain.robinhood.com/tx/0x7642328efd8a07b6c7917b15bad662265a8e4faefa061606f91a9014763bb9df)
+mined successfully at block `122445341`. Historical balances at blocks
+`122445340–122445341` confirmed deployer AMD `4 → 5`, USDG `173.934 → 133.934`,
+writer USDG `97.978 → 137.978` and option AMD `1 → 0`; the option entered `Exercised`
+state. No exercise fee was charged. The other deployer-owned AMD ask stayed open.
+
+This is a coordinated public test with two wallets and native testnet assets, not
+independent user validation, market pricing, an audit, mainnet trading or evidence of
+demand. The full receipt links and limitations are in the
+[testnet release](../testnet-release.md). A private ignored evidence file records the
+exercise preflight and exact before/after balances without signing material.
+
 ## Public liquidity and explorer verification (2026-09-20)
 
 The disposable deployer posted 12 open orders through the production contracts: a

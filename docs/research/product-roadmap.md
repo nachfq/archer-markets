@@ -48,8 +48,8 @@ liquidity by itself.
 
 ## Release roadmap
 
-The immediate objective is to turn the working V4 implementation into a reproducible
-release candidate, then publish each layer in a controlled order.
+V4 has a reproducible release candidate and a public testnet deployment. The remaining
+release work is repository publication and the hackathon submission package.
 
 | Phase | Outcome | Exit gate |
 | --- | --- | --- |
@@ -59,10 +59,11 @@ release candidate, then publish each layer in a controlled order.
 | Frontend publication | Public UI reads the verified manifest and safely handles unavailable transactions | Anonymous browser and real-wallet smoke tests pass |
 | Hackathon submission | Concise pitch, demo video, explorer links, repository and limitations tell one consistent story | Every submitted link works without private access |
 
-The release candidate, Robinhood testnet deployment, explorer verification and public
-frontend are complete. A small public fixture provides visible liquidity across all five
-markets, but no public match or exercise has yet completed. Repository visibility and the
-submission package remain pending human approval.
+The release candidate, Robinhood testnet deployment, explorer verification, public
+frontend and one public two-wallet AMD call match and exercise are complete. A small
+illustrative fixture provides visible liquidity across all five markets. Repository
+visibility and the submission package remain pending human approval. The coordinated
+call flow does not establish demand or independent user adoption.
 
 The V4 release-candidate gate passed on `v0.1.0-rc.1`; the later V4-only baseline is
 tagged `v0.1.0-rc.2`. Repository cleanup and private publication preflight are complete,

@@ -11,6 +11,8 @@ for TSLA, AMD, AMZN, NFLX and PLTR against USDG. These contracts use test assets
 no monetary value. The [hosted testnet frontend](https://archer-markets.up.railway.app/)
 runs on Railway and reads a small, explicitly illustrative public orderbook fixture;
 hosting the app does not change the repository's visibility.
+A [two-wallet AMD call match and physical exercise](docs/testnet-release.md#public-amd-call-lifecycle)
+also completed on testnet. This is a coordinated functional test, not evidence of demand.
 
 - [Robinhood Chain Testnet release](docs/testnet-release.md)
 - [How it works](docs/how-it-works.md)
