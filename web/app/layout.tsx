@@ -29,11 +29,12 @@ export async function generateMetadata(): Promise<Metadata> {
   const origin = new URL(`${protocol}://${host}`);
   const title = "Archer Markets";
   const description =
-    "Explore Stock Token calls and puts by expiration and strike. Fully collateralized primary offers, manual exercise, and token delivery. Testnet only, no real value.";
+    "One Stock Token per option. Collateral held in each option contract. Exercise manually before expiration. Testnet only.";
   return {
     metadataBase: origin,
     title,
     description,
+    ...(process.env.RAILWAY_ENVIRONMENT_NAME === "staging" ? { robots: { index: false, follow: false } } : {}),
     openGraph: {
       title,
       description,

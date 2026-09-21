@@ -99,24 +99,24 @@ export default function OrderTicketV4(props: OrderTicketProps) {
     return <TradeTicket title="Order ticket" busy={busy} onClose={props.onClose}><div className={`unified-order ${side}`}>
     <form onSubmit={e => { e.preventDefault(); if (valid)
         setReview(fingerprint); }}>
-      {resale && <p className="fine">Sell owned option {resale.address}. Its writer and collateral stay unchanged.</p>}
+      {resale && <p className="fine">Reselling your option. Its collateral stays in the same contract.</p>}
       <fieldset className="order-fields" disabled={busy}>
         <div className="order-side" role="group" aria-label="Order side"><button type="button" disabled={!!resale} aria-pressed={side === 'buy'} onClick={() => edit(() => setSide('buy'))}>Buy</button><button type="button" aria-pressed={side === 'sell'} onClick={() => edit(() => setSide('sell'))}>Sell</button></div>
-        <label>Contracts<input aria-label="Order quantity" value="1" readOnly/><small>1 contract = 1 {net.underlying.symbol}</small></label>
+        <label>Options<input aria-label="Order quantity" value="1" readOnly/><small>Covers 1 {net.underlying.symbol}</small></label>
         <label>Expiration<select aria-label="Order expiration" disabled={!!resale} value={custom ? 'custom' : expiry} onChange={e => edit(() => { setCustom(e.target.value === 'custom'); setExpiry(e.target.value === 'custom' ? '' : e.target.value); })}>{dates.map(d => <option key={d} value={d}>{utcDeadline(BigInt(Date.parse(d) / 1000))}</option>)}<option value="custom">Custom…</option></select></label>
         <label>Strike · {net.quote.symbol}<input aria-label="Order strike" readOnly={!!resale} inputMode="decimal" value={strike} onChange={e => edit(() => setStrike(e.target.value))}/></label>
         <label>Type<select aria-label="Order option type" disabled={!!resale} value={kind} onChange={e => edit(() => setKind(Number(e.target.value)))}><option value="0">Call</option><option value="1">Put</option></select></label>
         <label>Limit premium · {net.quote.symbol}<input aria-label="Order premium" inputMode="decimal" value={price} onChange={e => edit(() => setPrice(e.target.value))}/></label>
         {custom && <label>Expiration · local time<input type="datetime-local" aria-label="Custom order expiration" value={expiry} onChange={e => edit(() => setExpiry(e.target.value))}/></label>}
       </fieldset>
-      <div className="order-execution"><strong>{crosses ? 'Estimated: executes now' : 'Estimated: rests in the book'}</strong><span>Best price, then oldest order. Your limit is enforced onchain.</span></div>
-      <dl className="order-totals"><div><dt>{side === 'buy' ? 'Maximum premium' : 'Minimum premium'}</dt><dd>{fmt(terms?.premium)}</dd></div><div><dt>Estimated execution premium</dt><dd>{crosses ? fmt(bestPrice) : 'Waiting for a match'}</dd></div>{side === 'buy' && <div><dt>{crosses ? 'Execution fee' : 'Maximum fee reserved'}</dt><dd>{fmt(crosses ? executionFee : maximumFee)}</dd></div>}<div><dt>{resale ? 'Additional collateral' : side === 'buy' ? 'Maximum funds required' : 'Collateral to deposit'}</dt><dd>{fmt(funding, token.symbol, token.decimals)}</dd></div><div><dt>Available</dt><dd>{account ? fmt(available, token.symbol, token.decimals) : 'Connect wallet'}</dd></div></dl>
-      <p className="fine">Exercise payment: {fmt(terms?.strikeTotal)}. Orders remain open until canceled or expiration. {side === 'sell' && !resale ? 'Stock backs a call; the full exercise payment backs a put.' : ''}</p>
+      <div className="order-execution"><strong>{crosses ? 'Estimated: executes now' : terms ? 'Estimated: open order' : 'Enter order terms'}</strong></div>
+      <dl className="order-totals"><div><dt>{side === 'buy' ? 'Limit premium' : 'Asking premium'}</dt><dd>{fmt(terms?.premium)}</dd></div>{crosses && <div><dt>Matching premium</dt><dd>{fmt(bestPrice)}</dd></div>}{side === 'buy' && <div><dt>{crosses ? 'Trading fee' : 'Fee reserved'}</dt><dd>{fmt(crosses ? executionFee : terms ? maximumFee : undefined)}</dd></div>}<div><dt>{resale ? 'Additional collateral' : side === 'buy' ? 'Maximum to reserve' : 'Collateral to deposit'}</dt><dd>{fmt(funding, token.symbol, token.decimals)}</dd></div><div><dt>Available</dt><dd>{account ? fmt(available, token.symbol, token.decimals) : 'Connect wallet'}</dd></div></dl>
+      {terms && <p className="fine">Exercise later requires {kind === 0 ? fmt(terms.strikeTotal) : `1 ${net.underlying.symbol}`} from the holder before expiration.</p>}
       {props.notification}
       {!market && <p role="status">Preview only. A verified V4 deployment is required to trade.</p>}
       {props.unavailable && <div role="alert">Could not refresh this market.<button type="button" className="button" onClick={props.onRefresh}>Retry connection</button></div>}
       {error && <p className="banner error" role="alert">{error}</p>}
-      {reviewing && <label className="order-ack"><input type="checkbox" checked={ack} disabled={busy} onChange={e => setAck(e.target.checked)}/>I understand: one option, manual exercise before expiration, and the displayed protocol fee is charged only if the buy executes.</label>}
+      {reviewing && <label className="order-ack"><input type="checkbox" checked={ack} disabled={busy} onChange={e => setAck(e.target.checked)}/>I understand that exercise is manual and must happen before expiration.</label>}
       <div className="order-footer"><strong>{side.toUpperCase()} 1 {net.underlying.symbol} · {kind === 0 ? 'CALL' : 'PUT'} · Strike {strike || '—'} · Limit {price || '—'}</strong>{!reviewing ? <button className="button dark" disabled={!valid || busy} type="submit">Review order</button> : !account ? <button className="button dark" type="button" onClick={props.onConnect}>Connect wallet</button> : <button className="button dark" type="button" disabled={!valid || busy || !props.canAct || !ack || available === undefined} onClick={confirm}>Confirm {side}</button>}</div>
     </form>
   </div></TradeTicket>;

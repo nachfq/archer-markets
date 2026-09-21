@@ -1,54 +1,39 @@
 # How Archer Markets works
 
-**One order trades one option covering one Stock Token.** Each option has its own
-contract and collateral. A book contains one stock/payment pair, call or put, strike
-and expiration. Prices use 0.01 increments in the payment token.
+Each option covers **one Stock Token**. Buying the option gives its holder a right,
+not the token itself. The holder decides whether to exercise before expiration;
+there is no automatic exercise.
 
-## Buy and sell
-
-Click an **ask to buy** or a **bid to sell**. The same ticket opens with that price.
-You can also choose Buy/Sell and enter a limit. Quantity is always 1.
-
-- **Buy:** pays the lowest eligible ask plus the execution fee, or reserves the limit
-  premium and maximum fee as an open bid.
-- **Sell new option:** deposits one stock token for a call, or the full strike payment
-  for a put. It receives the highest eligible bid, or rests as an ask.
-- **Matching:** the contract executes at the resting order's price. Equal prices use
-  oldest-first priority. One transaction fills at most one order; no partial fills.
-
-The displayed bid is the highest buy price; the ask is the lowest sell price. Counts
-combine all orders at that price. Click a strike to see other levels. If your order
-would trade with yourself or return an option to its writer, it reverts instead of
-skipping another order. No centralized service chooses or executes matches.
-
-The buyer fee is **0.01 payment tokens + 0.10% of the executed premium**. The seller
-receives the full premium. No fee is charged for an unexecuted ask, cancellation,
-exercise or collateral recovery. Canceling a bid returns both its premium and fee
-reserve. The recipient and fee parameters are immutable for each market.
-
-## Hold, resell, exercise
-
-Buying gives you the exercise right; it does not deliver stock yet. From **Portfolio**,
-choose **Sell owned option** to put that right into the same book. Its writer and
-collateral remain unchanged; the resale premium goes to the previous holder.
+Each option is a separate smart contract. A call holds the Stock Token its writer
+must deliver. A put holds the strike payment its writer must deliver. The holder
+provides the other asset when exercising.
 
 | Option | Holder delivers at exercise | Holder receives |
 | --- | --- | --- |
-| Call | Strike payment | 1 stock token |
-| Put | 1 stock token | Strike payment |
+| Call | Strike payment | 1 Stock Token |
+| Put | 1 Stock Token | Strike payment |
 
-Exercise is manual, any time **before expiration**, and requires funds, allowance and
-gas. A call at strike 300 with premium 10 and a 0.02 execution fee costs 310.02 in
-total if exercised. Premiums and execution fees already paid are not refundable.
+## Trading
 
-## Cancel or expire
+Select an ask to buy, a bid to sell, or enter your own limit. Each order is for
+one option. Matching happens onchain at the resting price; an unmatched order
+remains open until canceled or expiration. An owner can resell an active option
+without changing its writer or collateral.
 
-Open bids can be canceled for a full premium and reserved-fee refund. Unsold new asks return collateral;
-canceling a resale only removes its listing. Orders stop matching at option expiration.
-Afterwards buyers recover unspent bid funds and writers reclaim unused collateral
-with a transaction. Nothing automatically exercises or withdraws funds.
+A new seller deposits collateral when posting. A buyer reserves the limit premium
+plus the maximum trading fee for an open bid. At execution, the buyer pays the
+premium and a fee of **0.01 payment tokens + 0.10% of the premium**. The seller
+receives the full premium. Canceling an open bid returns the reserved funds.
 
-**Portfolio** shows balances, collateral, bids and positions. **Activity** shows this
-browser's submissions.
+## Exercise and expiration
+
+From Portfolio, the holder chooses Exercise and supplies the required token,
+approval and gas. The transaction must confirm before the contract deadline.
+Premium and trading fee are separate from the exercise payment and are not
+refunded.
+
+Unexercised rights expire. Writers reclaim unused collateral and buyers recover
+expired bid funds with their own transactions; neither withdrawal is automatic.
+Portfolio reads onchain positions. Activity shows submissions from this browser.
 
 [Local maker/taker walkthrough](demo.md)

@@ -338,10 +338,8 @@ footer { display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; 
 .position-detail-row > td > div { width:min(1600px,calc(100vw - 70px)); max-width:100%; }
 .inline-ticket { position:static; margin:0; max-height:none; box-shadow:none; border:0; border-radius:0; }
 .inline-ticket .review-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
-.docs-layout { display:grid; grid-template-columns:250px minmax(0,800px); gap:48px; align-items:start; }
-.docs-toc { display:flex; flex-direction:column; gap:16px; position:sticky; top:24px; padding:20px; border:1px solid var(--line); border-radius:7px; background:var(--panel); }
-.docs-toc a { color:var(--muted); text-decoration:none; font-size:15px; }
-.docs-toc a:hover { color:var(--accent); }
+.docs-layout { max-width:1000px; margin:0 auto; }
+.docs-back { margin-bottom:18px; }
 .docs-intro { color:var(--muted); font-size:18px; margin-bottom:28px; }
 .docs-content section { padding:0 0 28px; margin-bottom:28px; border-bottom:1px solid var(--line); }
 .docs-content h2 { scroll-margin-top:24px; margin-bottom:16px; }
@@ -391,7 +389,6 @@ footer { display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; 
 .resale-form .detail-actions { flex-wrap:wrap; }
 .ownership-history { padding:0; list-style:none; }
 .ownership-history li { display:flex; flex-wrap:wrap; align-items:center; gap:20px; padding:10px 0; border-bottom:1px solid var(--line); }
-.docs-toc { top:88px; }
 .docs-content h2 { scroll-margin-top:100px; }
 .docs-hero { border:1px solid var(--line); border-left:3px solid var(--accent); background:linear-gradient(120deg,var(--selected),var(--panel)); padding:28px; border-radius:8px; margin-bottom:28px; }
 .docs-hero h2 { font-size:28px; margin:12px 0; }
@@ -403,12 +400,18 @@ footer { display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; 
 .docs-content section { padding:24px; border:1px solid var(--line); background:var(--panel); border-radius:8px; }
 .docs-content section:has(#manual-exercise) { border-top:3px solid var(--warning); }
 .docs-content section:has(#resale) { border-top:3px solid var(--accent); }
+.docs-principles { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.docs-principles > div { padding:16px; border:1px solid var(--line); border-radius:6px; background:var(--paper); }
+.docs-principles strong { display:block; margin-bottom:8px; }
+.docs-principles p { color:var(--muted); line-height:1.5; }
+.docs-content .docs-comparison { margin:18px 0; }
 @media(max-width:1200px) {
   .quote-columns,.chain-offer { grid-template-columns:minmax(0,.85fr) minmax(0,1fr) minmax(0,1.1fr); }
   .resale-form { grid-template-columns:1fr 1fr; }
   .resale-form > div:first-child { grid-column:1/-1; }
 }
 @media(max-width:767px) {
+  .docs-principles { grid-template-columns:1fr; }
   .trade-sheet .review-grid { grid-template-columns:1fr; }
   .trade-sheet .detail,.trade-sheet .create-note { padding:14px; }
   .trade-sheet { height:52dvh!important; max-height:calc(100dvh - 155px)!important; }
@@ -439,8 +442,7 @@ footer { display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; 
   .market-list-items { display:flex; max-height:none; gap:8px; padding:4px 12px 12px; }
   .market-list-items button { width:240px; flex-shrink:0; }
   .market-list > p { display:none; }
-  .docs-layout { grid-template-columns:1fr; gap:24px; }
-  .docs-toc { position:static; }
+  .docs-layout { width:100%; }
 }
 @media(max-width:767px) {
   .tabs { gap:24px; }
