@@ -12,5 +12,9 @@ V4 market configuration. Trading stays disabled for any market without a valid d
 From the root: `npm test`, `npm run typecheck`, `npm --prefix web run lint`, `npm run build`.
 The isolated `npm run test:acceptance` also runs Anvil and browser flows.
 
+The scoped `miniflare → undici` override pins security patch `7.29.1` for
+[GHSA-3wwx-pv8p-q78v](https://github.com/advisories/GHSA-3wwx-pv8p-q78v).
+Remove it when the pinned Miniflare version itself requires a patched release.
+
 Railway staging follows the `staging` branch; production follows `main`. Merge
 frontend changes into `staging` by PR, then promote reviewed changes to `main` by PR.

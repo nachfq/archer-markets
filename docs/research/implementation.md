@@ -31,12 +31,33 @@ no document overflow, missing assets or browser errors, and exactly one active
 navigation item. The initial missing home navigation state was corrected and
 retested. The documentation has no client-side JavaScript.
 
-Dependency audit limitation: the unchanged `main` web lockfile reports one moderate
+Initial dependency audit limitation: the unchanged `main` web lockfile reported one moderate
 `undici` WebSocket advisory, propagated through four packages in the Cloudflare
-development-tool chain (GHSA-3wwx-pv8p-q78v). The existing CI audit threshold will
-fail until that dependency issue is addressed. No dependency upgrades, audit
-exceptions or CI bypasses are included in this cleanup.
+development-tool chain (GHSA-3wwx-pv8p-q78v). The existing CI audit threshold failed.
+The initial cleanup commit did not include dependency changes; the coordinator
+subsequently authorized the targeted correction below. No audit exception or CI
+bypass is used.
 
 GitHub Pages was enabled with `build_type=workflow` and HTTPS at
 https://nachfq.github.io/archer-markets/. No documentation deployment has run;
 the first publication is gated on merging this PR to `main`.
+
+## Targeted dependency security fix (2026-09-29)
+
+The coordinator authorized fixing the failing dependency audit in the same PR.
+GHSA-3wwx-pv8p-q78v entered the GitHub Advisory Database on September 28, 2026,
+after earlier checks had passed; the upstream advisory was published September 4.
+This explains a newly failing audit without a changed application lockfile.
+
+Pinned only Miniflare's `undici` dependency from `7.29.0` to patched `7.29.1`
+through a scoped npm override. The pinned Miniflare release requires exactly
+`7.29.0`, so a lockfile-only update would not satisfy it. The change avoids unrelated
+Cloudflare/Miniflare upgrades and documents when the override can be removed.
+The lockfile changes only that package's version, URL and integrity hash.
+No application source, contracts, chain configuration or audit threshold changed.
+
+A clean `npm --prefix web ci` installs `undici@7.29.1`; root and frontend audits
+report zero vulnerabilities. `npm test` passed (81 tests, optional RPC fork skipped),
+as did type checking, frontend lint, production build and the seven isolated browser
+scenarios. Generated ABIs remain unchanged. The complete acceptance and audit gates
+remain enabled in CI; no failing check is suppressed.
