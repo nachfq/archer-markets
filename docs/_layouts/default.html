@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="{{ page.description | default: site.description | escape }}">
+    <title>{{ page.title | escape }} · {{ site.title | escape }}</title>
+    <link rel="icon" type="image/png" href="{{ '/assets/archer-mark.png' | relative_url }}">
+    <link rel="stylesheet" href="{{ '/assets/style.css' | relative_url }}">
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Skip to content</a>
+    <header>
+      <a class="brand" href="{{ '/' | relative_url }}" aria-label="Archer Markets documentation home">
+        <img src="{{ '/assets/archer-mark.png' | relative_url }}" alt="" width="36" height="36">
+        <span>Archer Markets <small>Documentation</small></span>
+      </a>
+      <a class="app-link" href="https://archer-markets.up.railway.app/">Open app <span aria-hidden="true">↗</span></a>
+    </header>
+    <div class="page">
+      <nav aria-label="Documentation">
+        {% for item in site.navigation %}
+        <a href="{{ item.url | relative_url }}"{% if page.url == item.url %} aria-current="page"{% endif %}>{{ item.title }}</a>
+        {% endfor %}
+        <a href="https://github.com/nachfq/archer-markets/blob/main/packages/sdk/README.md">SDK reference <span aria-hidden="true">↗</span></a>
+      </nav>
+      <main id="content" tabindex="-1">
+        <article>{{ content }}</article>
+        <footer>Robinhood Chain Testnet · Test assets only · Unaudited contracts
+          <br><a href="https://github.com/nachfq/archer-markets">Source</a> ·
+          <a href="https://github.com/nachfq/archer-markets/blob/main/SECURITY.md">Security</a> ·
+          <a href="https://github.com/nachfq/archer-markets/blob/main/LICENSE">MIT License</a>
+        </footer>
+      </main>
+    </div>
+  </body>
+</html>

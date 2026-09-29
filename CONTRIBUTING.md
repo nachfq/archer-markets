@@ -33,3 +33,28 @@ mainnet deployment require a separate product decision.
 Document material implementation work and limitations in
 [`docs/research/implementation.md`](docs/research/implementation.md). A review is not
 an audit or evidence of public deployment.
+
+## Documentation
+
+Edit the Markdown pages in `docs/`; keep user instructions short and put development
+notes in `docs/research/`. GitHub Pages builds the same Markdown, without copying
+the research directory or maintaining a second set of product docs. The SDK reference
+stays in `packages/sdk/README.md`.
+
+The `Documentation` workflow checks each relevant PR and publishes only after a
+merge to `main`. Repository **Settings → Pages → Source** must be **GitHub Actions**.
+The site URL is https://nachfq.github.io/archer-markets/.
+
+To build locally with the same image as CI, from the repository root:
+
+```sh
+docker run --rm --user "$(id -u):$(id -g)" \
+  -e GITHUB_WORKSPACE=/workspace -e GITHUB_REPOSITORY=nachfq/archer-markets \
+  -e INPUT_SOURCE=docs -e INPUT_DESTINATION=_site \
+  -v "$PWD:/workspace" ghcr.io/actions/jekyll-build-pages:v1.0.13
+node scripts/check-docs.mjs
+```
+
+Serve `_site/` under `/archer-markets/` to preview the project's GitHub Pages base path.
+When adding a public page or asset, update `scripts/check-docs.mjs`'s explicit file
+list and the navigation in `docs/_config.yml`. Keep generated output out of Git.

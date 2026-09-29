@@ -13,10 +13,12 @@ oracle settlement, an AMM or centralized matching without a product decision.
 - Keep all repository content in English: documentation, UI copy, source comments,
   test descriptions, and durable agent instructions. Conversation with the human
   coordinator may remain in Spanish. Preserve technical identifiers and source URLs.
-- Preserve research documents and distinguish hypotheses, simulations, executed tests,
-  and public transactions. Never invent adoption, human validation, or deployment evidence.
-- The hosted website is a frontend deployment. Its current chain-46630 configuration
-  has no factory address; do not describe it as a funded contract demo. Local chain-31337
+- Preserve historical research in Git and distinguish hypotheses, simulations,
+  executed tests and public transactions. Never invent adoption, human validation,
+  or deployment evidence.
+- The hosted website is a frontend deployment. Check the committed deployment manifest
+  and dated testnet release record before making claims about configured markets;
+  hosting alone does not prove contract funding or execution. Local chain-31337
   deployments and synthetic-balance RPC forks are distinct forms of evidence.
 - For parallel work, assign concrete file ownership before editing. Use ABIs and
   deployment manifests as the integration boundary between contracts, scripts, and UI.

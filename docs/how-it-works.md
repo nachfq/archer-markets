@@ -1,3 +1,6 @@
+---
+title: How it works
+---
 # How Archer Markets works
 
 Each option covers **one Stock Token**. Buying the option gives its holder a right,

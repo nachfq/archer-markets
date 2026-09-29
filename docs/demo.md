@@ -1,3 +1,6 @@
+---
+title: Local development
+---
 # Try Archer Markets locally
 
 Use **anvil0** and **anvil1** in separate wallet/browser profiles. Both receive stock
@@ -91,4 +94,5 @@ Automated acceptance owns separate Docker nodes and does not reset this demo:
 npm run test:acceptance
 ```
 
-[How it works](how-it-works.md) · [Implementation evidence](research/implementation.md)
+[How it works](how-it-works.md) ·
+[SDK reference](https://github.com/nachfq/archer-markets/blob/main/packages/sdk/README.md)
