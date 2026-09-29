@@ -3,8 +3,8 @@
 React/TypeScript on Vite/vinext, using wagmi, viem and the [SDK](../packages/sdk/README.md).
 
 Follow the [local walkthrough](../docs/demo.md), then run `npm run dev:local` from the
-repository root. `npm run dev` selects Robinhood Chain Testnet, where trading is disabled
-until a valid deployment is configured.
+repository root. `npm run dev` selects Robinhood Chain Testnet using the committed
+V4 market configuration. Trading stays disabled for any market without a valid deployment.
 
 `VITE_CHAIN_ID` selects the chain at build time; restart/rebuild after changing it.
 `lib/generated/deployments.json` supplies public addresses. `npm run abi` updates the ABIs.

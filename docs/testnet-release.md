@@ -1,8 +1,22 @@
+---
+title: Testnet
+---
 # Robinhood Chain Testnet release
 
 Archer Markets V4 is deployed on Robinhood Chain Testnet (chain ID `46630`). This is
 a public testnet release using test assets with no monetary value. It is not a mainnet
 release, an audit, or evidence of production readiness.
+
+## Try it
+
+1. Open [Archer Markets](https://archer-markets.up.railway.app/) and connect your wallet
+   to Robinhood Chain Testnet.
+2. Get test ETH for gas and test tokens from the [faucets below](#test-funds).
+3. Choose a market and select an ask to buy, a bid to sell, or enter your own limit.
+4. Manage your option in Portfolio. Exercise is manual and must confirm before
+   expiration; buying alone does not deliver the Stock Token.
+
+Read [How it works](how-it-works.md) for collateral, fees and expiration rules.
 
 ## Release configuration
 
@@ -93,9 +107,6 @@ The testnet frontend is available at
 small Node.js service on Railway using `vinext start`; it has no database, persistent
 volume, backend signer or server-side private key. Wallet interactions remain in the
 browser and transactions are sent directly to Robinhood Chain Testnet.
-
-The Railway deployment was uploaded from the local workspace. Publishing the frontend
-does not require making the source repository public.
 
 ## Test funds
 

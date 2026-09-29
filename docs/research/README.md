@@ -1,19 +1,16 @@
-# Research and development records
+# Development records
 
-Background material, proposals and dated evidence. For current product behavior, read
-[How it works](../how-it-works.md); to try it, use the [local walkthrough](../demo.md).
-Historical conclusions and deployment statements apply to their recorded dates. V1–V3
-documents below are archived design and execution records, not supported product paths.
+Current product documentation starts at [the docs home](../index.md).
+New implementation work is recorded in [implementation.md](implementation.md).
+This directory is not published to GitHub Pages.
 
-- [V4 implementation, gas and limitations](implementation.md#v4--single-token-onchain-orderbook-2026-09-16)
-- [Archived V3 SDK reference](sdk-v3.md)
-- [Security review](security-review.md) · [Implementation history](implementation.md)
-- [Hackathon proposal](hackathon-readiness.md) · [Stylus assessment](stylus-assessment.md)
-- [Product roadmap](product-roadmap.md)
-- [Repository publication preflight](publication-preflight.md)
-- [Archived V3 buy-request design](buy-requests.md) · [Settlement research](expiration-and-settlement.md)
-- [Archived V2 local fixture](local-demo-v2.md)
-- [Original opportunity research](opportunity-research.md)
-- [Arbitrum signals](arbitrum-signals.md) · [Payments and RWA](payments-rwa.md)
-- [DeFi and agents](defi-agents.md) · [Privacy, consumer and tooling](privacy-consumer-devtools.md)
-- [Research contributions](contributions.md)
+## Historical archive
+
+Early opportunity research, completed plans, V1–V3 design notes, the September 16
+security review and older implementation/validation records were removed from the
+working tree with the coordinator's approval. They remain available in the
+[pre-cleanup Git snapshot](https://github.com/nachfq/archer-markets/tree/1f725fce813dadcf7b8f2c3934f2d6e15727517f/docs/research).
+
+These are dated records, not current product instructions. In particular, the old
+V3 security review is not an audit of V4. Public testnet transactions remain in the
+[testnet release record](../testnet-release.md).

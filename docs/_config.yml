@@ -1,0 +1,29 @@
+title: Archer Markets
+description: Fully collateralized Stock Token options on Robinhood Chain Testnet.
+url: https://nachfq.github.io
+baseurl: /archer-markets
+repository: nachfq/archer-markets
+theme: null
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+plugins:
+  - jekyll-relative-links
+exclude:
+  - research
+  - README.md
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+navigation:
+  - title: Overview
+    url: /
+  - title: How it works
+    url: /how-it-works.html
+  - title: Testnet
+    url: /testnet-release.html
+  - title: Local development
+    url: /demo.html

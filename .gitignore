@@ -21,3 +21,10 @@ packages/sdk/dist/
 *.tgz
 .qa-tmp-*/
 cache/
+
+# Static documentation and local media tooling caches.
+_site/
+.jekyll-cache/
+.jekyll-metadata
+__pycache__/
+*.pyc
